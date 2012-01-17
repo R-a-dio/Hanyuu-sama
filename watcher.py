@@ -5,6 +5,7 @@ import webcom as web
 import time
 import __main__
 import config
+from os import path
 
 def start_watcher():
 	global notifier
@@ -19,7 +20,7 @@ def parse_queue_file():
 	with web.MySQLCursor() as cur:
 		queue = []
 		timedur = 0
-		with open(config.watcher_path + '/queue.txt') as file:
+		with open(path.join(config.watcher_path, config.watcher_file)) as file:
 			djid = file.readline().strip()
 			if (djid != ''):
 				if (__main__.shout.djid == djid):
