@@ -1,6 +1,8 @@
-﻿import irclib
+ import irclib
 import re
 from threading import Thread
+
+#a comment
 
 DEBUG = True
 #debug = open("debug.log", 'wb')
