@@ -231,7 +231,7 @@ class StreamInstance(Thread):
 							self.newmeta = fix_encoding(meta)
 						else:
 							self.newmeta = u''
-            self.newmeta = self.newmeta.strip()
+						self.newmeta = self.newmeta.strip()
 						if (meta == 'fallback'):
 							break
 						if (self.digest != self.__get_hash(self.newmeta)):
@@ -331,7 +331,7 @@ class StreamInstance(Thread):
 			self.current = fix_encoding(meta)
 		else:
 			self.current = u''
-    self.current = self.current.strip()
+		self.current = self.current.strip()
 		#print self.current
 		#print type(self.current)
 		self.__acquire_data()
