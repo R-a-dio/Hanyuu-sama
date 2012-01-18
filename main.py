@@ -111,14 +111,14 @@ def external_request(environ, start_response):
 					canrequest_song = True
 				
 				if cur.rowcount >= 1:
-                                        try:
-                                                lptime = int(time.mktime(time.strptime(str(cur.fetchone()["lastplayed"]), "%Y-%m-%d %H:%M:%S" )))
-                                        except:
-                                                lptime = 0
-                                else:
-                                        lptime = now
-                                if now - lptime > 3600 * 8:
-                                        canrequest_song = canrequest_song and True
+					try:
+						lptime = int(time.mktime(time.strptime(str(cur.fetchone()["lastplayed"]), "%Y-%m-%d %H:%M:%S" )))
+					except:
+						lptime = 0
+				else:
+					lptime = now
+				if now - lptime > 3600 * 8:
+					canrequest_song = canrequest_song and True
 
 				
 				if not canrequest_ip or not canrequest_song:
