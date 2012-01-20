@@ -19,16 +19,14 @@ def stop_watcher():
 def parse_queue_file():
 	with web.MySQLCursor() as cur:
 		queue = []
-		timedur = 0
+		remaining = 0
 		with open(path.join(config.watcher_path, config.watcher_file)) as file:
 			djid = file.readline().strip()
+			firstline = file.readline().strip()
+					
+			remaining = int(firstline)
 			if (djid != ''):
-				if (__main__.shout.djid == djid):
-					firstline = file.readline().strip()
-					
-					timedur = int(firstline)
-					timedur = timedur + int(time.time())
-					
+				if (__main__.shout.djid == djid):					
 					for line in file:
 						line = line.strip()
 						if line == "":
@@ -45,7 +43,7 @@ def parse_queue_file():
 						queue.append((stime, song))
 		print queue
 		if (len(queue) > 0):
-			web.send_queue(timedur, queue)
+			web.send_queue(remaining, queue)
 			
 class handler(pi.ProcessEvent):
 	def process_IN_MODIFY(self, event):
