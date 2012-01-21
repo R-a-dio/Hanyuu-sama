@@ -253,7 +253,7 @@ def get_mountstatus(mount="/{0}".format(icecast_mountpoint)):
 	except:
 		return False
 
-def get_faves(nick):
+def get_favelist(nick):
 	"""Return list of titles that are faved"""
 	with MySQLCursor as cur:
 		meta = []
@@ -276,12 +276,15 @@ def get_hash(digest):
 	global hash_row_tracker
 	with MySQLCursor() as cur:
 		playcount = length = lastplayed = 0
+		songid = None
 		# Length first
-		query = "SELECT len FROM `esong` WHERE `hash`='{digest}';"
+		query = "SELECT id, len FROM `esong` WHERE `hash`='{digest}';"
 		cur.execute(query.format(digest=digest))
 		if (cur.rowcount > 0):
 			hash_row_tracker.update({digest:True})
-			length = cur.fetchone()['len']
+			result = cur.fetchone()
+			songid = result['id']
+			length = result['len']
 			# last played
 			query = "SELECT unix_timestamp(`dt`) AS ut FROM eplay,esong WHERE eplay.isong = esong.id AND esong.hash = '{digest}' ORDER BY `dt` DESC LIMIT 1;"
 			cur.execute(query.format(digest=digest))
@@ -292,7 +295,7 @@ def get_hash(digest):
 			playcount = cur.fetchone()['playcount']
 		else:
 			hash_row_tracker.update({digest:False})
-		return (playcount, length, lastplayed)
+		return (songid, playcount, length, lastplayed)
 		
 def send_hash(digest, title, length, lastplayed):
 	global hash_row_tracker
@@ -325,6 +328,16 @@ def get_curthread():
 		cur.execute(query)
 		return cur.fetchone()['value']
 
+def get_faves(digest):
+	"""Return a list of nicknames that have 'digest' favorited"""
+	with MySQLCursor() as cur:
+		cur.execute("SELECT enick.nick FROM esong JOIN efave ON efave.isong \
+					= esong.id JOIN enick ON efave.inick = enick.id WHERE esong.hash \
+			 			= '{digest}'".format(digest=digest))
+		faves = []
+		for result in cur:
+			faves.append(result['nick'])
+		return faves
 def count_fave(songid):
 	"""Return the amount of favorites for 'songid'"""
 	with MySQLCursor() as cur:

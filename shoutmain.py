@@ -373,7 +373,7 @@ class StreamInstance(Thread):
 		"""
 		self.digest = self.__get_hash(self.current)
 		
-		self.playcount, self.length, self.lp = webcom.get_hash(self.digest)
+		self.songid, self.playcount, self.length, self.lp = webcom.get_hash(self.digest)
 		
 	def __start_track(self):
 		"""Initialize stuff for the new track"""
