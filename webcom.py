@@ -271,13 +271,11 @@ def get_hash(digest):
 		playcount int (count)
 		length int (seconds)
 		lastplayed int (unixtime)
-		fave list (nicks)
 	
 	"""
-	global hash_row_tracker, hash_faves
+	global hash_row_tracker
 	with MySQLCursor() as cur:
 		playcount = length = lastplayed = 0
-		fave = []
 		# Length first
 		query = "SELECT len FROM `esong` WHERE `hash`='{digest}';"
 		cur.execute(query.format(digest=digest))
@@ -292,18 +290,12 @@ def get_hash(digest):
 			query = "SELECT count(*) playcount FROM eplay,esong where eplay.isong = esong.id AND esong.hash = '{digest}';"
 			cur.execute(query.format(digest=digest))
 			playcount = cur.fetchone()['playcount']
-			# faves
-			query = "SELECT enick.nick FROM enick,efave,esong WHERE enick.id = efave.inick AND efave.isong = esong.id AND esong.hash = '{digest}';"
-			cur.execute(query.format(digest=digest))
-			for result in cur:
-				fave.append(result['nick'])
 		else:
 			hash_row_tracker.update({digest:False})
-		hash_faves = list(fave)
-		return (playcount, length, lastplayed, fave)
+		return (playcount, length, lastplayed)
 		
-def send_hash(digest, title, length, lastplayed, fave):
-	global hash_row_tracker, hash_faves
+def send_hash(digest, title, length, lastplayed):
+	global hash_row_tracker
 	if (digest not in hash_row_tracker):
 		return
 	else:
@@ -319,21 +311,6 @@ def send_hash(digest, title, length, lastplayed, fave):
 			
 			# last played
 			cur.execute("INSERT INTO eplay VALUES('', {songid}, FROM_UNIXTIME({lp}));".format(songid=songid, lp=lastplayed))
-			print fave
-			print hash_faves
-			for nick in fave:
-				print nick
-				if (nick not in hash_faves):
-					nick = mysql.escape_string(nick)
-					cur.execute("SELECT * FROM enick WHERE nick='{nick}';".format(nick=nick))
-					print cur.rowcount
-					if (cur.rowcount == 0):
-						cur.execute("INSERT INTO enick VALUES('', '{nick}', '', '');".format(nick=nick))
-						cur.execute("SELECT * FROM enick WHERE nick='{nick}';".format(nick=nick))
-						cur.execute("INSERT INTO efave VALUES('', {nickid}, {songid});".format(nickid=nickid, songid=songid))
-					elif (cur.rowcount == 1):
-						nickid = cur.fetchone()['id']
-						cur.execute("INSERT INTO efave VALUES('', {nickid}, {songid});".format(nickid=nickid, songid=songid))
 			del hash_row_tracker[digest]
 									
 def send_curthread(url):
@@ -348,9 +325,15 @@ def get_curthread():
 		cur.execute(query)
 		return cur.fetchone()['value']
 
+def count_fave(songid):
+	"""Return the amount of favorites for 'songid'"""
+	with MySQLCursor() as cur:
+		cur.execute("SELECT count(*) AS favecount FROM efave WHERE isong={songid}".format(songid=songid))
+		return cur.fetchone()['favecount']
+	
 def check_fave(nick, songid):
 	"""Check if specified nick has 'songid' favorited"""
-	with MySQLCursor as cur:
+	with MySQLCursor() as cur:
 		nick = mysql.escape_string(nick)
 		cur.execute("SELECT * FROM enick WHERE nick='{nick}';".format(nick=nick))
 		if (cur.rowcount == 0):
@@ -366,12 +349,13 @@ def add_fave(nick, songid):
 	"""Add specified 'nick' to the list for song 'songid'
 	in the 'efave' table
 	"""
-	with MySQLCursor as cur:
+	with MySQLCursor() as cur:
 		nick = mysql.escape_string(nick)
 		cur.execute("SELECT * FROM enick WHERE nick='{nick}';".format(nick=nick))
 		if (cur.rowcount == 0):
 			cur.execute("INSERT INTO enick (`nick`) VALUES('{nick}');".format(nick=nick))
-			cur.execute("SELECT * FROM enick WHERE nick='{nick}';".format(nick=nick))
+			cur.execute("SELECT * FROM enick WHERE nick='{nick}';".format(nick=nick))c
+			nickid = cur.fetchone()['id']
 			cur.execute("INSERT INTO efave (`inick`, `isong`) VALUES({nickid}, {songid});".format(nickid=nickid, songid=songid))
 		elif (cur.rowcount == 1):
 			nickid = cur.fetchone()['id']
