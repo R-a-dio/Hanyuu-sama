@@ -91,8 +91,7 @@ class StreamInstance(Thread):
 		self._end_time = 0
 		self.length = 0
 		self.playcount = 0
-		self.fave = []
-		self.fave_lock = Lock()
+		self.songid = None
 		self.digest = ''
 		self.lp = 0
 		self.digest = ''
@@ -459,7 +458,7 @@ class StreamInstance(Thread):
 		return unicode(self.playcount)
 		
 	def get_fave_count(self):
-		return unicode(len(self.fave))
+		return unicode(webcom.count_fave(self.songid))
 	
 	def get_lastplayed(self):
 		return self.__parse_lastplayed(self.lp)
