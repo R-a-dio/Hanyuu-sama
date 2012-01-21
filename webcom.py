@@ -395,3 +395,31 @@ def get_curthread():
 		query = "SELECT `value` FROM `radvars` WHERE `name`='curthread' LIMIT 1;"
 		cur.execute(query)
 		return cur.fetchone()['value']
+
+def add_fave(nick, songid):
+	"""Add specified 'nick' to the list for song 'songid'
+	in the 'efave' table
+	"""
+	with MySQLCursor as cur:
+		nick = mysql.escape_string(nick)
+		cur.execute("SELECT * FROM enick WHERE nick='{nick}';".format(nick=nick))
+		if (cur.rowcount == 0):
+			cur.execute("INSERT INTO enick (`nick`) VALUES('{nick}');".format(nick=nick))
+			cur.execute("SELECT * FROM enick WHERE nick='{nick}';".format(nick=nick))
+			cur.execute("INSERT INTO efave (`inick`, `isong`) VALUES({nickid}, {songid});".format(nickid=nickid, songid=songid))
+		elif (cur.rowcount == 1):
+			nickid = cur.fetchone()['id']
+			cur.execute("INSERT INTO efave (inick, isong) VALUES({nickid}, {songid});".format(nickid=nickid, songid=songid))
+		
+def del_fave(nick, songid):
+	"""Delete specified 'nick' from the list of favorites off 'songid'
+	"""
+	with MySQLCursor() as cur:
+		nick = mysql.escape_string(nick)
+		cur.execute("SELECT * FROM enick WHERE nick='{nick}';".format(nick=nick))
+		if (cur.rowcount == 0):
+			return
+		elif (cur.rowcount == 1):
+			nickid = cur.fetchone()['id']
+			cur.execute("DELETE FROM efave WHERE inick={nickid} AND isong={songid};".format(nickid=nickid, songid=songid))
+			
