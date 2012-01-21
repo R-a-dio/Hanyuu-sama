@@ -44,7 +44,7 @@ def parse_queue_file():
 		if (len(queue) > 0):
 			webcom.send_queue(remaining, queue)
 			
-class handler(object, pi.ProcessEvent):
+class handler(pi.ProcessEvent):
 	def process_IN_MODIFY(self, event):
 		if (event.name == 'queue.txt'):
 			parse_queue_file()
