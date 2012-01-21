@@ -33,10 +33,7 @@ class IRC(Thread):
 		"""
 		s = self.irc.server()
 		s.connect(server, port, nick)
-		if (nickpwd):
-			s.privmsg('nickserv', 'identify {pwd}'.format(pwd=nickpwd))
-		if (channels):
-			s.join(','.join(channels))
+		self.__attr = {"nickpwd": nickpwd, "channels": ",".join(channels)}
 		self.counter += 1
 		self.serverlist[self.counter] = s
 		self.servers[s] = Server(s)
@@ -184,7 +181,12 @@ class IRC(Thread):
 			conn.connect(conn.server, conn.port, conn.nickname, conn.password,
 					conn.username, conn.ircname, conn.localaddress,
 					conn.localport, conn._ssl, conn._ipv6)
-
+		elif (e == "endofmotd"):
+			if (self.__attr["nickpwd"]):
+				s.privmsg('nickserv', 'identify {pwd}'.format(pwd=self.__attr["nickpwd"]))
+			if (self.__attr["channels"]):
+				s.join(self.__attr["channels"])
+			del self.__attr
 class Server:
 	def __init__(self, conn):
 		self.connection = conn
