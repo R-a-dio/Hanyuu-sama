@@ -364,7 +364,7 @@ class StreamInstance(Thread):
 			
 		CALL BEFORE UPDATING MEMORY DATA
 		"""
-		webcom.send_hash(self.digest, self.current, self.length, self.lp, self.fave)
+		webcom.send_hash(self.digest, self.current, self.length, self.lp)
 		
 	def __acquire_data(self):
 		"""Acquire all data and save it in memory
@@ -373,16 +373,14 @@ class StreamInstance(Thread):
 		"""
 		self.digest = self.__get_hash(self.current)
 		
-		self.fave_lock.acquire()
-		self.playcount, self.length, self.lp, self.fave = webcom.get_hash(self.digest)
-		self.fave_lock.release()
+		self.playcount, self.length, self.lp = webcom.get_hash(self.digest)
 		
 	def __start_track(self):
 		"""Initialize stuff for the new track"""
 		self.playcount += 1
 		self._start_time = int(time.time())
 		self.first = False
-		main.irc_announce(self.fave)
+		main.irc_announce(webcom.get_faves(self.digest))
 		
 	def __finish_track(self):
 		"""Wrap up data"""
