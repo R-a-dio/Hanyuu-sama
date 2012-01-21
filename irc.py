@@ -33,10 +33,10 @@ class IRC(Thread):
 		"""
 		s = self.irc.server()
 		s.connect(server, port, nick)
-		self.__attr = {"nickpwd": nickpwd, "channels": ",".join(channels)}
 		self.counter += 1
 		self.serverlist[self.counter] = s
 		self.servers[s] = Server(s)
+		self.servers[s].__attr = {"nickpwd": nickpwd, "channels": ",".join(channels)}
 		self.start()
 		return self.counter
 	def isop(self, conn, channel, nick):
@@ -182,11 +182,12 @@ class IRC(Thread):
 					conn.username, conn.ircname, conn.localaddress,
 					conn.localport, conn._ssl, conn._ipv6)
 		elif (e == "endofmotd"):
-			if (self.__attr["nickpwd"]):
-				s.privmsg('nickserv', 'identify {pwd}'.format(pwd=self.__attr["nickpwd"]))
-			if (self.__attr["channels"]):
-				s.join(self.__attr["channels"])
-			del self.__attr
+			attr = data.__attr
+			if (attr["nickpwd"]):
+				conn.privmsg('nickserv', 'identify {pwd}'.format(pwd=attr["nickpwd"]))
+			if (attr["channels"]):
+				conn.join(attr["channels"])
+			del attr, data.__attr
 class Server:
 	def __init__(self, conn):
 		self.connection = conn
