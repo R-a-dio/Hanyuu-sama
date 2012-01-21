@@ -348,6 +348,20 @@ def get_curthread():
 		cur.execute(query)
 		return cur.fetchone()['value']
 
+def check_fave(nick, songid):
+	"""Check if specified nick has 'songid' favorited"""
+	with MySQLCursor as cur:
+		nick = mysql.escape_string(nick)
+		cur.execute("SELECT * FROM enick WHERE nick='{nick}';".format(nick=nick))
+		if (cur.rowcount == 0):
+			return False
+		else:
+			nickid = cur.fetchone()['id']
+			cur.execute("SELECT * FROM efave WHERE inick={nickid} AND isong={songid};".format(nickid=nickid, songid=songid))
+			if (cur.rowcount == 0):
+				return False
+			else:
+				return True
 def add_fave(nick, songid):
 	"""Add specified 'nick' to the list for song 'songid'
 	in the 'efave' table
