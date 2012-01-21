@@ -9,7 +9,7 @@ import re
 from hashlib import sha1
 import chardet
 import codecs
-import webcom as web
+import webcom
 import traceback
 import __main__
 import streamer
@@ -34,7 +34,7 @@ def web_update(instance):
 			ed_time = 0
 		else:
 			ed_time = instance._start_time + instance.length
-		web.send_nowplaying(np=instance.current, djid=instance.djid,
+		webcom.send_nowplaying(np=instance.current, djid=instance.djid,
 		listeners=instance.listeners, bitrate=instance.bitrate,
 		is_afk=instance.isafk(), st_time=instance._start_time,
 		ed_time=ed_time)
@@ -99,13 +99,13 @@ class StreamInstance(Thread):
 		
 		self._reconnect_counter = None
 		# fix lastplayed
-		web.fetch_lastplayed()
+		webcom.fetch_lastplayed()
 		# receiving DJid
 		try:
 			topic = main.irc.topic(main.irc.serverlist[main.irc_serverid], '#r/a/dio')
 			regex = re.compile(r"DJ:.*?\s(.*?)\s.*?http")
 			match = regex.search(topic)
-			self.djid = web.get_djid(__main__.get_dj(match.group(1)))
+			self.djid = webcom.get_djid(__main__.get_dj(match.group(1)))
 			if not self.djid:
 				self.djid = '0'
 			print("DJid: {0}".format(self.djid))
@@ -173,7 +173,7 @@ class StreamInstance(Thread):
 		
 	def _reconnect(self):
 		print("Reconnect: Trying reconnecting")
-		if (web.get_mountstatus()):
+		if (webcom.get_mountstatus()):
 			print("Reconnect: Found mountpoint")
 			self._reconnect_counter = None
 			self.connect()
@@ -228,7 +228,7 @@ class StreamInstance(Thread):
 							break
 						# Check if we reconnected or it is a new song
 						if (len(meta) > 0):
-							self.newmeta = fix_encoding(meta)
+							self.newmeta = webcom.fix_encoding(meta)
 						else:
 							self.newmeta = u''
 						self.newmeta = self.newmeta.strip()
@@ -258,7 +258,7 @@ class StreamInstance(Thread):
 		self.first = True
 		stream = streamer.instance(stream_login)
 		self.afkstreamer = stream
-		self.queue = web.SongQueue()
+		self.queue = webcom.SongQueue()
 		def set_irc():
 			def color(n=u''):
 				return unichr(3) + n
@@ -290,7 +290,7 @@ class StreamInstance(Thread):
 			print("AFK: Starting song: {0}".format(object.metadata()))
 		def afk_finishing_song(object):
 			self._songid = self.queue.pop()
-			self.file, meta = web.get_song(self._songid)
+			self.file, meta = webcom.get_song(self._songid)
 			self._next_length = song_length(self.file)
 			object.play(self.file, meta)
 			print("AFK: Finishing song")
@@ -308,7 +308,7 @@ class StreamInstance(Thread):
 		stream.add_handle('finish', afk_finish_song)
 		stream.add_handle('disconnect', afk_disconnect)
 		self._songid = self.queue.pop()
-		self.file, meta = web.get_song(self._songid)
+		self.file, meta = webcom.get_song(self._songid)
 		self._length = song_length(self.file)
 		self.__finish_track()
 		set_irc()
@@ -325,10 +325,10 @@ class StreamInstance(Thread):
 		if (not self.first):
 			self.__submit_data()
 		# Add last song to last played list
-		web.lastplayed.appendleft(self.current)
+		webcom.lastplayed.appendleft(self.current)
 		# Set current song data
 		if (len(meta) > 0):
-			self.current = fix_encoding(meta)
+			self.current = webcom.fix_encoding(meta)
 		else:
 			self.current = u''
 		self.current = self.current.strip()
@@ -364,7 +364,7 @@ class StreamInstance(Thread):
 			
 		CALL BEFORE UPDATING MEMORY DATA
 		"""
-		web.send_hash(self.digest, self.current, self.length, self.lp, self.fave)
+		webcom.send_hash(self.digest, self.current, self.length, self.lp, self.fave)
 		
 	def __acquire_data(self):
 		"""Acquire all data and save it in memory
@@ -374,7 +374,7 @@ class StreamInstance(Thread):
 		self.digest = self.__get_hash(self.current)
 		
 		self.fave_lock.acquire()
-		self.playcount, self.length, self.lp, self.fave = web.get_hash(self.digest)
+		self.playcount, self.length, self.lp, self.fave = webcom.get_hash(self.digest)
 		self.fave_lock.release()
 		
 	def __start_track(self):
@@ -429,7 +429,7 @@ class StreamInstance(Thread):
 					else:
 						ed_time = self._start_time + self.length
 					if (self.bitrate != '0') and (self.current != 'Placeholder'):
-						web.send_nowplaying(None, self.djid,
+						webcom.send_nowplaying(None, self.djid,
 						self.listeners, self.bitrate, self.isafk(),
 						self._start_time, ed_time)
 				time.sleep(10)
@@ -442,7 +442,7 @@ class StreamInstance(Thread):
 			return 1
 		return 0
 	def lastplayed(self):
-		return list(web.lastplayed)
+		return list(webcom.lastplayed)
 		
 	def nowplaying(self):
 		return self.current
