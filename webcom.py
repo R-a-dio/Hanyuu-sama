@@ -221,7 +221,7 @@ def get_djid(username=None):
 		with MySQLCursor() as cur:
 			cur.execute("SELECT `djid` FROM `streamstatus`")
 			djid = cur.fetchone()['djid']
-		return djid
+			return djid
 	with MySQLCursor() as cur:
 		username = mysql.escape_string(username)
 		query = "SELECT `djid` FROM `users` WHERE `user`='%s' LIMIT 1;" % (username)
