@@ -23,9 +23,9 @@ def parse_queue_file():
 		with open(path.join(config.watcher_path, config.watcher_file)) as file:
 			djid = file.readline().strip()
 			firstline = file.readline().strip()
-					
-			remaining = int(firstline)
+			
 			if (djid != ''):
+				remaining = int(firstline)
 				if (__main__.shout.djid == djid):					
 					for line in file:
 						line = line.strip()
