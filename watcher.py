@@ -1,9 +1,8 @@
 #!/usr/bin/python
 
 import pyinotify as pi
-import webcom as web
+import webcom
 import time
-import __main__
 import config
 from os import path
 
@@ -26,7 +25,8 @@ def parse_queue_file():
 			
 			if (djid != ''):
 				remaining = int(firstline)
-				if (__main__.shout.djid == djid):					
+				current_djid = webcom.get_djid()
+				if (current_djid == djid):
 					for line in file:
 						line = line.strip()
 						if line == "":
@@ -39,13 +39,13 @@ def parse_queue_file():
 						stime = int(line[:spacepos])
 						song = line[spacepos+1:]
 						
-						song = __main__.shoutmain.fix_encoding(song)
+						song = webcom.fix_encoding(song)
 						queue.append((stime, song))
 		print queue
 		if (len(queue) > 0):
-			web.send_queue(remaining, queue)
+			webcom.send_queue(remaining, queue)
 			
-class handler(pi.ProcessEvent):
+class handler(object, pi.ProcessEvent):
 	def process_IN_MODIFY(self, event):
 		if (event.name == 'queue.txt'):
 			parse_queue_file()
