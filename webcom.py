@@ -340,12 +340,16 @@ def get_faves(digest):
 		return faves
 def count_fave(songid):
 	"""Return the amount of favorites for 'songid'"""
+	if (not songid):
+		return 0
 	with MySQLCursor() as cur:
 		cur.execute("SELECT count(*) AS favecount FROM efave WHERE isong={songid}".format(songid=songid))
 		return cur.fetchone()['favecount']
 	
 def check_fave(nick, songid):
 	"""Check if specified nick has 'songid' favorited"""
+	if (not songid):
+		return False
 	with MySQLCursor() as cur:
 		nick = mysql.escape_string(nick)
 		cur.execute("SELECT * FROM enick WHERE nick='{nick}';".format(nick=nick))
@@ -362,12 +366,14 @@ def add_fave(nick, songid):
 	"""Add specified 'nick' to the list for song 'songid'
 	in the 'efave' table
 	"""
+	if (not songid):
+		return
 	with MySQLCursor() as cur:
 		nick = mysql.escape_string(nick)
 		cur.execute("SELECT * FROM enick WHERE nick='{nick}';".format(nick=nick))
 		if (cur.rowcount == 0):
 			cur.execute("INSERT INTO enick (`nick`) VALUES('{nick}');".format(nick=nick))
-			cur.execute("SELECT * FROM enick WHERE nick='{nick}';".format(nick=nick))c
+			cur.execute("SELECT * FROM enick WHERE nick='{nick}';".format(nick=nick))
 			nickid = cur.fetchone()['id']
 			cur.execute("INSERT INTO efave (`inick`, `isong`) VALUES({nickid}, {songid});".format(nickid=nickid, songid=songid))
 		elif (cur.rowcount == 1):
@@ -377,6 +383,8 @@ def add_fave(nick, songid):
 def del_fave(nick, songid):
 	"""Delete specified 'nick' from the list of favorites off 'songid'
 	"""
+	if (not songid):
+		return
 	with MySQLCursor() as cur:
 		nick = mysql.escape_string(nick)
 		cur.execute("SELECT * FROM enick WHERE nick='{nick}';".format(nick=nick))
