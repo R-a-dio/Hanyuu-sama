@@ -4,6 +4,7 @@ import pyinotify as pi
 import webcom
 import time
 import config
+import logging
 from os import path
 
 def start_watcher():
@@ -40,6 +41,8 @@ def parse_queue_file():
 					
 					song = webcom.fix_encoding(song)
 					queue.append((stime, song))
+			else:
+				logging.info("Queue discarded because djid does not match")
 	if (len(queue) > 0):
 		webcom.send_queue(remaining, queue)
 			
