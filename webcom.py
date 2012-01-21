@@ -302,29 +302,6 @@ def get_hash(digest):
 		hash_faves = list(fave)
 		return (playcount, length, lastplayed, fave)
 		
-def get_hash_old(digest):
-	"""Return playcount, length, lastplayed and favorites with hash"""
-	global hash_row_tracker
-	print(get_hash_new(digest))
-	with MySQLCursor() as cur:
-		playcount = length = lastplayed = 0
-		fave = []
-		cur.execute("SELECT * FROM `streamsongs` WHERE `hash`='%s' LIMIT 1;" % (digest))
-		if (cur.rowcount > 0):
-			hash_row_tracker.update({digest:True})
-			result = cur.fetchone()
-			playcount = result['playcount']
-			length = result['length']
-			lastplayed = result['lastplayed']
-			fave = result['fave']
-			if (fave == ''):
-				fave = []
-			else:
-				fave = fave.split('!')
-		else:
-			hash_row_tracker.update({digest:False})
-		return (playcount, length, lastplayed, fave)
-		
 def send_hash(digest, title, length, lastplayed, fave):
 	global hash_row_tracker, hash_faves
 	if (digest not in hash_row_tracker):
@@ -358,31 +335,6 @@ def send_hash(digest, title, length, lastplayed, fave):
 						nickid = cur.fetchone()['id']
 						cur.execute("INSERT INTO efave VALUES('', {nickid}, {songid});".format(nickid=nickid, songid=songid))
 			del hash_row_tracker[digest]
-			
-def send_hash_old(digest, title, playcount, length, lastplayed, fave):
-	global hash_row_tracker
-	print(send_hash_new(digest, title, length, lastplayed, fave))
-	with MySQLCursor() as cur:
-		if (digest not in hash_row_tracker):
-			return
-		else:
-			if (hash_row_tracker[digest]):
-				query = "UPDATE `streamsongs` SET `title`='{title}', \
-						`playcount`={playcount}, `length`={length}, `lastplayed`={lastplayed}, \
-						`fave`='{fave}' WHERE `hash`='{digest}';"
-			else:
-				query = "INSERT INTO `streamsongs` (`hash`, `title`, `playcount`,\
-						`length`, `lastplayed`, `fave`) VALUES \
-						('{digest}', '{title}', {playcount}, {length}, {lastplayed}, '{fave}');"
-			del hash_row_tracker[digest]
-			digest = mysql.escape_string(digest)
-			fave = mysql.escape_string("!".join(fave))
-			#exclamation mark bug fix
-			if(len(fave) > 0 and fave[:1] == "!"):
-				fave = fave[1:]
-			title = mysql.escape_string(codecs.getencoder('utf-8')(title, 'replace')[0])
-			cur.execute(query.format(digest=digest, title=title, fave=fave, playcount=playcount,\
-									length=length, lastplayed=lastplayed))
 									
 def send_curthread(url):
 	with MySQLCursor() as cur:
