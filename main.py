@@ -297,23 +297,19 @@ class AlternativeMainLoop(threading.Thread):
 		else:
 			conn.privmsg(channel, "Current DJ: {0}{1}".format(color('03'), self.current_dj))
 	def irc_favorite(self, conn, nick, channel, text):
-		if (not nick in shout.fave):
-			shout.fave_lock.acquire()
-			shout.fave.append(nick)
-			shout.fave_lock.release()
-			response = u"Added %s'%s'%s to your favorites." % (color('03'), shout.nowplaying(), color())
+		if (web.check_fave(nick, shout.songid)):
+			response = u"You already have {c3}'{np}'{c} favorited".format(c3=color('03'), np=shout.nowplaying(), c=color())
 		else:
-			response = u"You already have %s'%s'%s favorited." % (color('03'), shout.nowplaying(), color())
+			web.add_fave(nick, shout.songid)
+			response = u"Added {c3}'{np}'{c} to your favorites.".format(c3=color("03"), np=shout.nowplaying(), c=color())
 		conn.notice(nick, response)
 		
 	def irc_unfavorite(self, conn, nick, channel, text):
-		if (not nick in shout.fave):
-			response = u"You don't have %s'%s'%s in your favorites." % (color('03'), shout.nowplaying(), color())
+		if (web.check_fave(nick, shout.songid)):
+			web.del_fave(nick, shout.songid)
+			response = u"{c3}'{np}'{c} is removed from your favorites.".format(c3=color("03"), np=shout.nowplaying(), c=color())
 		else:
-			shout.fave_lock.acquire()
-			shout.fave.remove(nick)
-			shout.fave_lock.release()
-			response = u"%s'%s'%s is removed from your favorites." % (color('03'), shout.nowplaying(), color())
+			response = u"You don't have {c3}'{np}'{c} in your favorites.".format(c3=color("03"), np=shout.nowplaying(), c=color())
 		conn.notice(nick, response)
 	def irc_set_curthread(self, conn, nick, channel, text):
 		tokens = text.split(' ')
