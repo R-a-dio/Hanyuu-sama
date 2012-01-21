@@ -4,7 +4,6 @@ import pyinotify as pi
 import webcom
 import time
 import config
-import logger
 from os import path
 
 def start_watcher():
