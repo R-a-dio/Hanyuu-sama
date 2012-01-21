@@ -4,6 +4,7 @@ import pyinotify as pi
 import webcom
 import time
 import config
+import logger
 from os import path
 
 def start_watcher():
@@ -41,7 +42,6 @@ def parse_queue_file():
 						
 						song = webcom.fix_encoding(song)
 						queue.append((stime, song))
-		print queue
 		if (len(queue) > 0):
 			webcom.send_queue(remaining, queue)
 			

@@ -13,6 +13,14 @@ from config import music_directory, dbhost, dbuser, dbpassword as dbpass, dbtabl
 """Module to handle all communication with the website, all data directed to the website
 	should go through this module."""
 
+def fix_encoding(meta):
+	try:
+		try:
+			return unicode(meta, 'utf-8', 'strict')
+		except (UnicodeDecodeError):
+			return unicode(meta, 'shiftjis', 'replace')
+	except (TypeError):
+		return meta
 class MySQLCursor:
 	"""Return a connected MySQLdb cursor object"""
 	def __init__(self, cursortype=mysql.cursors.DictCursor):
@@ -28,11 +36,6 @@ class MySQLCursor:
 		self.conn.commit()
 		self.conn.close()
 		return
-def fetchgenerator(cursor):
-	fetch = cursor.fetchone()
-	while (fetch):
-		yield fetch
-		fetch = cursor.fetchone()
 		
 lastplayed = deque(["&nbsp;", "&nbsp;", "&nbsp;", "&nbsp;", "&nbsp;"], 5)
 def fetch_lastplayed():
@@ -208,14 +211,17 @@ class SongQueue:
 	def __get_requests(self):
 		with MySQLCursor() as cur:
 			cur.execute("SELECT trackid FROM `requests` ORDER BY `time` ASC;")
-			for row in fetchgenerator(cur):
+			for row in cur:
 				self.add_request(int(row['trackid']))
 			cur.execute("DELETE FROM `requests`;")
 djid = '0'
-def get_djid(username):
+def get_djid(username=None):
 	global djid
 	if (not username):
-		djid = '0'
+		with MySQLCursor() as cur:
+			cur.execute("SELECT `djid` FROM `streamstatus`")
+			djid = cur.fetchone()['djid']
+		return djid
 	with MySQLCursor() as cur:
 		username = mysql.escape_string(username)
 		query = "SELECT `djid` FROM `users` WHERE `user`='%s' LIMIT 1;" % (username)
@@ -253,7 +259,7 @@ def get_faves(nick):
 		meta = []
 		query = "SELECT esong.meta FROM enick,efave,esong WHERE enick.id = efave.inick AND efave.isong = esong.id AND enick.nick = '{nick}';"
 		cur.execute(query.format(nick=mysql.escape_string(nick)))
-		with fetchgenerator(cur) as result:
+		for result in cur:
 			meta.append(result['meta'])
 		return meta
 
