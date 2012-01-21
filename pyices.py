@@ -49,15 +49,19 @@ description - longer stream description
 		
 		Note: file-like object has to support 'object.read(size)'
 		"""
-
+		pass
+	
 	def queue(self):
 		"""Returns internal queue in format [(file, metadata), ...]"""
-
+		pass
+	
 	def bitrate(self):
 		"""Returns bitrate of current track, estimate and can be off"""
-
+		pass
+	
 	def metadata(self):
-		
+		pass
+	
 	def add_handle(self, event, handle, priority=0):
 		"""Adds a handler for 'event' to a method 'handle'
 		
@@ -88,40 +92,45 @@ description - longer stream description
 	def shutdown(self, force=False):
 		"""Stops streaming after finishing the current file, if force=True
 		the current file is interrupted"""
-
+		pass
+	
 	def __play(self, file, metadata):
 		"""Internal method"""
+		pass
+	
 	def __queue(self, file, metadata):
 		"""Internal method"""
+		pass
 	
 	def __set_attribute(self, attribute, value):
 		"""Internal method"""
-		
+		pass
+	
 	def __size(self, file):
 		"""Internal method"""
-
+		pass
 	def __ready_next(self, object):
 		"""Internal method"""
-		
+		pass
 	def __next(self, object):
 		"""Internal method"""
-				
+		pass
 	def __loadfile(self, f):
 		"""Internal method"""
-
+		pass
 	def __call(self, target):
 		"""Internal method"""
-	
+		pass
 	def __disconnect(self, object):
-		
+		pass
 	def run(self):
 		"""Internal method"""
-
+		pass
 	def __clean(self, method):
 		"""Internal method"""
-	
+		pass
 	def __shoutcheck(self, shouterr):
-
+		pass
 class AudioPCMVirtual(Thread):
 	"""Make several files look like a single PCMReader
 	
