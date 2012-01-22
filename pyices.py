@@ -3,7 +3,7 @@ import shout
 from collections import deque
 from time import sleep, time
 from threading import Thread, RLock
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 from multiprocessing.managers import BaseManager
 from os import mkfifo, remove, path, urandom
 from traceback import format_exc
@@ -146,7 +146,7 @@ class AudioPCMVirtual(Thread):
 		bits_per_sample:
 			The number of bits-per-sample in this audio stream as a positive integer.
 	"""
-	def __init__(self, filefunction, sample_rate=44100, channels=2, channel_mask=None,
+	def __init__(self, queue, sample_rate=44100, channels=2, channel_mask=None,
 				bits_per_sample=16):
 		Thread.__init__(self)
 		self.daemon = True
@@ -160,14 +160,14 @@ class AudioPCMVirtual(Thread):
 		self._available = False
 		self.current = 0.0
 		self.total = 0.0
-		self.next_file = filefunction
+		self._file_queue = queue
 		
 		self.start()
 	def run(self):
 		self._open_file()
 	def _open_file(self):
 		print "Opening a file"
-		audiofile = audiotools.open(self.next_file())
+		audiofile = audiotools.open(self._file_queue.get())
 		reader = audiotools.PCMConverter(audiofile.to_pcm(), self.sample_rate, self.channels, self.channel_mask, self.bits_per_sample)
 		frames = audiofile.total_frames()
 		self.reader = audiotools.PCMReaderProgress(reader, frames, self.progress_method)
@@ -209,7 +209,7 @@ class AudioFile(Thread):
 			mkfifo(self._temp_filename)
 		except OSError:
 			pass
-		self._file_queue = deque()
+		self._file_queue = Queue()
 		self._current_file = None
 		self.start()
 
@@ -219,7 +219,7 @@ class AudioFile(Thread):
 		print "Starting manager"
 		self._manager.start()
 		print "starting AudioPCMVirtual"
-		self._PCM = self._manager.AudioPCMVirtual(self._next_file)
+		self._PCM = self._manager.AudioPCMVirtual(self._file_queue)
 		print "done AudioPCMVirtual, starting CON"
 		self._CON = AudioMP3Converter(self._temp_filename, self._PCM)
 		print "done CON, starting file"
@@ -233,12 +233,7 @@ class AudioFile(Thread):
 		self._PCM.close()
 		self._CON.terminate()
 	def file(self, file):
-		self._file_queue.append(file)
-	def _next_file(self):
-		while (len(self._file_queue) == 0):
-			sleep(0.1)
-		self._current_file = self._file_queue.popleft()
-		return self._current_file
+		self._file_queue.put(file)
 	def progress(self):
 		try:
 			return 100.0 / self._PCM.total * self._PCM.current
