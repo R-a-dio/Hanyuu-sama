@@ -52,6 +52,7 @@ def search_tracks(search, limit=5):
 	with MySQLCursor() as cur:
 		search = search_replacer(search)
 		query = []
+		search = search.split(" ")
 		for item in search:
 			result = search_regex.sub("", item)
 			query.append("+" + result)
