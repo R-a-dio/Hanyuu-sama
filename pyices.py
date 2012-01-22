@@ -208,7 +208,7 @@ class AudioFile(Thread):
 		except OSError:
 			pass
 		self._file_queue = deque()
-		self._next_file, self._current_file = (None, None)
+		self._current_file = None
 		self.start()
 
 	def run(self):
