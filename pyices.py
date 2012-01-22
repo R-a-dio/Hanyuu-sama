@@ -3,7 +3,7 @@ import shout
 from collections import deque
 from time import sleep, time
 from threading import Thread, RLock
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, RLock
 from multiprocessing.managers import BaseManager
 from os import mkfifo, remove, path, urandom
 from traceback import format_exc
@@ -167,7 +167,15 @@ class AudioPCMVirtual(Thread):
 		self._open_file()
 	def _open_file(self):
 		print "Opening a file"
-		audiofile = audiotools.open(self._file_queue.get())
+		new_file = None
+		while (1):
+			try:
+				new_file = self._file_queue.popleft()
+			except (IndexError):
+				sleep(0.1)
+			else:
+				break
+		audiofile = audiotools.open(new_file)
 		reader = audiotools.PCMConverter(audiofile.to_pcm(), self.sample_rate, self.channels, self.channel_mask, self.bits_per_sample)
 		frames = audiofile.total_frames()
 		self.reader = audiotools.PCMReaderProgress(reader, frames, self.progress_method)
@@ -209,7 +217,7 @@ class AudioFile(Thread):
 			mkfifo(self._temp_filename)
 		except OSError:
 			pass
-		self._file_queue = Queue()
+		self._file_queue = deque()
 		self._current_file = None
 		self.start()
 
@@ -233,13 +241,12 @@ class AudioFile(Thread):
 		self._PCM.close()
 		self._CON.terminate()
 	def file(self, file):
-		self._file_queue.put(file)
+		self._file_queue.append(file)
 	def progress(self):
 		try:
 			return 100.0 / self._PCM.total * self._PCM.current
 		except (AttributeError):
 			return 0.0
-
 class AudioManager(BaseManager):
 	pass
 
