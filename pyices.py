@@ -165,7 +165,7 @@ class AudioPCMVirtual(Thread):
 		self.start()
 	def run(self):
 		self._open_file()
-	def _open_file(self):
+	def open_file(self):
 		print "Opening a file"
 		new_file = None
 		while (1):
@@ -198,7 +198,7 @@ class AudioPCMVirtual(Thread):
 		self.total = total
 		if (current >= total):
 			self._available = False
-			self._open_file()
+			self.open_file()
 class AudioMP3Converter(Process):
 	def __init__(self, filename, PCM):
 		Process.__init__(self)
@@ -228,6 +228,11 @@ class AudioFile(Thread):
 		self._manager.start()
 		print "starting AudioPCMVirtual"
 		self._PCM = self._manager.AudioPCMVirtual(self._file_queue)
+		self._PCM.channels = 2
+		self._PCM.sample_rate = 44100
+		self._PCM.channel_mask = None
+		self._PCM.bits_per_sample = 16
+		self._PCM._file_queue = self._file_queue
 		print "done AudioPCMVirtual, starting CON"
 		self._CON = AudioMP3Converter(self._temp_filename, self._PCM)
 		print "done CON, starting file"
