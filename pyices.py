@@ -3,7 +3,8 @@ import shout
 from collections import deque
 from time import sleep, time
 from threading import Thread, RLock
-from multiprocessing import Process, BaseManager
+from multiprocessing import Process
+from multiprocessing.managers import BaseManager
 from os import mkfifo, remove, path, urandom
 from traceback import format_exc
 import md5
