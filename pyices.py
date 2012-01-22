@@ -3,10 +3,9 @@ import shout
 from collections import deque
 from time import sleep, time
 from threading import Thread, RLock
-from multiprocessing import Process, Queue, RLock
-from multiprocessing.managers import BaseManager
 from os import mkfifo, remove, path, urandom
 from traceback import format_exc
+import logging
 import md5
 
 class instance(Thread):
@@ -132,10 +131,13 @@ description - longer stream description
 		pass
 	def __shoutcheck(self, shouterr):
 		pass
+	
 class AudioPCMVirtual(Thread):
 	"""Make several files look like a single PCMReader
 	
-		filefunction is a function that returns a filename to open next.
+		queue is a queue-like object that supports queue.popleft() that
+			raises IndexError if no item is available. AudioFile() uses
+			collections.deque
 		
 		sample_rate:
 			The sample rate of this audio stream, in Hz, as a positive integer.
@@ -144,7 +146,8 @@ class AudioPCMVirtual(Thread):
 		channel_mask:
 			The channel mask of this audio stream as a non-negative integer.
 		bits_per_sample:
-			The number of bits-per-sample in this audio stream as a positive integer.
+			The number of bits-per-sample in this audio stream as a
+			positive integer.
 	"""
 	def __init__(self, queue, sample_rate=44100, channels=2, channel_mask=None,
 				bits_per_sample=16):
@@ -153,7 +156,8 @@ class AudioPCMVirtual(Thread):
 		self.sample_rate = sample_rate
 		self.channels = channels
 		if (not channel_mask):
-			self.channel_mask = audiotools.ChannelMask.from_fields(front_left=True, front_right=True)
+			self.channel_mask = audiotools.ChannelMask\
+								.from_fields(front_left=True, front_right=True)
 		else:
 			self.channel_mask = channel_mask
 		self.bits_per_sample = bits_per_sample
@@ -161,12 +165,14 @@ class AudioPCMVirtual(Thread):
 		self.current = 0.0
 		self.total = 0.0
 		self._file_queue = queue
-		
+		self._active = True
+		self._terminated = False
 		self.start()
 	def run(self):
-		self._open_file()
+		self.open_file()
 	def open_file(self):
-		print "Opening a file"
+		logging.debug("Opening a file in AudioPCMVirtual({ident})"\
+					.format(ident=self.ident))
 		new_file = None
 		while (1):
 			try:
@@ -176,83 +182,112 @@ class AudioPCMVirtual(Thread):
 			else:
 				break
 		audiofile = audiotools.open(new_file)
-		reader = audiotools.PCMConverter(audiofile.to_pcm(), self.sample_rate, self.channels, self.channel_mask, self.bits_per_sample)
+		reader = audiotools.PCMConverter(audiofile.to_pcm(), self.sample_rate,
+										self.channels, self.channel_mask,
+										self.bits_per_sample)
 		frames = audiofile.total_frames()
-		self.reader = audiotools.PCMReaderProgress(reader, frames, self.progress_method)
+		self.reader = audiotools.PCMReaderProgress(reader, frames,
+												 self.progress_method)
 		self._available = True
 		
 	def read(self, bytes):
+		if (not self._active):
+			return ''
 		while (not self._available):
 			sleep(0.1)
 		read = self.reader.read(4096)
 		while (len(read) == 0):
 			sleep(0.1)
-		print read, len(read)
 		return read
 		
 	def close(self):
-		pass
-		
+		self._active = False
+		self.reader.close()
 	def progress_method(self, current, total):
+		"""internal method"""
 		self.current = current
 		self.total = total
 		if (current >= total):
-			self._available = False
-			self.open_file()
-class AudioMP3Converter(Process):
+			if (self._active):
+				self._available = False
+				self.open_file()
+class AudioMP3Converter(Thread):
+	"""Wrapper around audiotools.MP3Audio.from_pcm to run in a
+	separate thread"""
 	def __init__(self, filename, PCM):
-		Process.__init__(self)
+		Thread.__init__(self)
 		self.daemon = True
 		self.filename = filename
 		self.PCM = PCM
 		self.start()
 	def run(self):
-		audiotools.MP3Audio.from_pcm(self.filename, self.PCM)
-class AudioFile(Thread):
+		logging.debug("AudioMP3Converter({ident}) has started"\
+					.format(ident=self.ident))
+		try:
+			audiotools.MP3Audio.from_pcm(self.filename, self.PCM)
+		except (audiotools.InvalidMP3):
+			pass
+		logging.debug("AudioMP3Converter({ident}) has exited"\
+					.format(ident=self.ident))
+
+class AudioFile(object):
+	"""
+		Class that handles conversion of several input files to
+		a single big mp3 file kept in memory.
+		
+			methods:
+				read(bytes):
+					Reads maximum bytes from mp3 in memory, this is
+					rarely actually the amount of bytes specified.
+				add_file(filename):
+					Adds the filename to queue for converting, the
+					encoder waits if there are no files left to do.
+				close():
+					Cleans up the Class, afterwards calling read(bytes)
+					will return an empty string, progress() will return
+					0.0 and add_file(filename)
+					and close() do nothing.
+				progress():
+					returns the process of the current file in the
+					transcoder, the value is a float between 0 and 100.
+	"""
 	def __init__(self):
-		Thread.__init__(self)
-		self.daemon = True
-		self._temp_filename = path.join('/dev/shm/', '{temp}.mp3'.format(temp=md5.new(urandom(20)).hexdigest()))
+		self._temp_filename = path.join('/dev/shm/', '{temp}.mp3'\
+							.format(temp=md5.new(urandom(20)).hexdigest()))
 		try:
 			mkfifo(self._temp_filename)
 		except OSError:
 			pass
+		self._active = True
 		self._file_queue = deque()
-		self._current_file = None
-		self.start()
-
-	def run(self):
-		print "Creating manager"
-		self._manager = AudioManager()
-		print "Starting manager"
-		self._manager.start()
-		print "starting AudioPCMVirtual"
-		self._PCM = self._manager.AudioPCMVirtual(self._file_queue)
-		self._PCM.channels = 2
-		self._PCM.sample_rate = 44100
-		self._PCM.channel_mask = None
-		self._PCM.bits_per_sample = 16
-		self._PCM._file_queue = self._file_queue
-		print "done AudioPCMVirtual, starting CON"
+		self._PCM = AudioPCMVirtual(self._file_queue)
 		self._CON = AudioMP3Converter(self._temp_filename, self._PCM)
-		print "done CON, starting file"
 		self._file = open(self._temp_filename)
-		print "done file"
 	def read(self, bytes):
-		return self._file.read(bytes)
+		"""Read at most `bytes` from the finished file
+		most of the time won't return the actual bytes"""
+		if (self._active):
+			return self._file.read(bytes)
+		return ''
 	def close(self):
-		self._file.close()
-		remove(self._temp_filename)
-		self._PCM.close()
-		self._CON.terminate()
-	def file(self, file):
-		self._file_queue.append(file)
+		"""Will clean up the AudioFile object,
+		
+		does this by feeding a EOF to AudioMP3Converter and
+		removing all references to AudioPCMVirtual afterwards"""
+		if (self._active):
+			self._active = False
+			self._PCM.close()
+			self._file.read(16384)
+			self._file.close()
+			remove(self._temp_filename)
+	def add_file(self, file):
+		"""Add a file to the queue for transcoding"""
+		if (self._active):
+			self._file_queue.append(file)
 	def progress(self):
+		"""Returns the progress of encoding the current file
+		as a float in percentage"""
 		try:
 			return 100.0 / self._PCM.total * self._PCM.current
 		except (AttributeError):
 			return 0.0
-class AudioManager(BaseManager):
-	pass
-
-AudioManager.register("AudioPCMVirtual", AudioPCMVirtual)
