@@ -21,6 +21,14 @@ def fix_encoding(meta):
 			return unicode(meta, 'shiftjis', 'replace')
 	except (TypeError):
 		return meta
+def make_replacer(**replacements):
+	locator = re.compile('|'.join(re.escape(s) for s in replacements))
+	def _doreplace(mo):
+		return replacements[mo.group()]
+	def replace(s):
+		return locator.sub(_doreplace, s)
+	return replace
+
 class MySQLCursor:
 	"""Return a connected MySQLdb cursor object"""
 	def __init__(self, cursortype=mysql.cursors.DictCursor):
@@ -36,6 +44,33 @@ class MySQLCursor:
 		self.conn.commit()
 		self.conn.close()
 		return
+		
+search_replacer = make_replacer({r"\\": "", r"(": "", r")": "", r"*": ""})
+search_regex = re.compile(r"^[+\-<>~]")
+def search_tracks(search, limit=5):
+	query_raw = search
+	with MySQLCursor() as cur:
+		search = search_replacer(search)
+		query = []
+		for item in search:
+			result = search_regex.sub("", item)
+			query.append("+" + result)
+		query = query.join(" ")
+		try:
+			query = query.encode("utf-8")
+			query_raw = query_raw.encode("utf-8")
+		except (UnicodeEncodeError):
+			return []
+		cur.execute("SELECT * FROM `tracks` WHERE `usable`='1' AND MATCH \
+			(tags, artist, track, album) AGAINST ('{search_bin}' IN BOOLEAN MODE) \
+			ORDER BY `priority` DESC, MATCH (tags, artist, track, \
+			album) AGAINST ('{search_raw}') DESC;"\
+			.format(search_bin=mysql.escape_string(query),
+					search_raw=mysql.escape_string(query_raw)))
+		result = []
+		for row in cur:
+			result.append(row)
+		return result
 		
 lastplayed = deque(["&nbsp;", "&nbsp;", "&nbsp;", "&nbsp;", "&nbsp;"], 5)
 def fetch_lastplayed():
