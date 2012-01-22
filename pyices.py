@@ -219,7 +219,7 @@ class AudioFile(Thread):
 		print "Starting manager"
 		self._manager.start()
 		print "starting AudioPCMVirtual"
-		self._PCM = AudioManager.AudioPCMVirtual(self._next_file)
+		self._PCM = self._manager.AudioPCMVirtual(self._next_file)
 		print "done AudioPCMVirtual, starting CON"
 		self._CON = AudioMP3Converter(self._temp_filename, self._PCM)
 		print "done CON, starting file"
