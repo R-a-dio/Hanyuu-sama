@@ -3,7 +3,7 @@ import shout
 from collections import deque
 from time import sleep, time
 from threading import Thread, RLock
-from multiprocessing import Process, Queue
+from multiprocessing import Process, BaseManager
 from os import mkfifo, remove, path, urandom
 from traceback import format_exc
 import md5
@@ -157,7 +157,8 @@ class AudioPCMVirtual(Thread):
 			self.channel_mask = channel_mask
 		self.bits_per_sample = bits_per_sample
 		self._available = False
-		
+		self.current = 0.0
+		self.total = 0.0
 		self.next_file = filefunction
 		
 		self.start()
@@ -212,8 +213,12 @@ class AudioFile(Thread):
 		self.start()
 
 	def run(self):
+		print "Creating manager"
+		self._manager = AudioManager()
+		print "Starting manager"
+		self._manager.start()
 		print "starting AudioPCMVirtual"
-		self._PCM = AudioPCMVirtual(self._next_file)
+		self._PCM = AudioManager.AudioPCMVirtual(self._next_file)
 		print "done AudioPCMVirtual, starting CON"
 		self._CON = AudioMP3Converter(self._temp_filename, self._PCM)
 		print "done CON, starting file"
@@ -238,4 +243,8 @@ class AudioFile(Thread):
 			return 100.0 / self._PCM.total * self._PCM.current
 		except (AttributeError):
 			return 0.0
-		
+
+class AudioManager(BaseManager):
+	pass
+
+AudioManager.register("AudioPCMVirtual", AudioPCMVirtual)
