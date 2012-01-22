@@ -174,7 +174,7 @@ class AudioPCMVirtual(Thread):
 	def read(self, bytes):
 		while (not self._available):
 			sleep(0.1)
-		read = self.reader.read(bytes)
+		read = self.reader.read(4096)
 		while (len(read) == 0):
 			sleep(0.1)
 		print read, len(read)
