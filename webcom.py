@@ -45,7 +45,7 @@ class MySQLCursor:
 		self.conn.close()
 		return
 		
-search_replacer = make_replacer({r"\\": "", r"(": "", r")": "", r"*": ""})
+search_replacer = make_replacer(**{r"\\": "", r"(": "", r")": "", r"*": ""})
 search_regex = re.compile(r"^[+\-<>~]")
 def search_tracks(search, limit=5):
 	query_raw = search
