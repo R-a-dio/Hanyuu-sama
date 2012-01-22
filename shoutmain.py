@@ -294,6 +294,7 @@ class StreamInstance(Thread):
 			object.play(self.file, meta)
 			print("AFK: Finishing song")
 		def afk_finish_song(object):
+			self._accurate_songid = self._songid
 			self._length = self._next_length
 			self.queue.send_queue(self._length)
 			self.__finish_track()
@@ -307,6 +308,7 @@ class StreamInstance(Thread):
 		stream.add_handle('finish', afk_finish_song)
 		stream.add_handle('disconnect', afk_disconnect)
 		self._songid = self.queue.pop()
+		self._accurate_songid = self._songid
 		self.file, meta = webcom.get_song(self._songid)
 		self._length = song_length(self.file)
 		self.__finish_track()

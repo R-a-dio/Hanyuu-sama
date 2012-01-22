@@ -300,7 +300,10 @@ class AlternativeMainLoop(threading.Thread):
 		if (web.check_fave(nick, shout.songid)):
 			response = u"You already have {c3}'{np}'{c} favorited".format(c3=color('03'), np=shout.nowplaying(), c=color())
 		else:
-			web.add_fave(nick, shout.songid)
+			if (shout.isafk()):
+				web.add_fave(nick, shout.songid, shout._accurate_songid) #first esong.id, then tracks.id
+			else:
+				web.add_fave(nick, shout.songid)
 			response = u"Added {c3}'{np}'{c} to your favorites.".format(c3=color("03"), np=shout.nowplaying(), c=color())
 		conn.notice(nick, response)
 		

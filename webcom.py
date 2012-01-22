@@ -398,7 +398,7 @@ def check_fave(nick, songid):
 				return False
 			else:
 				return True
-def add_fave(nick, songid):
+def add_fave(nick, songid, trackid=None):
 	"""Add specified 'nick' to the list for song 'songid'
 	in the 'efave' table
 	"""
@@ -415,6 +415,8 @@ def add_fave(nick, songid):
 		elif (cur.rowcount == 1):
 			nickid = cur.fetchone()['id']
 			cur.execute("INSERT INTO efave (inick, isong) VALUES({nickid}, {songid});".format(nickid=nickid, songid=songid))
+		if (trackid):
+			cur.execute("UPDATE `tracks` SET `priority`=priority+2 WHERE `id`={trackid};".format(trackid=trackid))
 		
 def del_fave(nick, songid):
 	"""Delete specified 'nick' from the list of favorites off 'songid'
