@@ -55,7 +55,7 @@ def search_tracks(search, limit=5):
 		for item in search:
 			result = search_regex.sub("", item)
 			query.append("+" + result)
-		query = query.join(" ")
+		query = " ".join(query)
 		try:
 			query = query.encode("utf-8")
 			query_raw = query_raw.encode("utf-8")
