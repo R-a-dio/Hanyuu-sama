@@ -189,9 +189,9 @@ class AudioPCMVirtual(Thread):
 		if (current >= total):
 			self._available = False
 			self._open_file()
-class AudioMP3Converter(Thread):
+class AudioMP3Converter(Process):
 	def __init__(self, filename, PCM):
-		Thread.__init__(self)
+		Process.__init__(self)
 		self.daemon = True
 		self.filename = filename
 		self.PCM = PCM
@@ -220,11 +220,12 @@ class AudioFile(Thread):
 		self._file = open(self._temp_filename)
 		print "done file"
 	def read(self, bytes):
-		self._file.read(bytes)
+		return self._file.read(bytes)
 	def close(self):
 		self._file.close()
 		remove(self._temp_filename)
 		self._PCM.close()
+		self._CON.terminate()
 	def file(self, file):
 		self._file_queue.append(file)
 	def _next_file(self):
@@ -234,7 +235,7 @@ class AudioFile(Thread):
 		return self._current_file
 	def progress(self):
 		try:
-			return 100.0 / self.PCM.total * self.PCM.current
+			return 100.0 / self._PCM.total * self._PCM.current
 		except (AttributeError):
 			return 0.0
 		
