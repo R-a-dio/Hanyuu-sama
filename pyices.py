@@ -198,6 +198,10 @@ class AudioPCMVirtual(Thread):
 		read = self.reader.read(4096)
 		while (len(read) == 0):
 			sleep(0.1)
+			try:
+				read = self.reader.read(4096)
+			except:
+				break
 		return read
 		
 	def close(self):
