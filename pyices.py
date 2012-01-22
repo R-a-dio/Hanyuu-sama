@@ -213,19 +213,18 @@ class AudioFile(Thread):
 
 	def run(self):
 		print "starting AudioPCMVirtual"
-		self.PCM = AudioPCMVirtual(self._next_file)
+		self._PCM = AudioPCMVirtual(self._next_file)
 		print "done AudioPCMVirtual, starting CON"
-		self.CON = AudioMP3Converter(self._temp_filename, self.PCM)
+		self._CON = AudioMP3Converter(self._temp_filename, self._PCM)
 		print "done CON, starting file"
-		self.file = open(self._temp_filename)
+		self._file = open(self._temp_filename)
 		print "done file"
 	def read(self, bytes):
-		self.file.read(bytes)
+		self._file.read(bytes)
 	def close(self):
-		self.file.close()
+		self._file.close()
 		remove(self._temp_filename)
-		self.PCM.close()
-		self.CON.terminate()
+		self._PCM.close()
 	def file(self, file):
 		self._file_queue.append(file)
 	def _next_file(self):
