@@ -133,7 +133,7 @@ def external_request(environ, start_response):
 						cur.execute("UPDATE `requesttime` SET `time`=NOW() WHERE `ip`='%s';" % (environ["REMOTE_ADDR"]))
 					else:
 						cur.execute("INSERT INTO `requesttime` (`ip`) VALUES ('%s');" % (environ["REMOTE_ADDR"]))
-					cur.execute("UPDATE `tracks` SET `lastrequested`=NOW() WHERE `id`=%s;" % (songid))
+					cur.execute("UPDATE `tracks` SET `lastrequested`=NOW(), `priority`=priority+4 WHERE `id`=%s;" % (songid))
 					main.irc_request_announce(songid)
 					shout.queue.add_request(songid)
 					shout.queue.send_queue(shout.get_left())
