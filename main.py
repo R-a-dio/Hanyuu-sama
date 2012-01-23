@@ -361,8 +361,7 @@ class AlternativeMainLoop(threading.Thread):
 		if (self.irc.isop(conn, channel, nick)):
 			try:
 				shout.shut_afk_streamer(False)
-				message = u'AFK Streamer will disconnect after current \
-					track, use ".kill" to force disconnect.'
+				message = u'AFK Streamer will disconnect after current track, use ".kill" to force disconnect.'
 			except:
 				message = u"Something went wrong, please punch Wessie."
 				print format_exc()
