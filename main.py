@@ -53,7 +53,7 @@ class HanyuuHandlers:
 				call, info = handler
 				if (info['nick'] != nick) and (nick not in info['nick']) and (info['nick'] != '*'):
 					continue
-				if (info['channel'] != target) and (target not in info['channel']) and (info['nick'] != '*'):
+				if (info['channel'] != target) and (target not in info['channel']) and (info['channel'] != '*'):
 					continue
 				if (info['text'] != ''):
 					compiled = info['compiled']
