@@ -161,7 +161,6 @@ class AudioPCMVirtual(Thread):
 		else:
 			self.channel_mask = channel_mask
 		self.bits_per_sample = bits_per_sample
-		self._available = False
 		self.current = 0.0
 		self.total = 0.0
 		self._file_queue = queue
@@ -170,25 +169,41 @@ class AudioPCMVirtual(Thread):
 		self.start()
 	def run(self):
 		self.open_file()
-	def open_file(self):
-		logging.debug("Opening a file in AudioPCMVirtual({ident})"\
-					.format(ident=self.ident))
+	def get_new_file(self):
+		# First get a new file from the queue
 		new_file = None
+		new_audiofile = None
 		while (1):
 			try:
 				new_file = self._file_queue.popleft()
 			except (IndexError):
 				sleep(0.1)
 			else:
-				break
-		audiofile = audiotools.open(new_file)
+				# Try to open our new file
+				try:
+					new_audiofile = audiotools.open(new_file)
+				except (IOError):
+					logging.error("File cannot be opened at all ({file})"\
+								.format(file=new_file))
+				except (audiotools.UnsupportedFile):
+					logging.error("Unsupported file used ({file})"\
+								.format(file=new_file))
+				else:
+					# success we have a new file
+					logging.debug("Opened audio file ({file})"\
+								.format(file=new_file))
+					break
+		return new_audiofile
+	def open_file(self):
+		logging.debug("Opening a file in AudioPCMVirtual({ident})"\
+					.format(ident=self.ident))
+		audiofile = self.get_new_file()
 		reader = audiotools.PCMConverter(audiofile.to_pcm(), self.sample_rate,
 										self.channels, self.channel_mask,
 										self.bits_per_sample)
 		frames = audiofile.total_frames()
 		self.reader = audiotools.PCMReaderProgress(reader, frames,
 												 self.progress_method)
-		self._available = True
 		
 	def read(self, bytes):
 		if (not self._active):
@@ -196,12 +211,13 @@ class AudioPCMVirtual(Thread):
 		while (not self._available):
 			sleep(0.1)
 		read = self.reader.read(4096)
-		while (len(read) == 0):
-			sleep(0.1)
-			try:
+		if (len(read) == 0):
+			# call finish handler
+			self.open_file()
+			while (len(read) == 0):
+				sleep(0.1)
 				read = self.reader.read(4096)
-			except:
-				break
+			# call start handler
 		return read
 		
 	def close(self):
@@ -211,10 +227,9 @@ class AudioPCMVirtual(Thread):
 		"""internal method"""
 		self.current = current
 		self.total = total
-		if (current >= total):
-			if (self._active):
-				self._available = False
-				self.open_file()
+		if ((100.0 / total * current) >= 90.0):
+			#call finishing handler
+			pass
 class AudioMP3Converter(Thread):
 	"""Wrapper around audiotools.MP3Audio.from_pcm to run in a
 	separate thread"""
