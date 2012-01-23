@@ -321,7 +321,10 @@ class StreamInstance(Thread):
 		del self.afkstreamer
 		self.request = False
 		self.queue.clean_requests()
-		del self.queue, self.file, self._songid, self._length, self._next_length
+		try:
+			del self.queue, self.file, self._songid, self._length, self._next_length
+		except (AttributeError):
+			pass
 	def __meta_update(self, meta):
 		if (not self.first):
 			self.__submit_data()
@@ -427,7 +430,7 @@ class StreamInstance(Thread):
 						ed_time = 0
 					else:
 						ed_time = self._start_time + self.length
-					if (self.bitrate != '0') and (self.current != 'Placeholder'):
+					if (self.current != 'Placeholder'):
 						webcom.send_nowplaying(None, self.djid,
 						self.listeners, self.bitrate, self.isafk(),
 						self._start_time, ed_time)
