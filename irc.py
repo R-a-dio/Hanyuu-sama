@@ -187,7 +187,6 @@ class IRC(Thread):
 				conn.privmsg('nickserv', 'identify {pwd}'.format(pwd=attr["nickpwd"]))
 			if (attr["channels"]):
 				conn.join(attr["channels"])
-			del attr, data.__attr
 class Server:
 	def __init__(self, conn):
 		self.connection = conn
