@@ -197,12 +197,12 @@ class AlternativeMainLoop(threading.Thread):
 		self.start()
 	def _init_handlers(self):
 		print(u"Initializing IRC Handlers")
-		self.irc_handlers.add_global_handler(self.irc_np, 'on_text', text=r'[.!@]np.*')
-		self.irc_handlers.add_global_handler(self.irc_lp, 'on_text', text=r'[.!@]lp.*')
-		self.irc_handlers.add_global_handler(self.irc_queue, 'on_text', text=r'[.!@]q(ueue)?.*')
+		self.irc_handlers.add_global_handler(self.irc_np, 'on_text', text=r'[.!@]np')
+		self.irc_handlers.add_global_handler(self.irc_lp, 'on_text', text=r'[.!@]lp')
+		self.irc_handlers.add_global_handler(self.irc_queue, 'on_text', text=r'[.!@]q(ueue)?')
 		self.irc_handlers.add_global_handler(self.irc_dj, 'on_text', text=r'[.!@]dj.*')
-		self.irc_handlers.add_global_handler(self.irc_favorite, 'on_text', text=r'[.!@]fave.*')
-		self.irc_handlers.add_global_handler(self.irc_unfavorite, 'on_text', text=r'[.!@]unfave.*')
+		self.irc_handlers.add_global_handler(self.irc_favorite, 'on_text', text=r'[.!@]fave')
+		self.irc_handlers.add_global_handler(self.irc_unfavorite, 'on_text', text=r'[.!@]unfave')
 		self.irc_handlers.add_global_handler(self.irc_set_curthread, 'on_text', text=r'[.!@]thread(\s.*)?')
 		self.irc_handlers.add_global_handler(self.irc_topic, 'on_text', text=r'[.!@]topic(\s.*)?')
 		self.irc_handlers.add_global_handler(self.irc_kill_afk, 'on_text', text=r'[.!@]kill', nick=["Wessie", "Vin"])
@@ -253,7 +253,7 @@ class AlternativeMainLoop(threading.Thread):
 		conn.privmsg(channel, string)
 	def irc_queue(self, conn, nick, channel, text):
 		string = u"No queue at the moment (lazy Wessie)"
-		queue = shoutmain.web.queue
+		queue = shoutmain.webcom.queue
 		try:
 			if (len(queue) >= 5):
 				string = u"{0}Queue: {1}{3} {2}|{1} {4}{0} {2}|{1} {5} {2}|{1} {6} {2}|{1} {7}".format(color('3'),
