@@ -154,8 +154,6 @@ class AudioFile(object):
 					returns the process of the current file in the
 					transcoder, the value is a float between 0 and 100.
 	"""
-	converters = {'mp3': AudioMP3Converter, 'flac': AudioFlacConverter,
-				"vorbis": AudioVorbisConverter}
 	def __init__(self, format="mp3"):
 		if (not converters.has_key(format)):
 			raise UnsupportedFormat("{format} is not a valid format"\
@@ -279,7 +277,7 @@ class AudioPCMVirtual(Thread):
 		# First get a new file from the queue
 		new_file = None
 		new_audiofile = None
-		while (1):
+		while (self._active):
 			try:
 				new_file = self._file_queue.popleft()
 			except (IndexError):
@@ -305,6 +303,8 @@ class AudioPCMVirtual(Thread):
 		logging.debug("Opening a file in AudioPCMVirtual({ident})"\
 					.format(ident=self.ident))
 		audiofile = self.get_new_file()
+		if (audiofile == None):
+			return self.read
 		reader = audiotools.PCMConverter(audiofile.to_pcm(), self.sample_rate,
 										self.channels, self.channel_mask,
 										self.bits_per_sample)
@@ -313,10 +313,10 @@ class AudioPCMVirtual(Thread):
 												 self.progress_method)
 		
 	def read(self, bytes):
+		while ((not self.reader) and (self._active)):
+			sleep(0.1)
 		if (not self._active):
 			return ''
-		while (not self.reader):
-			sleep(0.1)
 		read = self.reader.read(4096)
 		if (len(read) == 0):
 			# call finish handler
@@ -331,7 +331,10 @@ class AudioPCMVirtual(Thread):
 		
 	def close(self):
 		self._active = False
-		self.reader.close()
+		try:
+			self.reader.close()
+		except (AttributeError):
+			pass
 	def progress_method(self, current, total):
 		"""internal method"""
 		self.current = current
@@ -355,9 +358,10 @@ class AudioPCMVirtual(Thread):
 		except:
 			logging.exception("AudioPCMVirtual(%(thread)d)")
 			
-class AudioMP3Converter(Thread):
-	"""Wrapper around audiotools.MP3Audio.from_pcm to run in a
-	separate thread"""
+class AudioConverter(Thread):
+	"""Generic wrapper around an audiotools.FORMAT.from_pcm function"""
+	format_class = audiotools.MP3Audio
+	format_invalid = audiotools.InvalidMP3
 	def __init__(self, filename, PCM):
 		Thread.__init__(self)
 		self.daemon = True
@@ -365,49 +369,32 @@ class AudioMP3Converter(Thread):
 		self.PCM = PCM
 		self.start()
 	def run(self):
-		logging.debug("AudioMP3Converter({ident}) has started"\
+		logging.debug("AudioConverter({ident}) has started"\
 					.format(ident=self.ident))
 		try:
-			audiotools.MP3Audio.from_pcm(self.filename, self.PCM)
-		except (audiotools.InvalidMP3):
+			self.format_class.from_pcm(self.filename, self.PCM)
+		except (self.format_invalid):
 			pass
-		logging.debug("AudioMP3Converter({ident}) has exited"\
+		logging.debug("AudioConverter({ident}) has exited"\
 					.format(ident=self.ident))
 		
-class AudioVorbisConverter(Thread):
+class AudioMP3Converter(AudioConverter):
+	"""Wrapper around audiotools.MP3Audio.from_pcm to run in a
+	separate thread"""
+	format_class = audiotools.MP3Audio
+	format_invalid = audiotools.InvalidMP3
+		
+class AudioVorbisConverter(AudioConverter):
 	"""Wrapper around audiotools.VorbisAudio.from_pcm to run in a
 	separate thread"""
-	def __init__(self, filename, PCM):
-		Thread.__init__(self)
-		self.daemon = True
-		self.filename = filename
-		self.PCM = PCM
-		self.start()
-	def run(self):
-		logging.debug("AudioVorbisConverter({ident}) has started"\
-					.format(ident=self.ident))
-		try:
-			audiotools.VorbisAudio.from_pcm(self.filename, self.PCM)
-		except (audiotools.InvalidVorbis):
-			pass
-		logging.debug("AudioVorbisConverter({ident}) has exited"\
-					.format(ident=self.ident))
+	format_class = audiotools.VorbisAudio
+	format_invalid = audiotools.InvalidVorbis
 		
 class AudioFlacConverter(Thread):
 	"""Wrapper around audiotools.FlacAudio.from_pcm to run in a
 	separate thread"""
-	def __init__(self, filename, PCM):
-		Thread.__init__(self)
-		self.daemon = True
-		self.filename = filename
-		self.PCM = PCM
-		self.start()
-	def run(self):
-		logging.debug("AudioFlacConverter({ident}) has started"\
-					.format(ident=self.ident))
-		try:
-			audiotools.FlacAudio.from_pcm(self.filename, self.PCM)
-		except (audiotools.InvalidFLAC):
-			pass
-		logging.debug("AudioFlacConverter({ident}) has exited"\
-					.format(ident=self.ident))
+	format_class = audiotools.FlacAudio
+	format_class = audiotools.InvalidFLAC
+
+converters = {'mp3': AudioMP3Converter, 'flac': AudioFlacConverter,
+				"vorbis": AudioVorbisConverter}
