@@ -65,9 +65,10 @@ def search_tracks(search, limit=5):
 		cur.execute("SELECT * FROM `tracks` WHERE `usable`='1' AND MATCH \
 			(tags, artist, track, album) AGAINST ('{search_bin}' IN BOOLEAN MODE) \
 			ORDER BY `priority` DESC, MATCH (tags, artist, track, \
-			album) AGAINST ('{search_raw}') DESC;"\
+			album) AGAINST ('{search_raw}') DESC LIMIT {limit};"\
 			.format(search_bin=mysql.escape_string(query),
-					search_raw=mysql.escape_string(query_raw)))
+					search_raw=mysql.escape_string(query_raw),
+					limit=limit))
 		result = []
 		for row in cur:
 			result.append(row)
@@ -293,7 +294,7 @@ def get_favelist(nick):
 	"""Return list of titles that are faved"""
 	with MySQLCursor as cur:
 		meta = []
-		query = "SELECT esong.meta FROM enick,efave,esong WHERE enick.id = efave.inick AND efave.isong = esong.id AND enick.nick = '{nick}';"
+		query = "SELECT esong.meta FROM enick,efave,esong WHERE enick.id = efave.inick AND efave.isong = esong.id AND lower(enick.nick) = lower('{nick}');"
 		cur.execute(query.format(nick=mysql.escape_string(nick)))
 		for result in cur:
 			meta.append(result['meta'])
