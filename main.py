@@ -395,14 +395,14 @@ class AlternativeMainLoop(threading.Thread):
 			if (query == None):
 				result_msg = u"Hauu~ you forgot to give me a query"
 			elif (favenick == None):
-				format_msgpart = "{c4}{metadata} {c3}({trackid}){c}"
+				msgpart = "{c4}{metadata} {c3}({trackid}){c}"
 				for row in web.search_tracks(query):
 					if (row['artist'] != u''):
 						meta = "{a} - {t}".format(a=row['artist'], t=row['track'])
 					else:
 						meta = row['track']
 					trackid = row['id']
-					result.append(format.msgpart(metadata=meta, trackid=trackid, **self.irc_colours))
+					result.append(msgpart.format(metadata=meta, trackid=trackid, **self.irc_colours))
 				result_msg = " | ".join(result)
 			else:
 				pass
