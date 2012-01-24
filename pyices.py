@@ -132,122 +132,6 @@ description - longer stream description
 	def __shoutcheck(self, shouterr):
 		pass
 	
-class AudioPCMVirtual(Thread):
-	"""Make several files look like a single PCMReader
-	
-		queue is a queue-like object that supports queue.popleft() that
-			raises IndexError if no item is available. AudioFile() uses
-			collections.deque
-		
-		sample_rate:
-			The sample rate of this audio stream, in Hz, as a positive integer.
-		channels:
-			The number of channels in this audio stream as a positive integer.
-		channel_mask:
-			The channel mask of this audio stream as a non-negative integer.
-		bits_per_sample:
-			The number of bits-per-sample in this audio stream as a
-			positive integer.
-	"""
-	def __init__(self, queue, sample_rate=44100, channels=2, channel_mask=None,
-				bits_per_sample=16):
-		Thread.__init__(self)
-		self.daemon = True
-		self.sample_rate = sample_rate
-		self.channels = channels
-		if (not channel_mask):
-			self.channel_mask = audiotools.ChannelMask\
-								.from_fields(front_left=True, front_right=True)
-		else:
-			self.channel_mask = channel_mask
-		self.bits_per_sample = bits_per_sample
-		self.current = 0.0
-		self.total = 0.0
-		self._file_queue = queue
-		self._active = True
-		self._terminated = False
-		self.start()
-	def run(self):
-		self.open_file()
-	def get_new_file(self):
-		# First get a new file from the queue
-		new_file = None
-		new_audiofile = None
-		while (1):
-			try:
-				new_file = self._file_queue.popleft()
-			except (IndexError):
-				sleep(0.1)
-			else:
-				# Try to open our new file
-				try:
-					new_audiofile = audiotools.open(new_file)
-				except (IOError):
-					logging.error("File cannot be opened at all ({file})"\
-								.format(file=new_file))
-				except (audiotools.UnsupportedFile):
-					logging.error("Unsupported file used ({file})"\
-								.format(file=new_file))
-				else:
-					# success we have a new file
-					logging.debug("Opened audio file ({file})"\
-								.format(file=new_file))
-					break
-		return new_audiofile
-	def open_file(self):
-		logging.debug("Opening a file in AudioPCMVirtual({ident})"\
-					.format(ident=self.ident))
-		audiofile = self.get_new_file()
-		reader = audiotools.PCMConverter(audiofile.to_pcm(), self.sample_rate,
-										self.channels, self.channel_mask,
-										self.bits_per_sample)
-		frames = audiofile.total_frames()
-		self.reader = audiotools.PCMReaderProgress(reader, frames,
-												 self.progress_method)
-		
-	def read(self, bytes):
-		if (not self._active):
-			return ''
-		while (not self._available):
-			sleep(0.1)
-		read = self.reader.read(4096)
-		if (len(read) == 0):
-			# call finish handler
-			self.open_file()
-			while (len(read) == 0):
-				sleep(0.1)
-				read = self.reader.read(4096)
-			# call start handler
-		return read
-		
-	def close(self):
-		self._active = False
-		self.reader.close()
-	def progress_method(self, current, total):
-		"""internal method"""
-		self.current = current
-		self.total = total
-		if ((100.0 / total * current) >= 90.0):
-			#call finishing handler
-			pass
-class AudioMP3Converter(Thread):
-	"""Wrapper around audiotools.MP3Audio.from_pcm to run in a
-	separate thread"""
-	def __init__(self, filename, PCM):
-		Thread.__init__(self)
-		self.daemon = True
-		self.filename = filename
-		self.PCM = PCM
-		self.start()
-	def run(self):
-		logging.debug("AudioMP3Converter({ident}) has started"\
-					.format(ident=self.ident))
-		try:
-			audiotools.MP3Audio.from_pcm(self.filename, self.PCM)
-		except (audiotools.InvalidMP3):
-			pass
-		logging.debug("AudioMP3Converter({ident}) has exited"\
-					.format(ident=self.ident))
 
 class AudioFile(object):
 	"""
@@ -270,8 +154,13 @@ class AudioFile(object):
 					returns the process of the current file in the
 					transcoder, the value is a float between 0 and 100.
 	"""
-	def __init__(self):
-		self._temp_filename = path.join('/dev/shm/', '{temp}.mp3'\
+	converters = {'mp3': AudioMP3Converter, 'flac': AudioFlacConverter,
+				"vorbis": AudioVorbisConverter}
+	def __init__(self, format="mp3"):
+		if (not converters.has_key(format)):
+			raise UnsupportedFormat("{format} is not a valid format"\
+								.format(format=format))
+		self._temp_filename = path.join('/dev/shm/', '{temp}.AudioFile'\
 							.format(temp=md5.new(urandom(20)).hexdigest()))
 		try:
 			mkfifo(self._temp_filename)
@@ -279,9 +168,40 @@ class AudioFile(object):
 			pass
 		self._active = True
 		self._file_queue = deque()
-		self._PCM = AudioPCMVirtual(self._file_queue)
-		self._CON = AudioMP3Converter(self._temp_filename, self._PCM)
+		self._handlers = {}
+		self._PCM = AudioPCMVirtual(self._handlers, self._file_queue)
+		self._CON = converters[format](self._temp_filename, self._PCM)
 		self._file = open(self._temp_filename)
+		
+	def add_handle(self, event, handle, priority=0):
+		"""Adds a handler for 'event' to a method 'handle'
+		
+		Event can be:
+			'start'		- Start of a song
+			
+			'finishing'	- Song is finishing, 90% of song is played
+			
+			'finish'	- Song finished
+		
+		Handle can be:
+			Any method that accepts one parameter, the
+			streamer.instance object.
+		"""
+		if (self._handlers.get(event)):
+			self._handlers[event].append((priority, handle))
+		else:
+			self._handlers.update({event: [(priority, handle)]})
+		self._handlers[event].sort(reverse=True)
+	def del_handle(self, event, handle, priority=0):
+		"""Deletes a handler for 'event' linked to method 'handle'
+		
+		See 'add_handle' for 'event' list
+		"""
+		if (self._handlers.get(event)):
+			try:
+				self._handlers[event].remove((priority, handle))
+			except ValueError:
+				pass
 	def read(self, bytes):
 		"""Read at most `bytes` from the finished file
 		most of the time won't return the actual bytes"""
@@ -310,3 +230,184 @@ class AudioFile(object):
 			return 100.0 / self._PCM.total * self._PCM.current
 		except (AttributeError):
 			return 0.0
+		
+class AudioPCMVirtual(Thread):
+	"""
+	
+	This class shouldn't be used by anything else than the AudioFile class
+	
+	Make several files look like a single PCMReader
+	
+		queue is a queue-like object that supports queue.popleft() that
+			raises IndexError if no item is available. AudioFile() uses
+			collections.deque
+		
+		sample_rate:
+			The sample rate of this audio stream, in Hz, as a positive integer.
+		channels:
+			The number of channels in this audio stream as a positive integer.
+		channel_mask:
+			The channel mask of this audio stream as a non-negative integer.
+		bits_per_sample:
+			The number of bits-per-sample in this audio stream as a
+			positive integer.
+	"""
+	def __init__(self, handlers, queue, sample_rate=44100, channels=2, channel_mask=None,
+				bits_per_sample=16):
+		Thread.__init__(self)
+		self.daemon = True
+		self.sample_rate = sample_rate
+		self._handlers = handlers
+		self.channels = channels
+		if (not channel_mask):
+			self.channel_mask = audiotools.ChannelMask\
+								.from_fields(front_left=True, front_right=True)
+		else:
+			self.channel_mask = channel_mask
+		self.bits_per_sample = bits_per_sample
+		self.current = 0.0
+		self.total = 0.0
+		self._file_queue = queue
+		self._active = True
+		self.reader = None
+		self.start()
+		
+	def run(self):
+		self.open_file()
+		self._call("start")
+	def get_new_file(self):
+		# First get a new file from the queue
+		new_file = None
+		new_audiofile = None
+		while (1):
+			try:
+				new_file = self._file_queue.popleft()
+			except (IndexError):
+				sleep(0.1)
+			else:
+				# Try to open our new file
+				try:
+					new_audiofile = audiotools.open(new_file)
+				except (IOError):
+					logging.error("File cannot be opened at all ({file})"\
+								.format(file=new_file))
+				except (audiotools.UnsupportedFile):
+					logging.error("Unsupported file used ({file})"\
+								.format(file=new_file))
+				else:
+					# success we have a new file
+					logging.debug("Opened audio file ({file})"\
+								.format(file=new_file))
+					break
+		return new_audiofile
+	def open_file(self):
+		self._track_finishing = True
+		logging.debug("Opening a file in AudioPCMVirtual({ident})"\
+					.format(ident=self.ident))
+		audiofile = self.get_new_file()
+		reader = audiotools.PCMConverter(audiofile.to_pcm(), self.sample_rate,
+										self.channels, self.channel_mask,
+										self.bits_per_sample)
+		frames = audiofile.total_frames()
+		self.reader = audiotools.PCMReaderProgress(reader, frames,
+												 self.progress_method)
+		
+	def read(self, bytes):
+		if (not self._active):
+			return ''
+		while (not self.reader):
+			sleep(0.1)
+		read = self.reader.read(4096)
+		if (len(read) == 0):
+			# call finish handler
+			self._call("finish")
+			self.open_file()
+			while (len(read) == 0):
+				sleep(0.1)
+				read = self.reader.read(4096)
+			# call start handler
+			self._call("start")
+		return read
+		
+	def close(self):
+		self._active = False
+		self.reader.close()
+	def progress_method(self, current, total):
+		"""internal method"""
+		self.current = current
+		self.total = total
+		if ((self._track_finishing) and ((100.0 / total * current) >= 90.0)):
+			self._call("finishing")
+			self._track_finishing = False
+	def _call(self, target):
+		"""Internal method"""
+		logging.debug("AudioPCMVirtual(%(thread)d) Calling handler: {target}".format(target=target))
+		try:
+			handles = self._handlers[target]
+			for h in handles:
+				try:
+					if (h[1](self) == 'UNHANDLE'):
+						del handles[h]
+				except:
+					logging.warning(format_exc())
+		except (KeyError):
+			logging.debug("AudioPCMVirtual(%(thread)d) No handler: {target}".format(target=target))
+		except:
+			logging.exception("AudioPCMVirtual(%(thread)d)")
+			
+class AudioMP3Converter(Thread):
+	"""Wrapper around audiotools.MP3Audio.from_pcm to run in a
+	separate thread"""
+	def __init__(self, filename, PCM):
+		Thread.__init__(self)
+		self.daemon = True
+		self.filename = filename
+		self.PCM = PCM
+		self.start()
+	def run(self):
+		logging.debug("AudioMP3Converter({ident}) has started"\
+					.format(ident=self.ident))
+		try:
+			audiotools.MP3Audio.from_pcm(self.filename, self.PCM)
+		except (audiotools.InvalidMP3):
+			pass
+		logging.debug("AudioMP3Converter({ident}) has exited"\
+					.format(ident=self.ident))
+		
+class AudioVorbisConverter(Thread):
+	"""Wrapper around audiotools.VorbisAudio.from_pcm to run in a
+	separate thread"""
+	def __init__(self, filename, PCM):
+		Thread.__init__(self)
+		self.daemon = True
+		self.filename = filename
+		self.PCM = PCM
+		self.start()
+	def run(self):
+		logging.debug("AudioVorbisConverter({ident}) has started"\
+					.format(ident=self.ident))
+		try:
+			audiotools.VorbisAudio.from_pcm(self.filename, self.PCM)
+		except (audiotools.InvalidVorbis):
+			pass
+		logging.debug("AudioVorbisConverter({ident}) has exited"\
+					.format(ident=self.ident))
+		
+class AudioFlacConverter(Thread):
+	"""Wrapper around audiotools.FlacAudio.from_pcm to run in a
+	separate thread"""
+	def __init__(self, filename, PCM):
+		Thread.__init__(self)
+		self.daemon = True
+		self.filename = filename
+		self.PCM = PCM
+		self.start()
+	def run(self):
+		logging.debug("AudioFlacConverter({ident}) has started"\
+					.format(ident=self.ident))
+		try:
+			audiotools.FlacAudio.from_pcm(self.filename, self.PCM)
+		except (audiotools.InvalidFLAC):
+			pass
+		logging.debug("AudioFlacConverter({ident}) has exited"\
+					.format(ident=self.ident))
