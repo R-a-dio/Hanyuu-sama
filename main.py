@@ -197,9 +197,9 @@ class AlternativeMainLoop(threading.Thread):
 		self.start()
 	def _init_handlers(self):
 		print(u"Initializing IRC Handlers")
-		self.irc_handlers.add_global_handler(self.irc_np, 'on_text', text=r'[.!@]np')
-		self.irc_handlers.add_global_handler(self.irc_lp, 'on_text', text=r'[.!@]lp')
-		self.irc_handlers.add_global_handler(self.irc_queue, 'on_text', text=r'[.!@]q(ueue)?')
+		self.irc_handlers.add_global_handler(self.irc_np, 'on_text', text=r'[.!@]np\s')
+		self.irc_handlers.add_global_handler(self.irc_lp, 'on_text', text=r'[.!@]lp\s')
+		self.irc_handlers.add_global_handler(self.irc_queue, 'on_text', text=r'[.!@]q(ueue)?\s')
 		self.irc_handlers.add_global_handler(self.irc_dj, 'on_text', text=r'[.!@]dj.*')
 		self.irc_handlers.add_global_handler(self.irc_favorite, 'on_text', text=r'[.!@]fave.*')
 		self.irc_handlers.add_global_handler(self.irc_unfavorite, 'on_text', text=r'[.!@]unfave.*')
@@ -208,6 +208,8 @@ class AlternativeMainLoop(threading.Thread):
 		self.irc_handlers.add_global_handler(self.irc_kill_afk, 'on_text', text=r'[.!@]kill', nick=["Wessie", "Vin"])
 		self.irc_handlers.add_global_handler(self.irc_shut_afk, 'on_text', text=r'[.!@]cleankill', channel=['#r/a/dio', '#r/a/dio-dev'])
 		self.irc_handlers.add_global_handler(self.irc_request_help, 'on_text', text=r'.*how.+request')
+		self.irc_handlers.add_global_handler(self.irc_search, 'on_text', text=r'[.!@]s(earch)?\s')
+		self.irc_handlers.add_global_handler(self.irc_request, 'on_text', text=r'[.!@]r(equest)?\s')
 	def _init_irc(self):
 		print(u"Initializing IRC")
 		self.irc_handlers = HanyuuHandlers()
@@ -225,10 +227,6 @@ class AlternativeMainLoop(threading.Thread):
 		while True:
 			self._check_irc()
 			time.sleep(60)
-			
-			
-			
-			
 	# IRC Responses and handler methods start name with 'irc_'
 	def irc_np(self, conn, nick, channel, text):
 		if (shout.active()):
@@ -295,24 +293,24 @@ class AlternativeMainLoop(threading.Thread):
 			else:
 				conn.notice(nick, "You don't have the necessary privileges to do this.")
 		else:
-			conn.privmsg(channel, "Current DJ: {0}{1}".format(color('03'), self.current_dj))
+			conn.privmsg(channel, "Current DJ: {c3}{dj}".format(dj=self.current_dj, **self.irc_colours))
 	def irc_favorite(self, conn, nick, channel, text):
 		if (web.check_fave(nick, shout.songid)):
-			response = u"You already have {c3}'{np}'{c} favorited".format(c3=color('03'), np=shout.nowplaying(), c=color())
+			response = u"You already have {c3}'{np}'{c} favorited".format(np=shout.nowplaying(), **self.irc_colours)
 		else:
 			if (shout.isafk()):
 				web.add_fave(nick, shout.songid, shout._accurate_songid) #first esong.id, then tracks.id
 			else:
 				web.add_fave(nick, shout.songid)
-			response = u"Added {c3}'{np}'{c} to your favorites.".format(c3=color("03"), np=shout.nowplaying(), c=color())
+			response = u"Added {c3}'{np}'{c} to your favorites.".format(np=shout.nowplaying(), **self.irc_colours)
 		conn.notice(nick, response)
 		
 	def irc_unfavorite(self, conn, nick, channel, text):
 		if (web.check_fave(nick, shout.songid)):
 			web.del_fave(nick, shout.songid)
-			response = u"{c3}'{np}'{c} is removed from your favorites.".format(c3=color("03"), np=shout.nowplaying(), c=color())
+			response = u"{c3}'{np}'{c} is removed from your favorites.".format(np=shout.nowplaying(), **self.irc_colours)
 		else:
-			response = u"You don't have {c3}'{np}'{c} in your favorites.".format(c3=color("03"), np=shout.nowplaying(), c=color())
+			response = u"You don't have {c3}'{np}'{c} in your favorites.".format(np=shout.nowplaying(), **self.irc_colours)
 		conn.notice(nick, response)
 	def irc_set_curthread(self, conn, nick, channel, text):
 		tokens = text.split(' ')
@@ -386,16 +384,48 @@ class AlternativeMainLoop(threading.Thread):
 			self.irc_server.privmsg("#r/a/dio", message)
 		except:
 			print "I'm broken with all the requests"
-	def irc_search(self, search):
-		pass
-	def irc_request(self, id):
+	def irc_search(self, conn, nick, channel, text):
+		if (not hasattr(self, "search_cache")):
+			self.search_cache = {}
+		match = re.match(r"^(?P<mode>[.!@])s(earch)?\s(?:@(?P<nick>.*?)\s)?(?P<query>.*)", text, re.I|re.U)
+		mode, favenick, query = match.group('mode', 'nick', 'query')
+		result = []
+		result_msg = u"Hauu~ you broke something inside of me ~desu"
+		try:
+			if (query == None):
+				result_msg = u"Hauu~ you forgot to give me a query"
+			elif (favenick == None):
+				format_msgpart = "{c4}{metadata} {c3}({trackid}){c}"
+				for row in web.search_tracks(query):
+					if (row['artist'] != u''):
+						meta = "{a} - {t}".format(a=row['artist'], t=row['title'])
+					else:
+						meta = row['title']
+					trackid = row['id']
+					result.append(format.msgpart(metadata=meta, trackid=trackid, **self.irc_colours))
+				result_msg = " | ".join(result)
+			else:
+				pass
+		except:
+			print(format_exc())
+		if (mode == "@"):
+			conn.privmsg(channel, result)
+		else:
+			conn.notice(nick, result)
+	def irc_request(self, conn, nick, channel, text):
 		pass
 	def irc_request_help(self, conn, nick, channel, text):
 		try:
-			message = u"{nick}: http://r-a-dio.com/search {c5}Thank you for listening to r/a/dio!".format(nick=nick, c5=color('05'))
+			message = u"{nick}: http://r-a-dio.com/search {c5}Thank you for listening to r/a/dio!".format(nick=nick, **self.irc_colours)
 			self.irc_server.privmsg(channel, message)
 		except:
 			print "Error in request help function"
+	irc_colours = {"c": u"\x03", "c1": u"\x0301", "c2": u"\x0302",
+				"c3": u"\x0303", "c4": u"\x0304", "c5": u"\x0305",
+				"c7": u"\x0306", "c7": u"\x0307", "c8": u"\x0308",
+				"c9": u"\x0309", "c10": u"\x0310", "c11": u"\x0311",
+				"c12": u"\x0312", "c13": u"\x0313", "c14": u"\x0314",
+				"c15": u"\x0315"}
 if __name__ == '__main__':
 	if (_profile_app):
 		import cProfile
