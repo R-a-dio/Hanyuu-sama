@@ -197,9 +197,9 @@ class AlternativeMainLoop(threading.Thread):
 		self.start()
 	def _init_handlers(self):
 		print(u"Initializing IRC Handlers")
-		self.irc_handlers.add_global_handler(self.irc_np, 'on_text', text=r'[.!@]np\s')
-		self.irc_handlers.add_global_handler(self.irc_lp, 'on_text', text=r'[.!@]lp\s')
-		self.irc_handlers.add_global_handler(self.irc_queue, 'on_text', text=r'[.!@]q(ueue)?\s')
+		self.irc_handlers.add_global_handler(self.irc_np, 'on_text', text=r'[.!@]np$')
+		self.irc_handlers.add_global_handler(self.irc_lp, 'on_text', text=r'[.!@]lp$')
+		self.irc_handlers.add_global_handler(self.irc_queue, 'on_text', text=r'[.!@]q(ueue)?$')
 		self.irc_handlers.add_global_handler(self.irc_dj, 'on_text', text=r'[.!@]dj.*')
 		self.irc_handlers.add_global_handler(self.irc_favorite, 'on_text', text=r'[.!@]fave.*')
 		self.irc_handlers.add_global_handler(self.irc_unfavorite, 'on_text', text=r'[.!@]unfave.*')
@@ -208,8 +208,8 @@ class AlternativeMainLoop(threading.Thread):
 		self.irc_handlers.add_global_handler(self.irc_kill_afk, 'on_text', text=r'[.!@]kill', nick=["Wessie", "Vin"])
 		self.irc_handlers.add_global_handler(self.irc_shut_afk, 'on_text', text=r'[.!@]cleankill', channel=['#r/a/dio', '#r/a/dio-dev'])
 		self.irc_handlers.add_global_handler(self.irc_request_help, 'on_text', text=r'.*how.+request')
-		self.irc_handlers.add_global_handler(self.irc_search, 'on_text', text=r'[.!@]s(earch)?\s')
-		self.irc_handlers.add_global_handler(self.irc_request, 'on_text', text=r'[.!@]r(equest)?\s')
+		self.irc_handlers.add_global_handler(self.irc_search, 'on_text', text=r'[.!@]s(earch)?\b')
+		self.irc_handlers.add_global_handler(self.irc_request, 'on_text', text=r'[.!@]r(equest)?\b')
 	def _init_irc(self):
 		print(u"Initializing IRC")
 		self.irc_handlers = HanyuuHandlers()
@@ -398,9 +398,9 @@ class AlternativeMainLoop(threading.Thread):
 				format_msgpart = "{c4}{metadata} {c3}({trackid}){c}"
 				for row in web.search_tracks(query):
 					if (row['artist'] != u''):
-						meta = "{a} - {t}".format(a=row['artist'], t=row['title'])
+						meta = "{a} - {t}".format(a=row['artist'], t=row['track'])
 					else:
-						meta = row['title']
+						meta = row['track']
 					trackid = row['id']
 					result.append(format.msgpart(metadata=meta, trackid=trackid, **self.irc_colours))
 				result_msg = " | ".join(result)
@@ -409,9 +409,9 @@ class AlternativeMainLoop(threading.Thread):
 		except:
 			print(format_exc())
 		if (mode == "@"):
-			conn.privmsg(channel, result)
+			conn.privmsg(channel, result_msg)
 		else:
-			conn.notice(nick, result)
+			conn.notice(nick, result_msg)
 	def irc_request(self, conn, nick, channel, text):
 		pass
 	def irc_request_help(self, conn, nick, channel, text):
