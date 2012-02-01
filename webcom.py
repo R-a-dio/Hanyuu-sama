@@ -1,6 +1,7 @@
 ﻿#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+import streamstatus
 import codecs
 import MySQLdb as mysql
 import MySQLdb.cursors
@@ -274,7 +275,13 @@ def get_djid(username=None):
 	return djid
 	
 regex_mountstatus = re.compile(r"<td><h3>Mount Point (.*)</h3></td>")
-def get_mountstatus(mount="/{0}".format(icecast_mountpoint)):
+def get_mountstatus(mount=icecast_server):
+	result = streamstatus.get_status(mount)
+	if ("/main.mp3" in result):
+		return True
+	else:
+		return False
+"""def get_mountstatus(mount="/{0}".format(icecast_mountpoint)):
 	try:
 		req = urllib2.Request(icecast_server, headers={'User-Agent': 'Mozilla'})
 		c = urllib2.urlopen(req)
@@ -288,7 +295,7 @@ def get_mountstatus(mount="/{0}".format(icecast_mountpoint)):
 						return True
 		return False
 	except:
-		return False
+		return False"""
 
 def get_favelist(nick):
 	"""Return list of titles that are faved"""
