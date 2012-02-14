@@ -231,9 +231,9 @@ class AlternativeMainLoop(threading.Thread):
 	def irc_np(self, conn, nick, channel, text):
 		if (shout.active()):
 			try:
-				message = u"Now playing:%s '%s' %s[%s/%s](%s/200), %s faves, played %s time(s), %s" % (color('4'),
+				message = u"Now playing:%s '%s' %s[%s/%s](%s/%s), %s faves, played %s time(s), %s" % (color('4'),
 						shout.nowplaying(), color(),
-						shout.get_duration(), shout.get_length(), shout.listeners,
+						shout.get_duration(), shout.get_length(), shout.listeners, config.listener_max,
 						shout.get_fave_count(), shout.get_playcount(),
 						u'%sLP:%s %s' % (color('03'), color(), shout.get_lastplayed()))
 			except UnicodeDecodeError:
@@ -371,9 +371,9 @@ class AlternativeMainLoop(threading.Thread):
 			if (self.irc.inchannel(self.irc_server, "#r/a/dio", fave)):
 				self.irc_server.notice(fave, u"Fave: {0} is playing.".format(shout.current))
 		if (len(faves) > 0):
-			message = u"Now starting:%s '%s' %s[%s/%s](%s/200), %s faves, played %s time(s), %s" % (color('4'),
+			message = u"Now starting:%s '%s' %s[%s/%s](%s/%s), %s faves, played %s time(s), %s" % (color('4'),
 							shout.nowplaying(), color(),
-							shout.get_duration(), shout.get_length(), shout.listeners,
+							shout.get_duration(), shout.get_length(), shout.listeners, config.listener_max,
 							shout.get_fave_count(), shout.get_playcount(),
 							u'%sLP:%s %s' % (color('03'), color(), shout.get_lastplayed()))
 			self.irc_server.privmsg("#r/a/dio", message)
