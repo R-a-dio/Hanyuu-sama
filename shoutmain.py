@@ -15,6 +15,7 @@ import __main__
 import pyices as streamer
 from mutagen.mp3 import MP3
 import config
+import streamstatus
 
 shouturl = config.icecast_server + '/' + config.icecast_mountpoint
 radiourl = config.base_host
@@ -172,7 +173,8 @@ class StreamInstance(Thread):
 		
 	def _reconnect(self):
 		print("Reconnect: Trying reconnecting")
-		if (webcom.get_mountstatus()):
+		result = streamstatus.get_status(config.icecast_server)
+		if (config.icecast_mount in result):
 			print("Reconnect: Found mountpoint")
 			self._reconnect_counter = None
 			self.connect()
@@ -291,7 +293,7 @@ class StreamInstance(Thread):
 			self.__meta_update(object.metadata)
 			self.__start_track()
 			self.length = self._length
-			print("AFK: Starting song: {0}".format(object.metadata)
+			print("AFK: Starting song: {0}".format(object.metadata))
 		def afk_finishing_song(object):
 			self._songid = self.queue.pop()
 			self.file, meta = webcom.get_song(self._songid)
