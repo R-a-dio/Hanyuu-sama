@@ -323,7 +323,10 @@ class StreamInstance(Thread):
 		self.file, meta = webcom.get_song(self._songid)
 		self._length = song_length(self.file)
 		self.__finish_track()
-		set_irc()
+		try:
+			set_irc()
+		except (TypeError):
+			logging.debug("No motherfucking topic today")
 		stream.play(self.file, meta)
 		self.queue.send_queue(self._length)
 		while (self.afk_streaming):
