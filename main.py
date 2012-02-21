@@ -13,7 +13,8 @@ from traceback import format_exc
 import threading
 import config
 djfile = './dj.conf' # Where to get the list of DJs
-
+import logging
+logging.basicConfig(level=logging.DEBUG)
 handle = ''
 class HanyuuHandlers:
 	def __init__(self):

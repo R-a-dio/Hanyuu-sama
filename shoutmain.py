@@ -16,6 +16,7 @@ import pyices as streamer
 from mutagen.mp3 import MP3
 import config
 import streamstatus
+import logging
 
 shouturl = config.icecast_server + '/' + config.icecast_mountpoint
 radiourl = config.base_host
@@ -327,7 +328,7 @@ class StreamInstance(Thread):
 			set_irc()
 		except (TypeError):
 			logging.debug("No motherfucking topic today")
-		stream.play(self.file, meta)
+		stream.add_file(self.file, meta)
 		self.queue.send_queue(self._length)
 		while (self.afk_streaming):
 			time.sleep(0.5)
