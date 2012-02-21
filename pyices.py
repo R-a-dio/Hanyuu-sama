@@ -1,12 +1,17 @@
 ﻿import audiotools
-import shout
+import pylibshout
+libshout = pylibshout
 from collections import deque
 from time import sleep, time
 from threading import Thread, RLock
-from os import mkfifo, remove, path, urandom
+import os
+import fcntl
 from traceback import format_exc
 import logging
 import md5
+
+class UnsupportedFormat(Exception):
+	pass
 
 class instance(Thread):
 	"""Wrapper around shout.Shout
@@ -36,32 +41,88 @@ description - longer stream description
    dumpfile - file name to record stream to on server (not supported on
               all servers)
       agent - for customizing the HTTP user-agent header"""
+	attributes = {"protocol": "http", "format": "ogg"}
 	def __init__(self, attributes):
 		Thread.__init__(self)
-	
-	def play(self, file, metadata):
-		"""Checks if the player is idle or not, if idle, start playing
-		'file' with 'metadata' as tags, else queue 'file' with 'metadata'
-		
-		file  		- filename, open file object, file-like object
-		
-		metadata	- String containing the tags to send to server
-		
-		Note: file-like object has to support 'object.read(size)'
-		"""
-		pass
-	
-	def queue(self):
-		"""Returns internal queue in format [(file, metadata), ...]"""
-		pass
-	
-	def bitrate(self):
-		"""Returns bitrate of current track, estimate and can be off"""
-		pass
-	
+		self._meta_queue = []
+		self._file_queue = []
+		self._handlers = {}
+		self._shout = libshout.Shout()
+		self.daemon = 1
+		self.attributes.update(attributes)
+		for key, value in self.attributes.iteritems():
+			setattr(self._shout, key, value)
+		self.audiofile = AudioFile(self, format=self.attributes['format'])
+		self.add_handle("disconnect", self.on_disconnect, -20)
+		self.add_handle("start", self.on_start, -20)
+	def add_file(self, filename, metadata=None):
+		self._meta_queue.append(metadata)
+		self._file_queue.append(filename)
+		self.audiofile.add_file(filename)
+	@property
 	def metadata(self):
-		pass
-	
+		return self.attributes.get("metadata", u"")
+	def run(self):
+		"""Internal method"""
+		try:
+			logging.info("Opening connection to stream server")
+			self._shout.open()
+		except (libshout.ShoutException):
+			logging.exception("Could not connect to stream server")
+			self._call("disconnect")
+			return
+		while (True):
+			# Handle our metadata
+			if (self._send_metadata):
+				if (type(self._metadata) != str):
+					self._metadata = self._metadata.encode('utf-8', 'replace')
+				try:
+					logging.debug("Sending metadata: {meta}"\
+								.format(meta=self._metadata))
+					self._shout.metadata = {'song': self._metadata}
+				except (libshout.ShoutException):
+					self._call('disconnect')
+					logging.exception("Failed sending stream metadata")
+					break
+				self.attributes['metadata'] = self._metadata
+				self._send_metadata = False
+			buffer = self.audiofile.read(4096)
+			if (len(buffer) == 0):
+				self._call("disconnect")
+				logging.info("Stream buffer empty, breaking loop")
+				break
+			try:
+				self._shout.send(buffer)
+				self._shout.sync()
+			except (libshout.ShoutException):
+				self._call("disconnect")
+				logging.exception("Failed sending stream data")
+				break
+	def close(self):
+		self.on_disconnect(self.audiofile._PCM)
+	def on_disconnect(self, PCMVirtual):
+		self.audiofile.close()
+		try:
+			self._shout.close()
+		except (libshout.ShoutException):
+			pass
+	def on_start(self, PCMVirtual):
+		try:
+			self._filename = self._file_queue.pop(0)
+		except (IndexError):
+			self._filename = None
+		try:
+			self._metadata = self._meta_queue.pop(0)
+			if (self._metadata == None):
+				raise IndexError
+		except (IndexError):
+			self._metadata = u"No metadata available"
+		self._send_metadata = True
+		if (not self.is_alive()):
+			try:
+				self.start()
+			except (RuntimeError):
+				logging.exception("Tried to start Thread twice")
 	def add_handle(self, event, handle, priority=0):
 		"""Adds a handler for 'event' to a method 'handle'
 		
@@ -72,67 +133,48 @@ description - longer stream description
 			
 			'finish'	- Song finished
 		
+			'disconnect'- Server or Client disconnected
 		Handle can be:
 			Any method that accepts one parameter, the
 			streamer.instance object.
 		"""
-
+		if (event == "disconnect"):
+			if (self._handlers.get(event)):
+				self._handlers[event].append((priority, handle))
+			else:
+				self._handlers.update({event: [(priority, handle)]})
+			self._handlers[event].sort(reverse=True)
+		else:
+			self.audiofile.add_handle(event, handle, priority)
 	def del_handle(self, event, handle, priority=0):
 		"""Deletes a handler for 'event' linked to method 'handle'
 		
 		See 'add_handle' for 'event' list
 		"""
-
-	def connect(self):
-		pass
-		
-	def disconnect(self, force=False):
-		pass
-		
-	def shutdown(self, force=False):
-		"""Stops streaming after finishing the current file, if force=True
-		the current file is interrupted"""
-		pass
-	
-	def __play(self, file, metadata):
+		if (event == "disconnect"):
+			if (self._handlers.get(event)):
+				try:
+					self._handlers[event].remove((priority, handle))
+				except ValueError:
+					pass
+		else:
+			self.audiofile.del_handle(event, handle, priority)
+	def _call(self, target):
 		"""Internal method"""
-		pass
-	
-	def __queue(self, file, metadata):
-		"""Internal method"""
-		pass
-	
-	def __set_attribute(self, attribute, value):
-		"""Internal method"""
-		pass
-	
-	def __size(self, file):
-		"""Internal method"""
-		pass
-	def __ready_next(self, object):
-		"""Internal method"""
-		pass
-	def __next(self, object):
-		"""Internal method"""
-		pass
-	def __loadfile(self, f):
-		"""Internal method"""
-		pass
-	def __call(self, target):
-		"""Internal method"""
-		pass
-	def __disconnect(self, object):
-		pass
-	def run(self):
-		"""Internal method"""
-		pass
-	def __clean(self, method):
-		"""Internal method"""
-		pass
-	def __shoutcheck(self, shouterr):
-		pass
-	
-
+		logging.debug("instance Calling handler: {target}".format(target=target))
+		logging.debug(self._handlers)
+		try:
+			handles = self._handlers[target]
+			for h in handles:
+				try:
+					if (h[1](self) == 'UNHANDLE'):
+						del handles[h]
+				except:
+					logging.warning(format_exc())
+		except (KeyError):
+			logging.debug("instance No handler: {target}".format(target=target))
+		except:
+			logging.exception("instance")
 class AudioFile(object):
 	"""
 		Class that handles conversion of several input files to
@@ -154,23 +196,26 @@ class AudioFile(object):
 					returns the process of the current file in the
 					transcoder, the value is a float between 0 and 100.
 	"""
-	def __init__(self, format="mp3"):
+	def __init__(self, instance, format="mp3"):
 		if (not converters.has_key(format)):
 			raise UnsupportedFormat("{format} is not a valid format"\
 								.format(format=format))
-		self._temp_filename = path.join('/dev/shm/', '{temp}.AudioFile'\
-							.format(temp=md5.new(urandom(20)).hexdigest()))
+		self._temp_filename = os.path.join('/dev/shm/', '{temp}.AudioFile'\
+							.format(temp=md5.new(os.urandom(20)).hexdigest()))
 		try:
-			mkfifo(self._temp_filename)
+			os.mkfifo(self._temp_filename)
 		except OSError:
 			pass
+		self._read_lock = RLock()
 		self._active = True
 		self._file_queue = deque()
 		self._handlers = {}
-		self._PCM = AudioPCMVirtual(self._handlers, self._file_queue)
+		self._PCM = AudioPCMVirtual(instance, self._handlers, self._file_queue)
 		self._CON = converters[format](self._temp_filename, self._PCM)
-		self._file = open(self._temp_filename)
-		
+		self._file = open(self._temp_filename, "rb")
+		fd = self._file.fileno()
+		fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+		fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 	def add_handle(self, event, handle, priority=0):
 		"""Adds a handler for 'event' to a method 'handle'
 		
@@ -203,20 +248,42 @@ class AudioFile(object):
 	def read(self, bytes):
 		"""Read at most `bytes` from the finished file
 		most of the time won't return the actual bytes"""
-		if (self._active):
-			return self._file.read(bytes)
-		return ''
+		with (self._read_lock):
+			buffer = ''
+			while (self._active):
+				try:
+					buffer = self._file.read(bytes)
+				except (IOError) as (errno, strerror):
+					if (errno != 11):
+						logging.exception("IOError in AudioFile.read")
+						return ''
+					else:
+						pass
+				if (len(buffer) > 0):
+					return buffer
+				sleep(0.1)
+			return ''
 	def close(self):
 		"""Will clean up the AudioFile object,
 		
 		does this by feeding a EOF to AudioMP3Converter and
 		removing all references to AudioPCMVirtual afterwards"""
 		if (self._active):
+			logging.debug("Starting AudioFile cleanup")
 			self._active = False
+			logging.debug("Calling close on VirtualPCMReader")
 			self._PCM.close()
-			self._file.read(16384)
-			self._file.close()
-			remove(self._temp_filename)
+			logging.debug("Waiting for lock")
+			with (self._read_lock):
+				logging.debug("Reading from FIFO to EOF Converter")
+				try:
+					self._file.read(16384)
+				except (IOError):
+					pass
+				logging.debug("Closing FIFO")
+				self._file.close()
+			logging.debug("Removing FIFO")
+			os.remove(self._temp_filename)
 	def add_file(self, file):
 		"""Add a file to the queue for transcoding"""
 		if (self._active):
@@ -228,6 +295,8 @@ class AudioFile(object):
 			return 100.0 / self._PCM.total * self._PCM.current
 		except (AttributeError):
 			return 0.0
+	def __del__(self):
+		self.close()
 		
 class AudioPCMVirtual(Thread):
 	"""
@@ -250,13 +319,15 @@ class AudioPCMVirtual(Thread):
 			The number of bits-per-sample in this audio stream as a
 			positive integer.
 	"""
-	def __init__(self, handlers, queue, sample_rate=44100, channels=2, channel_mask=None,
+	def __init__(self, instance, handlers, queue, sample_rate=44100, channels=2, channel_mask=None,
 				bits_per_sample=16):
 		Thread.__init__(self)
+		self.instance = instance
 		self.daemon = True
 		self.sample_rate = sample_rate
 		self._handlers = handlers
 		self.channels = channels
+		self.current_file = None
 		if (not channel_mask):
 			self.channel_mask = audiotools.ChannelMask\
 								.from_fields(front_left=True, front_right=True)
@@ -297,21 +368,25 @@ class AudioPCMVirtual(Thread):
 					logging.debug("Opened audio file ({file})"\
 								.format(file=new_file))
 					break
+		self.current_file = new_file
 		return new_audiofile
 	def open_file(self):
-		self._track_finishing = True
 		logging.debug("Opening a file in AudioPCMVirtual({ident})"\
 					.format(ident=self.ident))
 		audiofile = self.get_new_file()
 		if (audiofile == None):
-			return self.read
+			return False
+		self.length = audiofile.seconds_length()
 		reader = audiotools.PCMConverter(audiofile.to_pcm(), self.sample_rate,
-										self.channels, self.channel_mask,
-										self.bits_per_sample)
+									self.channels, self.channel_mask,
+									self.bits_per_sample)
 		frames = audiofile.total_frames()
 		self.reader = audiotools.PCMReaderProgress(reader, frames,
-												 self.progress_method)
-		
+											 self.progress_method)
+		logging.debug("Finished opening a file in AudioPCMVirtual({ident})"\
+				.format(ident=self.ident))
+		self._track_finishing = True
+		return True
 	def read(self, bytes):
 		while ((not self.reader) and (self._active)):
 			sleep(0.1)
@@ -321,16 +396,19 @@ class AudioPCMVirtual(Thread):
 		if (len(read) == 0):
 			# call finish handler
 			self._call("finish")
-			self.open_file()
-			while (len(read) == 0):
-				sleep(0.1)
-				read = self.reader.read(4096)
-			# call start handler
-			self._call("start")
+			if (self.open_file()):
+				while (len(read) == 0):
+					sleep(0.1)
+					read = self.reader.read(4096)
+				# call start handler
+				self._call("start")
+			else:
+				return ''
 		return read
 		
 	def close(self):
 		self._active = False
+		logging.debug("Closing current PCMReader")
 		try:
 			self.reader.close()
 		except (AttributeError):
@@ -345,11 +423,12 @@ class AudioPCMVirtual(Thread):
 	def _call(self, target):
 		"""Internal method"""
 		logging.debug("AudioPCMVirtual(%(thread)d) Calling handler: {target}".format(target=target))
+		logging.debug(self._handlers)
 		try:
 			handles = self._handlers[target]
 			for h in handles:
 				try:
-					if (h[1](self) == 'UNHANDLE'):
+					if (h[1](self.instance) == 'UNHANDLE'):
 						del handles[h]
 				except:
 					logging.warning(format_exc())
@@ -362,6 +441,7 @@ class AudioConverter(Thread):
 	"""Generic wrapper around an audiotools.FORMAT.from_pcm function"""
 	format_class = audiotools.MP3Audio
 	format_invalid = audiotools.InvalidMP3
+	format_preset = None
 	def __init__(self, filename, PCM):
 		Thread.__init__(self)
 		self.daemon = True
@@ -372,18 +452,19 @@ class AudioConverter(Thread):
 		logging.debug("AudioConverter({ident}) has started"\
 					.format(ident=self.ident))
 		try:
-			self.format_class.from_pcm(self.filename, self.PCM)
+			self.format_class.from_pcm(self.filename, self.PCM, self.format_preset)
 		except (self.format_invalid):
-			pass
+			logging.exception("AudioConverter({ident}) invalid format"\
+					.format(ident=self.ident))
 		logging.debug("AudioConverter({ident}) has exited"\
 					.format(ident=self.ident))
-		
+
 class AudioMP3Converter(AudioConverter):
 	"""Wrapper around audiotools.MP3Audio.from_pcm to run in a
 	separate thread"""
 	format_class = audiotools.MP3Audio
 	format_invalid = audiotools.InvalidMP3
-		
+	format_preset = "2"
 class AudioVorbisConverter(AudioConverter):
 	"""Wrapper around audiotools.VorbisAudio.from_pcm to run in a
 	separate thread"""
@@ -396,5 +477,5 @@ class AudioFlacConverter(Thread):
 	format_class = audiotools.FlacAudio
 	format_class = audiotools.InvalidFLAC
 
-converters = {'mp3': AudioMP3Converter, 'flac': AudioFlacConverter,
-				"vorbis": AudioVorbisConverter}
+converters = {0: AudioVorbisConverter, 1: AudioMP3Converter, 'mp3': AudioMP3Converter, 'flac': AudioFlacConverter,
+				"vorbis": AudioVorbisConverter, "ogg": AudioVorbisConverter}

@@ -12,7 +12,7 @@ import codecs
 import webcom
 import traceback
 import __main__
-import streamer
+import pyices as streamer
 from mutagen.mp3 import MP3
 import config
 
@@ -247,11 +247,16 @@ class StreamInstance(Thread):
 		print("Thread Exit: Shout")
 	
 	def shut_afk_streamer(self, force=False):
-		self.afkstreamer.shutdown(force=force)
+		if (force == True):
+			self.afkstreamer.close()
+			self.afk_streaming = False
+		else:
+			self._shut_afkstreamer = True
 		self.request = False
 	def afk_streamer(self):
 		### NEED TO FIX QUEUE ISSUE WITH FINISHING_SONG
 		print("AFK: Starting client")
+		self._shut_afkstreamer = False
 		self.afk_streaming = True
 		self.request = True
 		self.first = True
@@ -283,25 +288,29 @@ class StreamInstance(Thread):
 				return 0
 		def afk_start_song(object):
 			self.queue.set_lastplayed(self._songid)
-			self.__meta_update(object.metadata())
+			self.__meta_update(object.metadata)
 			self.__start_track()
 			self.length = self._length
-			print("AFK: Starting song: {0}".format(object.metadata()))
+			print("AFK: Starting song: {0}".format(object.metadata)
 		def afk_finishing_song(object):
 			self._songid = self.queue.pop()
 			self.file, meta = webcom.get_song(self._songid)
 			self._next_length = song_length(self.file)
-			object.play(self.file, meta)
+			if (not self._shut_afkstreamer):
+				object.add_file(self.file, meta)
 			print("AFK: Finishing song")
 		def afk_finish_song(object):
 			self._accurate_songid = self._songid
 			self._length = self._next_length
 			self.queue.send_queue(self._length)
 			self.__finish_track()
+			if (self._shut_afkstreamer):
+				object.close()
+				self.afk_streaming = False
 			print("AFK: Finished song")
 		def afk_disconnect(object):
 			self.afk_streaming = False
-			object.shutdown(force=True)
+			object.close()
 			print("AFK: Disconnected")
 		stream.add_handle('start', afk_start_song)
 		stream.add_handle('finishing', afk_finishing_song)
