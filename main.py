@@ -14,7 +14,7 @@ import threading
 import config
 djfile = './dj.conf' # Where to get the list of DJs
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 handle = ''
 class HanyuuHandlers:
 	def __init__(self):
