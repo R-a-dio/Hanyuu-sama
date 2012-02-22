@@ -52,7 +52,8 @@ description - longer stream description
 		self.daemon = 1
 		self.attributes.update(attributes)
 		for key, value in self.attributes.iteritems():
-			setattr(self._shout, key, value)
+			if (key not in ["metadata"]):
+				setattr(self._shout, key, value)
 		self.audiofile = AudioFile(self, format=self.attributes['format'])
 		self.add_handle("disconnect", self.on_disconnect, -20)
 		self.add_handle("prepare", self.on_prepare, -20)
