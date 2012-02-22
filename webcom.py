@@ -75,7 +75,7 @@ def make_replacer(**replacements):
 
 class MySQLCursor:
 	"""Return a connected MySQLdb cursor object"""
-	def __init__(self, cursortype=mysql.cursors.DictCursor):
+	def __init__(self, cursortype=mysql.cursors.DictCursor, lock=None):
 		self.conn = mysql.connect(host=config.dbhost,
 								user=config.dbuser,
 								passwd=config.dbpassword,
@@ -83,7 +83,10 @@ class MySQLCursor:
 								charset='utf8',
 								use_unicode=True)
 		self.curtype = cursortype
+		self.lock = lock
 	def __enter__(self):
+		if (self.lock != None):
+			self.lock.acquire()
 		self.cur = self.conn.cursor(self.curtype)
 		self.cur.escape_string = mysql.escape_string
 		return self.cur
@@ -92,6 +95,8 @@ class MySQLCursor:
 		self.cur.close()
 		self.conn.commit()
 		self.conn.close()
+		if (self.lock != None):
+			self.lock.release()
 		return
 		
 search_replacer = make_replacer(**{r"\\": "", r"(": "", r")": "", r"*": ""})
