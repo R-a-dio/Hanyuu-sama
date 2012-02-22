@@ -108,11 +108,11 @@ class Queue(object):
                 result = cur.fetchone()
                 cur.execute("DELETE FROM `queue` WHERE id={id};"\
                             .format(id=result['id']))
+                if (self.length() < 20):
+                    self.append_random(20 - self.length() + 1) #sigh.
                 return (result['trackid'], result['meta'].decode('utf-8'), result['length'])
             else:
                 raise EmptyQueue("Queue is empty")
-        if (self.length() < 20):
-            self.append_random(20 - self.length())
     def empty(self):
         self.clear()
     def clear(self):
