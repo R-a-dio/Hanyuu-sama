@@ -55,7 +55,7 @@ description - longer stream description
 			setattr(self._shout, key, value)
 		self.audiofile = AudioFile(self, format=self.attributes['format'])
 		self.add_handle("disconnect", self.on_disconnect, -20)
-		self.add_handle("start", self.on_start, -20)
+		self.add_handle("prepare", self.on_prepare, -20)
 	def add_file(self, filename, metadata=None):
 		self._meta_queue.append(metadata)
 		self._file_queue.append(filename)
@@ -109,7 +109,7 @@ description - longer stream description
 			self._shout.close()
 		except (libshout.ShoutException):
 			pass
-	def on_start(self, PCMVirtual):
+	def on_prepare(self, PCMVirtual):
 		try:
 			self._filename = self._file_queue.pop(0)
 		except (IndexError):
@@ -347,6 +347,7 @@ class AudioPCMVirtual(Thread):
 	def run(self):
 		self.open_file()
 		self.instance._start_handler = True
+		self._call("prepare")
 	def get_new_file(self):
 		# First get a new file from the queue
 		new_file = None
@@ -405,6 +406,7 @@ class AudioPCMVirtual(Thread):
 					read = self.reader.read(4096)
 				# call start handler
 				self.instance._start_handler = True
+				self._call("prepare")
 			else:
 				return ''
 		return read
