@@ -88,7 +88,11 @@ description - longer stream description
 				self.attributes['metadata'] = self._metadata
 				self._send_metadata = False
 			if (self._start_handler):
-				self._call('start')
+				# Should really change this
+				try:
+					self.audiofile._PCM._call('start')
+				except (AttributeError):
+					pass
 			buffer = self.audiofile.read(4096)
 			if (len(buffer) == 0):
 				self._call("disconnect")
