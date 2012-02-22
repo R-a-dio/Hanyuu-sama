@@ -46,6 +46,7 @@ description - longer stream description
 		Thread.__init__(self)
 		self._meta_queue = []
 		self._file_queue = []
+		self._start_handler = False
 		self._handlers = {}
 		self._shout = libshout.Shout()
 		self.daemon = 1
@@ -86,6 +87,8 @@ description - longer stream description
 					break
 				self.attributes['metadata'] = self._metadata
 				self._send_metadata = False
+			if (self._start_handler):
+				self._call('start')
 			buffer = self.audiofile.read(4096)
 			if (len(buffer) == 0):
 				self._call("disconnect")
@@ -343,7 +346,7 @@ class AudioPCMVirtual(Thread):
 		
 	def run(self):
 		self.open_file()
-		self._call("start")
+		self.instance._start_handler = True
 	def get_new_file(self):
 		# First get a new file from the queue
 		new_file = None
@@ -401,7 +404,7 @@ class AudioPCMVirtual(Thread):
 					sleep(0.1)
 					read = self.reader.read(4096)
 				# call start handler
-				self._call("start")
+				self.instance._start_handler = True
 			else:
 				return ''
 		return read
