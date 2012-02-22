@@ -102,23 +102,25 @@ class Queue(object):
                 n -= 1
         self.append_many(queuelist, kind=KIND_TRACKID_META_LENGTH)
     def pop(self):
-        with webcom.MySQLCursor() as cur:
-            cur.execute("SELECT * FROM `queue` ORDER BY `time` ASC LIMIT 1;")
-            if (cur.rowcount > 0):
-                result = cur.fetchone()
-                cur.execute("DELETE FROM `queue` WHERE id={id};"\
-                            .format(id=result['id']))
-                if (self.length() < 20):
-                    self.append_random(20 - self.length() + 1) #sigh.
-                return (result['trackid'], result['meta'].decode('utf-8'), result['length'])
-            else:
-                raise EmptyQueue("Queue is empty")
+        try:
+            with webcom.MySQLCursor() as cur:
+                cur.execute("SELECT * FROM `queue` ORDER BY `time` ASC LIMIT 1;")
+                if (cur.rowcount > 0):
+                    result = cur.fetchone()
+                    cur.execute("DELETE FROM `queue` WHERE id={id};"\
+                                .format(id=result['id']))
+                    return (result['trackid'], result['meta'].decode('utf-8'), result['length'])
+                else:
+                    raise EmptyQueue("Queue is empty")
+        finally:
+            if (len(self) < 20):
+                self.append_random(20 - len(self))
     def empty(self):
         self.clear()
     def clear(self):
         with webcom.MySQLCursor() as cur:
             cur.execute("DELETE FROM `queue`;")
-    def length(self):
+    def __len__(self):
         with webcom.MySQLCursor() as cur:
             cur.execute("SELECT COUNT(*) as count FROM `queue`;")
             return int(cur.fetchone()['count'])
