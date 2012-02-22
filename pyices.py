@@ -93,6 +93,8 @@ description - longer stream description
 					self.audiofile._PCM._call('start')
 				except (AttributeError):
 					pass
+				finally:
+					self._start_handler = False
 			buffer = self.audiofile.read(4096)
 			if (len(buffer) == 0):
 				self._call("disconnect")
