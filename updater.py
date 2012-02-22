@@ -108,6 +108,8 @@ class Queue(object):
                 result = cur.fetchone()
                 cur.execute("DELETE FROM `queue` WHERE id={id};"\
                             .format(id=result['id']))
+                if (self.length() < 20):
+                    self.append_random(20 - self.length())
                 return (result['trackid'], result['meta'].decode('utf-8'), result['length'])
             else:
                 raise EmptyQueue("Queue is empty")
@@ -116,6 +118,10 @@ class Queue(object):
     def clear(self):
         with webcom.MySQLCursor() as cur:
             cur.execute("DELETE FROM `queue`;")
+    def length(self):
+        with webcom.MySQLCursor() as cur:
+            cur.execute("SELECT COUNT(*) as count FROM `queue`;")
+            return int(cur.fetchone()['count'])
 queue = Queue()
 
 class LastPlayed(object):
