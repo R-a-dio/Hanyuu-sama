@@ -12,16 +12,14 @@ import codecs
 import webcom
 import traceback
 import __main__
-import pyices as streamer
+import streamer
 from mutagen.mp3 import MP3
 import config
-import streamstatus
-import logging
 
 shouturl = config.icecast_server + '/' + config.icecast_mountpoint
 radiourl = config.base_host
-audio_info = {'bitrate': config.icecast_bitrate,
-				'channels': config.icecast_channels}
+audio_info = {streamer.shout.SHOUT_AI_BITRATE: config.icecast_bitrate,
+				streamer.shout.SHOUT_AI_CHANNELS: config.icecast_channels}
 stream_login = {'host': config.icecast_host,
 			'port': config.icecast_port, 'password': config.icecast_pass, 'format': config.icecast_format,
 			'protocol': config.icecast_protocol, 'name': config.meta_name,
@@ -174,8 +172,7 @@ class StreamInstance(Thread):
 		
 	def _reconnect(self):
 		print("Reconnect: Trying reconnecting")
-		result = streamstatus.get_status(config.icecast_server)
-		if (config.icecast_mount in result):
+		if (webcom.get_mountstatus()):
 			print("Reconnect: Found mountpoint")
 			self._reconnect_counter = None
 			self.connect()
@@ -250,16 +247,11 @@ class StreamInstance(Thread):
 		print("Thread Exit: Shout")
 	
 	def shut_afk_streamer(self, force=False):
-		if (force == True):
-			self.afkstreamer.close()
-			self.afk_streaming = False
-		else:
-			self._shut_afkstreamer = True
+		self.afkstreamer.shutdown(force=force)
 		self.request = False
 	def afk_streamer(self):
 		### NEED TO FIX QUEUE ISSUE WITH FINISHING_SONG
 		print("AFK: Starting client")
-		self._shut_afkstreamer = False
 		self.afk_streaming = True
 		self.request = True
 		self.first = True
@@ -291,29 +283,25 @@ class StreamInstance(Thread):
 				return 0
 		def afk_start_song(object):
 			self.queue.set_lastplayed(self._songid)
-			self.__meta_update(object.metadata)
+			self.__meta_update(object.metadata())
 			self.__start_track()
 			self.length = self._length
-			print("AFK: Starting song: {0}".format(object.metadata))
+			print("AFK: Starting song: {0}".format(object.metadata()))
 		def afk_finishing_song(object):
 			self._songid = self.queue.pop()
 			self.file, meta = webcom.get_song(self._songid)
 			self._next_length = song_length(self.file)
-			if (not self._shut_afkstreamer):
-				object.add_file(self.file, meta)
+			object.play(self.file, meta)
 			print("AFK: Finishing song")
 		def afk_finish_song(object):
 			self._accurate_songid = self._songid
 			self._length = self._next_length
 			self.queue.send_queue(self._length)
 			self.__finish_track()
-			if (self._shut_afkstreamer):
-				object.close()
-				self.afk_streaming = False
 			print("AFK: Finished song")
 		def afk_disconnect(object):
 			self.afk_streaming = False
-			object.close()
+			object.shutdown(force=True)
 			print("AFK: Disconnected")
 		stream.add_handle('start', afk_start_song)
 		stream.add_handle('finishing', afk_finishing_song)
@@ -324,11 +312,8 @@ class StreamInstance(Thread):
 		self.file, meta = webcom.get_song(self._songid)
 		self._length = song_length(self.file)
 		self.__finish_track()
-		try:
-			set_irc()
-		except (TypeError):
-			logging.debug("No motherfucking topic today")
-		stream.add_file(self.file, meta)
+		set_irc()
+		stream.play(self.file, meta)
 		self.queue.send_queue(self._length)
 		while (self.afk_streaming):
 			time.sleep(0.5)
@@ -413,47 +398,6 @@ class StreamInstance(Thread):
 		if (self.afk_streaming) or (self.connected):
 			return True
 		return False
-	def updateinfo(self):
-		"""Get new information from the stream every 20 seconds
-		
-			Handles: Bitrate, Listeners"""
-		while (self.exit):
-			z = False
-			while (self._updateinfo()):
-				if (z == False):
-					z = True
-					print("Status: Updateinfo enter")
-				try:
-					req = urllib2.Request(config.icecast_server, headers={'User-Agent': 'Mozilla'})
-					c = urllib2.urlopen(req)
-				except:
-					print("Status: Updateinfo error")
-				else:
-					next = ''
-					for line in c:
-						if (line.find('Bitrate') != -1):
-							next = 'bitrate'
-						elif (line.find('Current Listeners') != -1):
-							next = 'listeners'
-						elif (next != '') and (len(line) > 0):
-							if (next == 'bitrate'):
-								self.bitrate = line[23:][:-6]
-							elif (next == 'listeners'):
-								self.listeners = line[23:][:-6]
-							next = ''
-					if (self.length == 0):
-						ed_time = 0
-					else:
-						ed_time = self._start_time + self.length
-					if (self.current != 'Placeholder'):
-						webcom.send_nowplaying(None, self.djid,
-						self.listeners, self.bitrate, self.isafk(),
-						self._start_time, ed_time)
-				time.sleep(10)
-			print "Status: Updateinfo exit"
-			print "AFK: {0}, CONN: {1}".format(self.afk_streaming, self.connected)
-			if (self.exit):
-				time.sleep(20)
 	def isafk(self):
 		if (self.request):
 			return 1
@@ -490,7 +434,7 @@ class StreamInstance(Thread):
 		m, s = divmod(seconds, 60)
 		return u"%02d:%02d" % (m, s)
 		
-	def __parse_lastplayed(self, seconds):
+	def parse_lastplayed(self, seconds):
 		if (seconds > 0):
 			difference = int(time.time()) - seconds
 			year, month = divmod(difference, 31557600)

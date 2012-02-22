@@ -1,19 +1,62 @@
 ﻿#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import streamstatus
 import codecs
 import MySQLdb as mysql
 import MySQLdb.cursors
-from time import time, strftime, gmtime
+from time import time
 import re
 from collections import deque
 import urllib2
 from random import randint
-from config import music_directory, dbhost, dbuser, dbpassword as dbpass, dbtable as dbname, icecast_server, icecast_mountpoint
+from hashlib import sha1
+import config
 """Module to handle all communication with the website, all data directed to the website
 	should go through this module."""
 
+def save_request(trackid, ip="0.0.0.0"):
+	"""Puts a request into the MySQL requests table"""
+	with MySQLCursor() as cur:
+		cur.execute("INSERT INTO `requests` (`trackid`, `ip`) VALUES ('{trackid}', '{ip}');".format(trackid=trackid, ip=ip))
+def update_lastplayed(id):
+	"""Changes the lastplayed of `id` to current time"""
+	with MySQLCursor() as cur:
+		cur.execute("UPDATE `tracks` SET `lastplayed`=NOW() WHERE `id`=%s LIMIT 1;" % (id))
+def get_request_tracks():
+	""""Gets all saved requests in the `requests` table"""
+	with MySQLCursor() as cur:
+		cur.execute("SELECT trackid FROM `requests` ORDER BY `time` ASC;")
+		for row in cur:
+			yield int(row['trackid'])
+		cur.execute("DELETE FROM `requests`;")
+def get_random_tracks(amount=1, func=lambda x: False):
+	"""Gets `amount` of tracks from the `tracks` table
+		func has to be a function to check if the ID is
+		allowed to be returned.
+		
+		if func returns False the ID will be given
+		else if func returns True the ID is purged
+		
+		Default is to give all IDs
+		
+		returns a generator"""
+	with MySQLCursor() as cur:
+		for n in xrange(amount):
+			cur.execute("SELECT * FROM `tracks` WHERE `usable`=1 ORDER BY `lastplayed` ASC, `lastrequested` ASC LIMIT 100;")
+			while(1):
+				sid = None
+				pos = randint(0, 99)
+				cur.scroll(pos, 'absolute')
+				result = cur.fetchone()
+				if (result):
+					sid = int(result['id'])
+				else:
+					continue
+				if not func(sid):
+					break
+			yield sid
+def generate_hash(meta):
+	return sha1(meta.encode("utf-8", "replace")).hexdigest()
 def fix_encoding(meta):
 	try:
 		try:
@@ -33,11 +76,16 @@ def make_replacer(**replacements):
 class MySQLCursor:
 	"""Return a connected MySQLdb cursor object"""
 	def __init__(self, cursortype=mysql.cursors.DictCursor):
-		self.conn = mysql.connect(host=dbhost, user=dbuser, passwd=dbpass, db=dbname,\
-									charset='utf8', use_unicode=True)
+		self.conn = mysql.connect(host=config.dbhost,
+								user=config.dbuser,
+								passwd=config.dbpassword,
+								db=config.dbtable,
+								charset='utf8',
+								use_unicode=True)
 		self.curtype = cursortype
 	def __enter__(self):
 		self.cur = self.conn.cursor(self.curtype)
+		self.cur.escape_string = mysql.escape_string
 		return self.cur
 		
 	def __exit__(self, type, value, traceback):
@@ -80,9 +128,9 @@ def fetch_lastplayed():
 	with MySQLCursor() as cur:
 		cur.execute("SELECT esong.meta FROM eplay JOIN esong ON esong.id = eplay.isong ORDER BY eplay.dt DESC LIMIT 5;")
 		for result in cur:
-			lastplayed.appendleft(result['meta'])
+			yield result['meta']
 			
-def send_nowplaying(np=None, djid=None, listeners=None, bitrate=None, is_afk=0, st_time=None, ed_time=None):
+def send_status(np=None, djid=None, listeners=None, bitrate=None, is_afk=0, st_time=None, ed_time=None):
 	#global np, djid, listeners, bitrate
 	with MySQLCursor() as cur:
 		changes = []
@@ -144,7 +192,7 @@ def get_song(songid):
 			row = cur.fetchone()
 			artist = row['artist']
 			title = row['track']
-			path = "{0}/{1}".format(music_directory, row['path']) #omg it's absolute | hehe
+			path = "{0}/{1}".format(config.music_directory, row['path']) #omg it's absolute | hehe
 			
 			meta = title
 			if artist != '':
@@ -155,106 +203,54 @@ def get_song(songid):
 		else:
 			return None
 
-class SongQueue:
-	def __init__(self):
-		self.__regular = deque()
-		self.__request = deque()
-		self.__get_requests()
-		self.__fill()
-	def pop(self):
-		if (len(self.__request) > 0):
-			result = self.__request.popleft()
-		else:
-			result = self.__regular.popleft()
-		self.__fill()
-		return result
-	def add_request(self, id):
-		if (self.has_reg(id)) and (not self.has_req(id)):
-			self.del_regular(id)
-		if (not self.has(id)):
-			self.__request.append(id)
-	def del_request(self, id):
-		# DELETES ARE EXPENSIVE
-		try:
-			self.__request.remove(id)
-		except (ValueError):
-			pass
-	def add_regular(self, id):
-		if (not self.has(id)):
-			self.__regular.append(id)
-	def del_regular(self, id):
-		# DELETES ARE EXPENSIVE
-		try:
-			self.__regular.remove(id)
-		except (ValueError):
-			pass
-	def length(self):
-		return len(self.__request) + len(self.__regular)
-	def has(self, id):
-		if (id in self.__request) or (id in self.__regular):
-			return True
-		return False
-	def has_reg(self, id):
-		return id in self.__regular
-	def has_req(self, id):
-		return id in self.__request
+def nick_request_song(songid, host=None):
+	"""Gets data about the specified song, for the specified hostmask.
+	If the song didn't exist, it returns 1.
+	If the host needs to wait before requesting, it returns 2.
+	If there is no ongoing afk stream, it returns 3.
+	Else, it returns (artist, title).
+	"""
+	with MySQLCursor() as cur:
+		can_request = True
+		if host:
+			host = mysql.escape_string(host)
+			cur.execute("SELECT UNIX_TIMESTAMP(time) as timestamp FROM `nickrequesttime` WHERE `host`='{host}' LIMIT 1;".format(host=host))
+			if cur.rowcount == 1:
+				row = cur.fetchone()
+				if int(time.time()) - int(row['timestamp']) < 1800:
+					can_request = False
 		
-	def send_queue(self, timedur=0):
-		# [(length, meta)]
-		# We need to know the length somehow
-		def song_info(id):
-			from mutagen.mp3 import MP3
-			path, meta = get_song(id)
-			try:
-				file = MP3(path)
-				length = file.info.length
-			except:
-				length = 0
-			return (length, meta)
-		ids = list(self.__request)
-		ids.extend(list(self.__regular))
-		# WE ONLY GOT IDs!!!! need to resolve them
-		songs = []
-		for id in ids:
-			length, meta = song_info(id)
-			songs.append((length, meta))
-		send_queue(timedur, songs)
-	def clean_requests(self):
-		with MySQLCursor() as cur:
-			for req in self.__request:
-				cur.execute("INSERT INTO `requests` (`trackid`, `ip`) VALUES \
-						('{trackid}', '0.0.0.0')".format(trackid=req))
-	def set_lastplayed(self, id):
-		with MySQLCursor() as cur:
-			cur.execute("UPDATE `tracks` SET `lastplayed`=NOW() WHERE `id`=%s LIMIT 1;" % (id))
-	def __fill(self):
-		self.__get_requests()
-		if (self.length() < 20):
-			self.__get_items(20 - self.length())
-	def __get_items(self,amount):
-		with MySQLCursor() as cur:
-			for n in xrange(amount):
-				cur.execute("SELECT * FROM `tracks` WHERE `usable`=1 ORDER BY `lastplayed` ASC, `lastrequested` ASC LIMIT 100;")
-				while(1):
-					pos = randint(0, 99)
-					cur.scroll(pos, 'absolute')
-					result = cur.fetchone()
-					if (result):
-						sid = int(result['id'])
-					else:
-						continue
-					if not self.has(sid):
-						break
-				self.add_regular(sid)
-	def __get_requests(self):
-		with MySQLCursor() as cur:
-			cur.execute("SELECT trackid FROM `requests` ORDER BY `time` ASC;")
-			for row in cur:
-				self.add_request(int(row['trackid']))
-			cur.execute("DELETE FROM `requests`;")
-djid = '0'
+		can_afk = True
+		cur.execute("SELECT isafkstream FROM `streamstatus`;")
+		if cur.rowcount == 1:
+			row = cur.fetchone()
+			afk = row['isafkstream']
+			if not afk == 1:
+				can_afk = False
+		else:
+			can_afk = False
+		if (not can_request):
+			return 2
+		if (not can_afk):
+			return 3
+		cur.execute("SELECT * FROM `tracks` WHERE `id`={id};".format(id=songid))
+		if (cur.rowcount == 1):
+			row = cur.fetchone()
+			artist = row['artist']
+			title = row['track']
+			return (artist, title)
+		return 1
+
+def get_djuser(djid):
+	djid = int(djid)
+	with MySQLCursor() as cur:
+		cur.execute("SELECT `user` FROM `users` WHERE `djid`='{id}';"\
+				.format(id=djid))
+		if (cur.rowcount > 0):
+			return cur.fetchone()['user']
+		else:
+			return None
 def get_djid(username=None):
-	global djid
 	if (not username):
 		with MySQLCursor() as cur:
 			cur.execute("SELECT `djid` FROM `streamstatus`")
@@ -275,17 +271,10 @@ def get_djid(username=None):
 	return djid
 	
 regex_mountstatus = re.compile(r"<td><h3>Mount Point (.*)</h3></td>")
-def get_mountstatus(mount=icecast_server):
-	result = streamstatus.get_status(mount)
-	if ("/main.mp3" in result):
-		return True
-	else:
-		return False
-"""def get_mountstatus(mount="/{0}".format(icecast_mountpoint)):
+def get_mountstatus(mount="/{0}".format(config.icecast_mountpoint)):
 	try:
-		req = urllib2.Request(icecast_server, headers={'User-Agent': 'Mozilla'})
+		req = urllib2.Request(config.icecast_server, headers={'User-Agent': 'Mozilla'})
 		c = urllib2.urlopen(req)
-		next = ''
 		for line in c:
 			result = regex_mountstatus.match(line)
 			if (not result):
@@ -295,7 +284,7 @@ def get_mountstatus(mount=icecast_server):
 						return True
 		return False
 	except:
-		return False"""
+		return False
 
 def get_favelist(nick):
 	"""Return list of titles that are faved"""
@@ -341,6 +330,13 @@ def get_hash(digest):
 			hash_row_tracker.update({digest:False})
 		return (songid, playcount, length, lastplayed)
 		
+def get_lastplayed(digest):
+	with MySQLCursor() as cur:
+		query = "SELECT unix_timestamp(`dt`) AS ut FROM eplay,esong WHERE eplay.isong = esong.id AND esong.hash = '{digest}' ORDER BY `dt` DESC LIMIT 1;"
+		cur.execute(query.format(digest=digest))
+		if (cur.rowcount > 0):
+			return cur.fetchone()['ut']
+		return None
 def send_hash(digest, title, length, lastplayed):
 	global hash_row_tracker
 	if (digest not in hash_row_tracker):
@@ -439,4 +435,21 @@ def del_fave(nick, songid):
 		elif (cur.rowcount == 1):
 			nickid = cur.fetchone()['id']
 			cur.execute("DELETE FROM efave WHERE inick={nickid} AND isong={songid};".format(nickid=nickid, songid=songid))
-			
+
+def get_djname(djname):
+	with open(config.djfile) as djs:
+		djname = None
+		for line in djs:
+			temp = line.split('@')
+			wildcards = temp[0].split('!')
+			djname_temp = temp[1].strip()
+			for wildcard in wildcards:
+				wildcard = re.escape(wildcard)
+				'^' + wildcard
+				wildcard = wildcard.replace('*', '.*')
+				if (re.search(wildcard, djname_temp, re.IGNORECASE)):
+					djname = djname_temp
+					break
+			if (djname):
+				return djname
+		return djname	

@@ -59,9 +59,6 @@ description - longer stream description
 		self._meta_queue.append(metadata)
 		self._file_queue.append(filename)
 		self.audiofile.add_file(filename)
-	@property
-	def metadata(self):
-		return self.attributes.get("metadata", u"")
 	def run(self):
 		"""Internal method"""
 		try:
