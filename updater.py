@@ -198,13 +198,13 @@ class dj(object):
 
 class Song(object):
     def __init__(self, id=None, meta=None, length=None, filename=None):
-        if (not isinstance(id, (int, long, None))):
+        if (not isinstance(id, (int, long, type(None)))):
             raise TypeError("'id' incorrect type, expected int or long")
-        if (not isinstance(meta, (basestring, None))):
+        if (not isinstance(meta, (basestring, type(None)))):
             raise TypeError("'meta' incorrect type, expected string or unicode")
-        if (not isinstance(length, (int, long, None))):
+        if (not isinstance(length, (int, long, type(None)))):
             raise TypeError("'length' incorrect type, expected int or long")
-        if (not isinstance(filename, (basestring, None))):
+        if (not isinstance(filename, (basestring, type(None)))):
             raise TypeError("'filename' incorrect type, expected string or unicode")
         self._length = length
         self._id = id
