@@ -198,23 +198,22 @@ class dj(object):
 
 class Song(object):
     def __init__(self, id=None, meta=None, length=None, filename=None):
-        if (meta is None) and (id is None):
-            raise TypeError("Require either 'id' or 'meta' argument")
-        elif (id != None):
-            temp_filename, temp_meta = self.get_file(id)
-            if (meta == None):
-                meta = temp_meta
-            if (filename == None):
-                filename = temp_filename
-        self._length = length
-        self._filename = filename
-        self._metadata = meta
         self._length = length
         self._id = id
         self._digest = None
         self._lp = None
         self._songid = None
         self._faves = None
+        if (meta is None) and (self.id == 0L):
+            raise TypeError("Require either 'id' or 'meta' argument")
+        elif (self.id != 0L):
+            temp_filename, temp_meta = self.get_file(self.id)
+            if (meta == None):
+                meta = temp_meta
+            if (filename == None):
+                filename = temp_filename
+        self._filename = filename
+        self._metadata = meta
     def update(self, **kwargs):
         for key, value in kwargs.iteritems():
             if (key in dir(self)):
@@ -428,7 +427,7 @@ class Song(object):
                 return cur.fetchone()['len']
         else:
             try:
-                length = mutagen.File(filename).info.length
+                length = mutagen.File(song.filename).info.length
             except (IOError):
                 logging.exception("Failed length check")
                 return 0.0
