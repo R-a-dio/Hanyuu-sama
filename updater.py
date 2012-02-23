@@ -213,7 +213,7 @@ class Song(object):
             if (filename == None):
                 filename = temp_filename
         self._filename = filename
-        self._metadata = meta
+        self._metadata = self.fix_encoding(meta)
     def update(self, **kwargs):
         for key, value in kwargs.iteritems():
             if (key in dir(self)):
@@ -456,6 +456,15 @@ class Song(object):
                 return cur.fetchone()['id']
             else:
                 return None
+    @staticmethod
+    def fix_encoding(metadata):
+        try:
+            try:
+                return unicode(meta, 'utf-8', 'strict')
+            except (UnicodeDecodeError):
+                return unicode(meta, 'shiftjis', 'replace')
+        except (TypeError):
+            return meta
     def __str__(self):
         return self.__repr__()
     def __repr__(self):
