@@ -152,6 +152,8 @@ lp = lp()
 class np(object):
     _end = 0
     _start = int(time.time())
+    def __init__(self):
+        self.song = Song(meta=u"Placeholder", length=0.0)
     def change(self, song):
         """Changes the current playing song to 'song' which should be an
         updater.Song object"""
@@ -201,10 +203,14 @@ class Song(object):
     def __init__(self, id=None, meta=None, length=0.0):
         if (meta is None) and (id is None):
             raise TypeError("Require either 'id' or 'meta' argument")
-        elif (id == None) or (meta == None) or (length == 0.0):
+        elif (id != None):
             # do shit
-            filename, meta = webcom.get_song(id)
-            length = self.get_length(filename)
+            filename, temp_meta = webcom.get_song(id)
+            temp_length = self.get_length(filename)
+            if (meta == None):
+                meta = temp_meta
+            if (length == 0.0):
+                length = temp_length
         self._metadata = meta
         self._length = length
         self._id = id
