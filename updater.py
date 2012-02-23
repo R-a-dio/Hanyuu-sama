@@ -419,7 +419,7 @@ class Song(object):
         return False if self.id == None else True
     @staticmethod
     def get_length(song):
-        if (song.filename == u''):
+        if (song.filename == None):
             # try hash
             with webcom.MySQLCursor() as cur:
                 cur.execute("SELECT len FROM `esong` WHERE `hash`=%s;",
@@ -457,10 +457,12 @@ class Song(object):
             else:
                 return None
     def __str__(self):
-        return self.__repr__().encode("utf-8")
+        return self.__repr__()
     def __repr__(self):
-        return u"<Song [%s, %d, %s] at %s>" % (self.metadata, self.id,
-                                             self.digest, hex(id(self)))
+        return (u"<Song [%s, %d, %s] at %s>" % (self.metadata, self.id,
+                                             self.digest, hex(id(self))))\
+                                             .encode("utf-8")
+        
 # declaration goes here
 np = np()
 dj = dj()
