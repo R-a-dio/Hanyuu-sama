@@ -355,7 +355,6 @@ class Song(object):
             def __len__(self):
                 if (not self.song.afk):
                     return 0
-                return len(self.faves)
                 with webcom.MySQLCursor() as cur:
                     cur.execute("SELECT count(*) AS favecount FROM efave \
                     WHERE isong={songid}".format(songid=self.song.id))
@@ -451,7 +450,7 @@ class Song(object):
                 return (None, None)
     @staticmethod
     def get_songid(digest):
-        with webcom.MySQLCursor as cur:
+        with webcom.MySQLCursor() as cur:
             cur.execute("SELECT * FROM `esong` WHERE `hash`=%s LIMIT 1;",
                         (digest,))
             if (cur.rowcount == 1):
