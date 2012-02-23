@@ -506,8 +506,8 @@ class Song(object):
         for row in cur:
             result.append(cls(
                               id=row['id'],
-                              meta=row['title'] if row['artist'] == u'' \
-                                else row['artist'] + u' - ' + row['title'],
+                              meta=row['track'] if row['artist'] == u'' \
+                                else row['artist'] + u' - ' + row['track'],
                             filename=join(config.music_directory, row['path'])))
         return result
     def __str__(self):
