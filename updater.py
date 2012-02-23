@@ -473,7 +473,7 @@ class Song(object):
                 return unicode(metadata, 'shiftjis', 'replace')
         except (TypeError):
             return metadata
-    _search_replacer = make_replacer(**{r"\\": "", r"(": "",
+    _search_replacer = webcom.make_replacer(**{r"\\": "", r"(": "",
                                          r")": "", r"*": ""})
     _search_regex = re.compile(r"^[+\-<>~]")
     @classmethod
