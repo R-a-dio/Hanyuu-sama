@@ -130,81 +130,41 @@ class queue(object):
                 yield Song(id=row['trackid'],
                            meta=row['meta'].decode('utf-8'),
                            length=row['length'])
-queue = Queue()
+queue = queue()
 
-class LastPlayed(object):
+class lp(object):
     def get(self, amount=5):
         limit = amount
         if (not isinstance(amount, int)):
             pass
         return list(webcom.fetch_lastplayed())
-    def update(self, id, digest, title=None, length=None, lastplayed=None):
-        lastplayed = time.time() if lastplayed is None else lastplayed
-        if (id != None):
-            self.update_track(id)
-        self.update_hash(digest, title, length, lastplayed)
-    def update_track(self, id):
-        webcom.update_lastplayed(id)
-    def update_hash(self, digest=None, title=None, length=None, lastplayed=None):
-        lastplayed = time.time() if lastplayed is None else lastplayed
-        webcom.send_hash(digest, title, length, lastplayed)
-    def get_lastplayed(self, digest):
-        webcom.get_lastplayed(digest)
-        
-lp = LastPlayed()
+    def update(self, song):
+        if (song.afk):
+            self.update_track(song)
+        self.update_hash(song)
+    def update_track(self, song):
+        webcom.update_lastplayed(song.id)
+    def update_hash(self, song):
+        lp = time.time() if song.lp is None else song.lp
+        webcom.send_hash(song.digest, song.metadata, song.length, lp)
+lp = lp()
 
-class NowPlaying(object):
-    __nowplaying = None
-    __length = 0
-    __digest = None
-    __playcount = 0
-    __lastplayed = None
-    __songid = None
-    __trackid = None
-    __end = 0
-    __start = int(time.time())
-    def change(self, id=None, meta=None, length=None, lastplayed=None):
-        digest = None
-        if (id != None):
-            metadb = webcom.get_song(id)[1]
-            digest = webcom.generate_hash(metadb)
-        elif (meta != None):
-            meta = webcom.fix_encoding(meta)
-            digest = webcom.generate_hash(meta)
-        else:
-            raise TypeError("Requires 'id' or 'meta' got neither")
-        
-        lp.update(self.__trackid, self.__digest,
-                  self.__nowplaying, self.__length,
-                  self.__lastplayed)
-        
-        self.__trackid = id if id != None else None
-        self.__nowplaying = meta
-        self.__songid, self.__playcount, self.__length, self.__lastplayed = webcom.get_hash(digest)
+class np(object):
+    _end = 0
+    _start = int(time.time())
+    def change(self, song):
+        """Changes the current playing song to 'song' which should be an
+        updater.Song object"""
+        lp.update(self.song)
+        self.song = song
     def remaining(self, duration):
-        self.__length = (time.time() + duration) - self.__start
-        self.__end = time.time() + self.__length
+        self.length = (time.time() + duration) - self._start
+        self._end = time.time() + self.length
     def end(self):
-        return self.__end if self.__end != 0 else int(time.time())
-    def lp(self):
-        return self.__lastplayed
-    def lpf(self):
-        return parse_lastplayed(0 if self.__lastplayed == None else self.__lastplayed)
-    def length(self):
-        return self.__length
-    def lengthf(self):
-        return get_ms(self.__length)
-    def favecount(self):
-        return webcom.count_fave(self.__songid)
-    def faves(self):
-        return webcom.get_faves(self.__digest)
-    def playcount(self):
-        return self.__playcount
-    def afk(self):
-        return False if self.__trackid == None else True
-    def __call__(self):
-        return self.__nowplaying
-np = NowPlaying()
+        return self._end if self._end != 0 else int(time.time())
+    def __getattr__(self, name):
+        return getattr(self.song, name)
+np = np()
 
 class DJError(Exception):
     pass
@@ -250,6 +210,10 @@ class Song(object):
         self._id = id
         self._digest = None
         self._lp = None
+    def update(self, **kwargs):
+        for key, value in kwargs.iteritems():
+            if (key in dir(self)):
+                setattr(self, "_" + key, value)
     @staticmethod
     def create_digest(metadata):
         from hashlib import sha1
@@ -277,8 +241,36 @@ class Song(object):
         return u'%02d:%02d' % divmod(int(self._length), 60)
     @property
     def lp(self):
-        pass
-    lastplayed = lp
+        with webcom.MySQLCursor() as cur:
+            query = "SELECT unix_timestamp(`dt`) AS ut FROM eplay,esong \
+            WHERE eplay.isong = esong.id AND esong.hash = '{digest}' \
+            ORDER BY `dt` DESC LIMIT 1;"
+            cur.execute(query.format(digest=self.digest))
+            if (cur.rowcount > 0):
+                return cur.fetchone()['ut']
+            return None
+    @property
+    def lpf(self):
+        return parse_lastplayed(0 if self.lp == None else self.lp)
+    @property
+    def favecount(self):
+        return webcom.count_fave(self.id)
+    @property
+    def faves(self):
+        return webcom.get_faves(self.digest)
+    @property
+    def playcount(self):
+        with webcom.MySQLCursor() as cur:
+            query = "SELECT count(*) playcount FROM eplay,esong WHERE \
+            eplay.isong = esong.id AND esong.hash = '{digest}';"
+            cur.execute(query.format(digest=self.digest))
+            if (cur.rowcount > 0):
+                return cur.fetchone()['playcount']
+            else:
+                return 0
+    @property
+    def afk(self):
+        return False if self.id == None else True
     @staticmethod
     def get_length(filename):
         try:
@@ -290,7 +282,7 @@ class Song(object):
     def __str__(self):
         return self.__repr__().encode("utf-8")
     def __repr__(self):
-        return u"<Song [%s, %.2f, %s] at %s>" % (self.metadata, self.id,
+        return u"<Song [%s, %d, %s] at %s>" % (self.metadata, self.id,
                                              self.digest, hex(id(self)))
 # GENERAL TOOLS GO HERE
 
