@@ -460,11 +460,11 @@ class Song(object):
     def fix_encoding(metadata):
         try:
             try:
-                return unicode(meta, 'utf-8', 'strict')
+                return unicode(metadata, 'utf-8', 'strict')
             except (UnicodeDecodeError):
-                return unicode(meta, 'shiftjis', 'replace')
+                return unicode(metadata, 'shiftjis', 'replace')
         except (TypeError):
-            return meta
+            return metadata
     def __str__(self):
         return self.__repr__()
     def __repr__(self):
