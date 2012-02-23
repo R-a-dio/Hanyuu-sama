@@ -130,7 +130,6 @@ class queue(object):
                 yield Song(id=row['trackid'],
                            meta=row['meta'].decode('utf-8'),
                            length=row['length'])
-queue = queue()
 
 class lp(object):
     def get(self, amount=5):
@@ -147,7 +146,6 @@ class lp(object):
     def update_hash(self, song):
         lp = time.time() if song.lp is None else song.lp
         webcom.send_hash(song.digest, song.metadata, song.length, lp)
-lp = lp()
 
 class np(object):
     _end = 0
@@ -166,11 +164,11 @@ class np(object):
         return self._end if self._end != 0 else int(time.time())
     def __getattr__(self, name):
         return getattr(self.song, name)
-np = np()
+
 
 class DJError(Exception):
     pass
-class DJ(object):
+class dj(object):
     __djid = webcom.get_djid()
     __djname = webcom.get_djuser(__djid)
     __djuser = __djname
@@ -197,7 +195,6 @@ class DJ(object):
     def get_user(self):
         return self.__djuser
         
-dj = DJ()
 
 class Song(object):
     def __init__(self, id=None, meta=None, length=0.0):
@@ -290,6 +287,11 @@ class Song(object):
     def __repr__(self):
         return u"<Song [%s, %d, %s] at %s>" % (self.metadata, self.id,
                                              self.digest, hex(id(self)))
+# declaration goes here
+np = np()
+dj = dj()
+queue = queue()
+lp = lp()
 # GENERAL TOOLS GO HERE
 
 def get_ms(self, seconds):
