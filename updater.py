@@ -32,14 +32,13 @@ class queue(object):
             return result['timestamp'] + int(result['length'])
         else:
             return np.end()
-    @classmethod
-    def append_by_id(cls, trackid, type=TYPE_REGULAR, meta=None, ip="0.0.0.0"):
+    def append_by_id(self, trackid, type=TYPE_REGULAR, meta=None, ip="0.0.0.0"):
         filename, metadata = webcom.get_song(trackid)
         length = Song.get_length(filename)
         if (meta == None):
             meta = metadata
-        with webcom.MySQLCursor(lock=cls._lock) as cur:
-            timestamp = cls.get_timestamp(cur, type)
+        with webcom.MySQLCursor(lock=self._lock) as cur:
+            timestamp = self.get_timestamp(cur, type)
             meta = cur.escape_string(meta.encode("utf-8"))
             if (type == TYPE_REQUEST):
                 cur.execute("DELETE FROM `queue` WHERE trackid={trackid}"\
@@ -49,9 +48,8 @@ class queue(object):
                 cur.execute("DELETE FROM `queue` WHERE type=0 ORDER BY time DESC LIMIT 1")
             cur.execute("INSERT INTO `queue` (time, ip, type, meta, length, trackid) VALUES (from_unixtime({timestamp}), '{ip}', {type}, '{meta}', {length}, {trackid});"\
                     .format(timestamp=int(timestamp), ip=ip, type=type, meta=meta, length=length, trackid=trackid))
-    @classmethod
-    def append_by_meta(cls, meta, length, type=TYPE_REGULAR, ip="0.0.0.0"):
-        with webcom.MySQLCursor(lock=cls._lock) as cur:
+    def append_by_meta(self, meta, length, type=TYPE_REGULAR, ip="0.0.0.0"):
+        with webcom.MySQLCursor(lock=self._lock) as cur:
             timestamp = self.__get_timestamp(cur, type)
             meta = cur.escape_string(meta.encode("utf-8"))
             if (type == TYPE_REQUEST):
@@ -60,13 +58,12 @@ class queue(object):
                 cur.execute("DELETE FROM `queue` WHERE type=0 ORDER BY time DESC LIMIT 1")
             cur.execute("INSERT INTO `queue` (time, ip, type, meta, length) VALUES (from_unixtime({timestamp}), '{ip}', {type}, '{meta}', {length});"\
                         .format(timestamp=int(timestamp), ip=ip, type=type, meta=meta, length=length))
-    @classmethod
-    def append_many(cls, queuelist, kind=KIND_META_LENGTH):
+    def append_many(self, queuelist, kind=KIND_META_LENGTH):
         """queue should be an iterater containing
             (metadata, length) tuples
         """
-        with webcom.MySQLCursor(lock=cls._lock) as cur:
-            timestamp = cls.get_timestamp(cur)
+        with webcom.MySQLCursor(lock=self._lock) as cur:
+            timestamp = self.get_timestamp(cur)
             if (kind == KIND_META_LENGTH):
                 query = "INSERT INTO `queue` (time, meta, length) VALUES (from_unixtime({time}), '{meta}', {length});"
                 for meta, length in queuelist:
@@ -79,14 +76,13 @@ class queue(object):
                     meta = cur.escape_string(meta.encode("utf-8"))
                     cur.execute(query.format(trackid=trackid, time=int(timestamp), meta=meta, length=length))
                     timestamp += length
-    @classmethod
-    def append_random(cls, amount=10):
+    def append_random(self, amount=10):
         """Appends random songs to the queue,
         these come from the tracks table in
         the database"""
         if (amount > 100):
             amount = 100
-        with webcom.MySQLCursor(lock=cls._lock) as cur:
+        with webcom.MySQLCursor(lock=self._lock) as cur:
             cur.execute("SELECT tracks.id AS trackid, artist, track, path FROM tracks WHERE `usable`=1 AND NOT EXISTS (SELECT 1 FROM queue WHERE queue.trackid = tracks.id) ORDER BY `lastplayed` ASC, `lastrequested` ASC LIMIT 100;")
             result = list(cur.fetchall())
             queuelist = []
@@ -101,10 +97,9 @@ class queue(object):
                 queuelist.append((row['trackid'], meta, length))
                 n -= 1
         self.append_many(queuelist, kind=KIND_TRACKID_META_LENGTH)
-    @classmethod
-    def pop(cls):
+    def pop(self):
         try:
-            with webcom.MySQLCursor(lock=cls._lock) as cur:
+            with webcom.MySQLCursor(lock=self._lock) as cur:
                 cur.execute("SELECT * FROM `queue` ORDER BY `time` ASC LIMIT 1;")
                 if (cur.rowcount > 0):
                     result = cur.fetchone()
@@ -116,36 +111,26 @@ class queue(object):
                 else:
                     raise EmptyQueue("Queue is empty")
         finally:
-            if (cls.length < 20):
-                cls.append_random(20 - cls.length)
-    @classmethod
-    def clear(cls):
-        with webcom.MySQLCursor(lock=cls._lock) as cur:
+            if (self.length < 20):
+                self.append_random(20 - self.length)
+    def clear(self):
+        with webcom.MySQLCursor(lock=self._lock) as cur:
             cur.execute("DELETE FROM `queue`;")
-    @classmethod
     @property
-    def length(cls):
-        with webcom.MySQLCursor(lock=cls._lock) as cur:
+    def length(self):
+        return len(self)
+    def __len__(self):
+        with webcom.MySQLCursor(lock=self._lock) as cur:
             cur.execute("SELECT COUNT(*) as count FROM `queue`;")
             return int(cur.fetchone()['count'])
-    @classmethod
-    @property
-    def _list(cls):
-        with webcom.MySQLCursor(lock=cls._lock) as cur:
+    def __iter__(self):
+        with webcom.MySQLCursor(lock=self._lock) as cur:
             cur.execute("SELECT * FROM `queue` ORDER BY `time` ASC LIMIT 5;")
             for row in cur:
                 yield Song(id=row['trackid'],
                            meta=row['meta'].decode('utf-8'),
                            length=row['length'])
-    @classmethod
-    @property
-    def list(cls):
-        return list(cls._list)
-    def __len__(self):
-        return self.length
-    def __iter__(self):
-        return self._list
-#queue = Queue()
+queue = Queue()
 
 class LastPlayed(object):
     def get(self, amount=5):
