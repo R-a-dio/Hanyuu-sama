@@ -152,49 +152,114 @@ class np(object):
     _start = int(time.time())
     def __init__(self):
         self.song = Song(meta=u"Placeholder", length=0.0)
+        self.updater = Thread(target=self.send)
+        self.updater.start()
+    def send(self):
+        while True:
+            with webcom.MySQLCursor() as cur:
+                cur.execute(
+                            "UPDATE `streamstatus` SET `lastset`=NOW(), \
+                            `np`=%s, `djid`=%s, `listeners`=%s, \
+                            `start_time`=%s, `end_time`=%s, \
+                            `isafkstream`=%s WHERE `id`=0;",
+                            (self.metadata, dj.id, status.listeners,
+                             self._start, self.end(),
+                             1 if self.afk else 0)
+                            )
+            time.sleep(10)
     def change(self, song):
         """Changes the current playing song to 'song' which should be an
         updater.Song object"""
-        lp.update(self.song)
+        self.song.update(lp=time.time())
+        if (self.length == 0):
+            self.song.update(length=(time.time() + duration) - self._start)
         self.song = song
+        self._start = int(time.time())
+        self._end = int(time.time()) + self.length
     def remaining(self, duration):
         self.length = (time.time() + duration) - self._start
         self._end = time.time() + self.length
+        return self._end
     def end(self):
         return self._end if self._end != 0 else int(time.time())
     def __getattr__(self, name):
         return getattr(self.song, name)
-
+    def __repr__(self):
+        return "<Playing " + repr(self.song)[1:]
+    def __str__(self):
+        return self.__repr__()
 
 class DJError(Exception):
     pass
 class dj(object):
-    __djid = webcom.get_djid()
-    __djname = webcom.get_djuser(__djid)
-    __djuser = __djname
-    def set(self, djname):
-        try:
-            temp_user = webcom.get_djname(djname)
-        except (IOError):
-            logging.exception("DJ.conf is missing, assuming DJ does not exist")
-            raise DJError("No such DJ")
-        if (temp_user != None):
-            self.__djname = djname
-            self.__djuser = temp_user
-            self.__djid = webcom.get_djid(self.__djuser)
-            webcom.send_status(djid=self.__djid)
-        else:
-            logging.info("DJ not found {dj}".format(dj=djname))
-            raise DJError("No such DJ")
-    def __call__(self):
-        return self.__djid
-    def get_id(self):
-        return self.__djid
-    def get_name(self):
-        return self.__djname
-    def get_user(self):
-        return self.__djuser
-        
+    _name = "Unknown"
+    def g_id(self):
+        user = self.user
+        if (user in self._cache):
+            return self._cache[user]
+        with MySQLCursor() as cur:
+            # we don't have a user
+            if (not self.user):
+                cur.execute("SELECT `djid` FROM `streamstatus`")
+                djid = cur.fetchone()['djid']
+                cur.execute("SELECT `user` FROM `users` WHERE `djid`=%s \
+                LIMIT 1;", (djid,))
+                if (cur.rowcount > 0):
+                    user = cur.fetchone()['user']
+                    self._cache[user] = djid
+                    self._name = user
+                return djid
+            
+            cur.execute("SELECT `djid` FROM `users` WHERE `user`='%s' LIMIT 1;",
+                        (user,))
+            if cur.rowcount > 0:
+                djid = cur.fetchone()['djid']
+                if djid != None:
+                    self._cache[user] = djid
+                    return djid
+            return 0
+    def s_id(self, value):
+        if (not isinstance(value, (int, long, float))):
+            raise TypeError("Expected integer")
+        with webcom.MySQLCursor() as cur:
+            cur.execute("SELECT `user` FROM `users` WHERE `djid`=%s \
+            LIMIT 1;", (value,))
+            if (cur.rowcount > 0):
+                user = cur.fetchone()['user']
+                self._cache[user] = djid
+                self._name = user
+            else:
+                raise TypeError("Invalid ID, no such DJ")
+    id = property(g_id, s_id)
+    def g_name(self):
+        return self._name
+    def s_name(self, value):
+        old_name = self._name
+        self._name = value
+        if (self.user == None):
+            self._name = old_name
+            raise TypeError("Invalid name, no such DJ")
+    name = property(g_name, s_name)
+    @property
+    def user(self):
+        djname = self.name
+        if (djname == None):
+            return None
+        with open(config.djfile) as djs:
+            for line in djs:
+                temp = line.split('@')
+                wildcards = temp[0].split('!')
+                djname_temp = temp[1].strip()
+                for wildcard in wildcards:
+                    wildcard = re.escape(wildcard)
+                    '^' + wildcard
+                    wildcard = wildcard.replace('*', '.*')
+                    if (re.search(wildcard, djname_temp, re.IGNORECASE)):
+                        djname = djname_temp
+                        break
+                if (djname):
+                    return unicode(djname)
+        return None
 
 class Song(object):
     def __init__(self, id=None, meta=None, length=None, filename=None):
@@ -226,6 +291,20 @@ class Song(object):
         for key, value in kwargs.iteritems():
             if (key in dir(self)):
                 setattr(self, "_" + key, value)
+                with webcom.MySQLCursor() as cur:
+                    if (key == "lp"):
+                        # change database entries for LP data
+                        cur.execute("INSERT INTO eplay ('isong', 'dt') \
+                        VALUES(%s, FROM_UNIXTIME(%s));",
+                        (self.songid, self.lp))
+                        if (self.afk):
+                            cur.execute("UPDATE `tracks` SET \
+                            `lastplayed`=FROM_UNIXTIME(%s) \
+                            WHERE `id`=%s LIMIT 1;", (self.lp, self.id))
+                    elif (key == "length"):
+                        # change database entries for length data
+                        cur.execute("UPDATE `esong` SET `len`=%s WHERE \
+                        hash=%s", (self.length, self.digest))
     @staticmethod
     def create_digest(metadata):
         from hashlib import sha1
@@ -241,7 +320,7 @@ class Song(object):
     @property
     def songid(self):
         if (not self._songid):
-            self._songid = self.get_songid(self.digest)
+            self._songid = self.get_songid(self)
         return self._songid
     @property
     def metadata(self):
@@ -432,7 +511,10 @@ class Song(object):
             with webcom.MySQLCursor() as cur:
                 cur.execute("SELECT len FROM `esong` WHERE `hash`=%s;",
                             (song.digest,))
-                return cur.fetchone()['len']
+                if (cur.rowcount > 0):
+                    return cur.fetchone()['len']
+                else:
+                    return 0.0
         else:
             try:
                 length = mutagen.File(song.filename).info.length
@@ -456,14 +538,18 @@ class Song(object):
             else:
                 return (None, None)
     @staticmethod
-    def get_songid(digest):
+    def get_songid(song):
         with webcom.MySQLCursor() as cur:
             cur.execute("SELECT * FROM `esong` WHERE `hash`=%s LIMIT 1;",
-                        (digest,))
+                        (song.digest,))
             if (cur.rowcount == 1):
                 return cur.fetchone()['id']
             else:
-                return None
+                cur.execute("INSERT INTO `esong` ('hash', 'len', 'title') \
+                VALUES (%s, %s, %s);", (song.digest, song.length, song.metadata))
+                cur.execute("SELECT * FROM `esong` WHERE `hash`=%s LIMIT 1;",
+                        (song.digest,))
+                return cur.fetchone()['id']
     @staticmethod
     def fix_encoding(metadata):
         try:
