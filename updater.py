@@ -31,19 +31,13 @@ class Queue(object):
             return result['timestamp'] + int(result['length'])
         else:
             return np.end()
-    def __get_length(self, filename):
-        try:
-            length = mutagen.File(filename).info.length
-        except (IOError):
-            logging.exception("Failed length check")
-            length = 0
-        return length
+
     def append_by_id(self, trackid, type=TYPE_REGULAR, meta=None, ip="0.0.0.0"):
         filename, metadata = webcom.get_song(trackid)
-        length = self.__get_length(filename)
+        length = Song.get_length(filename)
         if (meta == None):
             meta = metadata
-        with webcom.MySQLCursor(self._lock) as cur:
+        with webcom.MySQLCursor(lock=self._lock) as cur:
             timestamp = self.__get_timestamp(cur, type)
             meta = cur.escape_string(meta.encode("utf-8"))
             if (type == TYPE_REQUEST):
@@ -55,7 +49,7 @@ class Queue(object):
             cur.execute("INSERT INTO `queue` (time, ip, type, meta, length, trackid) VALUES (from_unixtime({timestamp}), '{ip}', {type}, '{meta}', {length}, {trackid});"\
                     .format(timestamp=int(timestamp), ip=ip, type=type, meta=meta, length=length, trackid=trackid))
     def append_by_meta(self, meta, length, type=TYPE_REGULAR, ip="0.0.0.0"):
-        with webcom.MySQLCursor(self._lock) as cur:
+        with webcom.MySQLCursor(lock=self._lock) as cur:
             timestamp = self.__get_timestamp(cur, type)
             meta = cur.escape_string(meta.encode("utf-8"))
             if (type == TYPE_REQUEST):
@@ -68,7 +62,7 @@ class Queue(object):
         """queue should be an iterater containing
             (metadata, length) tuples
         """
-        with webcom.MySQLCursor(self._lock) as cur:
+        with webcom.MySQLCursor(lock=self._lock) as cur:
             timestamp = self.__get_timestamp(cur)
             if (kind == KIND_META_LENGTH):
                 query = "INSERT INTO `queue` (time, meta, length) VALUES (from_unixtime({time}), '{meta}', {length});"
@@ -88,7 +82,7 @@ class Queue(object):
         the database"""
         if (amount > 100):
             amount = 100
-        with webcom.MySQLCursor(self._lock) as cur:
+        with webcom.MySQLCursor(lock=self._lock) as cur:
             cur.execute("SELECT tracks.id AS trackid, artist, track, path FROM tracks WHERE `usable`=1 AND NOT EXISTS (SELECT 1 FROM queue WHERE queue.trackid = tracks.id) ORDER BY `lastplayed` ASC, `lastrequested` ASC LIMIT 100;")
             result = list(cur.fetchall())
             queuelist = []
@@ -99,19 +93,21 @@ class Queue(object):
                 meta = row['track']
                 if row['artist'] != u'':
                     meta = row['artist'] + u' - ' + meta
-                length = self.__get_length(filename)
+                length = Song.get_length(filename)
                 queuelist.append((row['trackid'], meta, length))
                 n -= 1
         self.append_many(queuelist, kind=KIND_TRACKID_META_LENGTH)
     def pop(self):
         try:
-            with webcom.MySQLCursor(self._lock) as cur:
+            with webcom.MySQLCursor(lock=self._lock) as cur:
                 cur.execute("SELECT * FROM `queue` ORDER BY `time` ASC LIMIT 1;")
                 if (cur.rowcount > 0):
                     result = cur.fetchone()
                     cur.execute("DELETE FROM `queue` WHERE id={id};"\
                                 .format(id=result['id']))
-                    return (result['trackid'], result['meta'].decode('utf-8'), result['length'])
+                    return Song(id=result['trackid'],
+                                meta=result['meta'].decode('utf-8'),
+                                length=result['length'])
                 else:
                     raise EmptyQueue("Queue is empty")
         finally:
@@ -120,13 +116,19 @@ class Queue(object):
     def empty(self):
         self.clear()
     def clear(self):
-        with webcom.MySQLCursor(self._lock) as cur:
+        with webcom.MySQLCursor(lock=self._lock) as cur:
             cur.execute("DELETE FROM `queue`;")
     def __len__(self):
-        with self.lock:
-            with webcom.MySQLCursor(self._lock) as cur:
-                cur.execute("SELECT COUNT(*) as count FROM `queue`;")
-                return int(cur.fetchone()['count'])
+        with webcom.MySQLCursor(lock=self._lock) as cur:
+            cur.execute("SELECT COUNT(*) as count FROM `queue`;")
+            return int(cur.fetchone()['count'])
+    def __iter__(self):
+        with webcom.MySQLCursor(lock=self._lock) as cur:
+            cur.execute("SELECT * FROM `queue` ORDER BY `time` ASC LIMIT 5;")
+            for row in cur:
+                yield Song(id=row['trackid'],
+                           meta=row['meta'].decode('utf-8'),
+                           length=row['length'])
 queue = Queue()
 
 class LastPlayed(object):
@@ -235,11 +237,17 @@ class DJ(object):
 dj = DJ()
 
 class Song(object):
-    def __init__(self, id=None):
-        self._title = None
-        self._artist = None
+    def __init__(self, id=None, meta=None, length=0.0):
+        if (meta is None) and (id is None):
+            raise TypeError("Require either 'id' or 'meta' argument")
+        elif (id == None) or (meta == None) or (length == 0.0):
+            # do shit
+            filename, meta = webcom.get_song(id)
+            length = self.get_length(filename)
+        self._metadata = meta
+        self._length = length
+        self._id = id
         self._digest = None
-        self._length = 0.0
         self._lp = None
     @staticmethod
     def create_digest(metadata):
@@ -248,15 +256,11 @@ class Song(object):
             metadata = metadata.encode('utf-8', 'replace')
         return sha1(metadata).hexdigest()
     @property
+    def id(self):
+        return self._id if self._id != None else L0
+    @property
     def metadata(self):
-        return self.artist + u' - ' + self.title if self.artist != u'' \
-            else self.title
-    @property
-    def title(self):
-        return self._title if self._title != None else u''
-    @property
-    def artist(self):
-        return self._artist if self._artist != None else u''
+        return self._metadata if self._metadata != None else u''
     @property
     def digest(self):
         if (self._digest == None):
@@ -274,6 +278,19 @@ class Song(object):
     def lp(self):
         pass
     lastplayed = lp
+    @staticmethod
+    def get_length(filename):
+        try:
+            length = mutagen.File(filename).info.length
+        except (IOError):
+            logging.exception("Failed length check")
+            length = 0.0
+        return length
+    def __str__(self):
+        return self.__repr__().encode("utf-8")
+    def __repr__(self):
+        return u"<Song %s [%d, %s] at %s>" % (self.metadata, self.id,
+                                             self.digest, hex(id(self)))
 # GENERAL TOOLS GO HERE
 
 def get_ms(self, seconds):
