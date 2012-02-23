@@ -236,7 +236,7 @@ class Song(object):
     @property
     def songid(self):
         if (not self._songid):
-            self._songid = get_songid(self.digest)
+            self._songid = self.get_songid(self.digest)
         return self._songid
     @property
     def metadata(self):
