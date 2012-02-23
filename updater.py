@@ -197,18 +197,16 @@ class dj(object):
         
 
 class Song(object):
-    def __init__(self, id=None, meta=None, length=0.0, filename=None):
+    def __init__(self, id=None, meta=None, length=None, filename=None):
         if (meta is None) and (id is None):
             raise TypeError("Require either 'id' or 'meta' argument")
         elif (id != None):
             temp_filename, temp_meta = self.get_file(id)
-            temp_length = self.get_length(filename)
             if (meta == None):
                 meta = temp_meta
-            if (length == 0.0):
-                length = temp_length
             if (filename == None):
                 filename = temp_filename
+        self._length = length
         self._filename = filename
         self._metadata = meta
         self._length = length
@@ -249,11 +247,13 @@ class Song(object):
     @property
     def length(self):
         # Make it int instead of float
-        return int(self._length)
+        if (self._length == None):
+            self._length = self.get_length(self)
+        return int(self._length if self._length != None else 0)
     @property
     def lengthf(self):
         # Formatted
-        return u'%02d:%02d' % divmod(int(self._length), 60)
+        return u'%02d:%02d' % divmod(self.length, 60)
     @property
     def lp(self):
         with webcom.MySQLCursor() as cur:
@@ -353,11 +353,9 @@ class Song(object):
                     for result in cur:
                         yield result['nick']
             def __len__(self):
-                if (not self.song.afk):
-                    return 0
                 with webcom.MySQLCursor() as cur:
                     cur.execute("SELECT count(*) AS favecount FROM efave \
-                    WHERE isong={songid}".format(songid=self.song.id))
+                    WHERE isong={songid}".format(songid=self.song.songid))
                     return cur.fetchone()['favecount']
             def __getitem__(self, key):
                 return list(self)[key]
@@ -371,10 +369,8 @@ class Song(object):
                         # It is in there
                         with webcom.MySQLCursor() as cur:
                             cur.execute(
-                                        "DELETE FROM efave JOIN enick ON \
-                                        enick.id = efave.inick WHERE enick.nick\
-                                        =%s AND isong=%s;",
-                                        (key, self.song.songid))
+        "DELETE efave.* FROM efave LEFT JOIN enick ON enick.id = efave.inick WHERE \
+        enick.nick=%s AND isong=%s;", (key, self.song.songid))
                     else:
                         raise KeyError("{0}".format(key))
                 elif (isinstance(key, (int, long))):
@@ -385,9 +381,9 @@ class Song(object):
                     else:
                         with webcom.MySQLCursor() as cur:
                             cur.execute(
-                                        "DELETE FROM efave JOIN enick ON \
-                                        enick.id = efave.inick WHERE enick.nick\
-                                        =%s AND isong=%s;",
+                                        "DELETE efave.* FROM efave LEFt JOIN \
+                                        enick ON enick.id = efave.inick WHERE \
+                                        enick.nick=%s AND isong=%s;",
                                         (key, self.song.songid))
                 else:
                     raise TypeError("Fave key has to be 'string' or 'int'")
@@ -423,15 +419,19 @@ class Song(object):
     def afk(self):
         return False if self.id == None else True
     @staticmethod
-    def get_length(filename):
-        if (filename == None):
-            return 0.0
-        try:
-            length = mutagen.File(filename).info.length
-        except (IOError):
-            logging.exception("Failed length check")
-            length = 0.0
-        return length
+    def get_length(song):
+        if (song.filename == u''):
+            # try hash
+            with webcom.MySQLCursor() as cur:
+                cur.execute("SELECT len FROM `esong` WHERE `hash`=%s;",
+                            (song.digest,))
+                return cur.fetchone()['len']
+        else:
+            try:
+                length = mutagen.File(filename).info.length
+            except (IOError):
+                logging.exception("Failed length check")
+                return 0.0
     @staticmethod
     def get_file(songid):
         """Retrieve song path and metadata from the track ID"""
