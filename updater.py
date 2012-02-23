@@ -18,9 +18,10 @@ class EmptyQueue(Exception):
 # Check string encoding ? seems to be non-unicode string returned
 # Fix encoding on all metadata
 # Make regular queue go empty when requests get entered
-class Queue(object):
+class queue(object):
     _lock = RLock()
-    def __get_timestamp(self, cur, type=TYPE_REGULAR):
+    @staticmethod
+    def get_timestamp(cur, type=TYPE_REGULAR):
         if (type == TYPE_REGULAR):
             cur.execute("SELECT unix_timestamp(time) AS timestamp, length FROM `queue` ORDER BY `time` DESC LIMIT 1;")
         elif (type == TYPE_REQUEST):
@@ -31,14 +32,14 @@ class Queue(object):
             return result['timestamp'] + int(result['length'])
         else:
             return np.end()
-
-    def append_by_id(self, trackid, type=TYPE_REGULAR, meta=None, ip="0.0.0.0"):
+    @classmethod
+    def append_by_id(cls, trackid, type=TYPE_REGULAR, meta=None, ip="0.0.0.0"):
         filename, metadata = webcom.get_song(trackid)
         length = Song.get_length(filename)
         if (meta == None):
             meta = metadata
-        with webcom.MySQLCursor(lock=self._lock) as cur:
-            timestamp = self.__get_timestamp(cur, type)
+        with webcom.MySQLCursor(lock=cls._lock) as cur:
+            timestamp = cls.get_timestamp(cur, type)
             meta = cur.escape_string(meta.encode("utf-8"))
             if (type == TYPE_REQUEST):
                 cur.execute("DELETE FROM `queue` WHERE trackid={trackid}"\
@@ -48,8 +49,9 @@ class Queue(object):
                 cur.execute("DELETE FROM `queue` WHERE type=0 ORDER BY time DESC LIMIT 1")
             cur.execute("INSERT INTO `queue` (time, ip, type, meta, length, trackid) VALUES (from_unixtime({timestamp}), '{ip}', {type}, '{meta}', {length}, {trackid});"\
                     .format(timestamp=int(timestamp), ip=ip, type=type, meta=meta, length=length, trackid=trackid))
-    def append_by_meta(self, meta, length, type=TYPE_REGULAR, ip="0.0.0.0"):
-        with webcom.MySQLCursor(lock=self._lock) as cur:
+    @classmethod
+    def append_by_meta(cls, meta, length, type=TYPE_REGULAR, ip="0.0.0.0"):
+        with webcom.MySQLCursor(lock=cls._lock) as cur:
             timestamp = self.__get_timestamp(cur, type)
             meta = cur.escape_string(meta.encode("utf-8"))
             if (type == TYPE_REQUEST):
@@ -58,12 +60,13 @@ class Queue(object):
                 cur.execute("DELETE FROM `queue` WHERE type=0 ORDER BY time DESC LIMIT 1")
             cur.execute("INSERT INTO `queue` (time, ip, type, meta, length) VALUES (from_unixtime({timestamp}), '{ip}', {type}, '{meta}', {length});"\
                         .format(timestamp=int(timestamp), ip=ip, type=type, meta=meta, length=length))
-    def append_many(self, queuelist, kind=KIND_META_LENGTH):
+    @classmethod
+    def append_many(cls, queuelist, kind=KIND_META_LENGTH):
         """queue should be an iterater containing
             (metadata, length) tuples
         """
-        with webcom.MySQLCursor(lock=self._lock) as cur:
-            timestamp = self.__get_timestamp(cur)
+        with webcom.MySQLCursor(lock=cls._lock) as cur:
+            timestamp = cls.get_timestamp(cur)
             if (kind == KIND_META_LENGTH):
                 query = "INSERT INTO `queue` (time, meta, length) VALUES (from_unixtime({time}), '{meta}', {length});"
                 for meta, length in queuelist:
@@ -76,13 +79,14 @@ class Queue(object):
                     meta = cur.escape_string(meta.encode("utf-8"))
                     cur.execute(query.format(trackid=trackid, time=int(timestamp), meta=meta, length=length))
                     timestamp += length
-    def append_random(self, amount=10):
+    @classmethod
+    def append_random(cls, amount=10):
         """Appends random songs to the queue,
         these come from the tracks table in
         the database"""
         if (amount > 100):
             amount = 100
-        with webcom.MySQLCursor(lock=self._lock) as cur:
+        with webcom.MySQLCursor(lock=cls._lock) as cur:
             cur.execute("SELECT tracks.id AS trackid, artist, track, path FROM tracks WHERE `usable`=1 AND NOT EXISTS (SELECT 1 FROM queue WHERE queue.trackid = tracks.id) ORDER BY `lastplayed` ASC, `lastrequested` ASC LIMIT 100;")
             result = list(cur.fetchall())
             queuelist = []
@@ -97,9 +101,10 @@ class Queue(object):
                 queuelist.append((row['trackid'], meta, length))
                 n -= 1
         self.append_many(queuelist, kind=KIND_TRACKID_META_LENGTH)
-    def pop(self):
+    @classmethod
+    def pop(cls):
         try:
-            with webcom.MySQLCursor(lock=self._lock) as cur:
+            with webcom.MySQLCursor(lock=cls._lock) as cur:
                 cur.execute("SELECT * FROM `queue` ORDER BY `time` ASC LIMIT 1;")
                 if (cur.rowcount > 0):
                     result = cur.fetchone()
@@ -111,12 +116,11 @@ class Queue(object):
                 else:
                     raise EmptyQueue("Queue is empty")
         finally:
-            if (len(self) < 20):
-                self.append_random(20 - len(self))
-    def empty(self):
-        self.clear()
-    def clear(self):
-        with webcom.MySQLCursor(lock=self._lock) as cur:
+            if (len(cls) < 20):
+                cls.append_random(20 - len(cls))
+    @classmethod
+    def clear(cls):
+        with webcom.MySQLCursor(lock=cls._lock) as cur:
             cur.execute("DELETE FROM `queue`;")
     def __len__(self):
         with webcom.MySQLCursor(lock=self._lock) as cur:
@@ -129,7 +133,7 @@ class Queue(object):
                 yield Song(id=row['trackid'],
                            meta=row['meta'].decode('utf-8'),
                            length=row['length'])
-queue = Queue()
+#queue = Queue()
 
 class LastPlayed(object):
     def get(self, amount=5):
@@ -289,7 +293,7 @@ class Song(object):
     def __str__(self):
         return self.__repr__().encode("utf-8")
     def __repr__(self):
-        return u"<Song %s [%d, %s] at %s>" % (self.metadata, self.id,
+        return u"<Song [%s, %.2f, %s] at %s>" % (self.metadata, self.id,
                                              self.digest, hex(id(self)))
 # GENERAL TOOLS GO HERE
 
