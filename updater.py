@@ -197,21 +197,26 @@ class dj(object):
         
 
 class Song(object):
-    def __init__(self, id=None, meta=None, length=0.0):
+    def __init__(self, id=None, meta=None, length=0.0, filename=None):
         if (meta is None) and (id is None):
             raise TypeError("Require either 'id' or 'meta' argument")
         elif (id != None):
-            filename, temp_meta = self.get_file(id)
+            temp_filename, temp_meta = self.get_file(id)
             temp_length = self.get_length(filename)
             if (meta == None):
                 meta = temp_meta
             if (length == 0.0):
                 length = temp_length
+            if (filename == None):
+                filename = temp_filename
+        self._filename = filename
         self._metadata = meta
         self._length = length
         self._id = id
         self._digest = None
         self._lp = None
+        self._songid = None
+        self._faves = None
     def update(self, **kwargs):
         for key, value in kwargs.iteritems():
             if (key in dir(self)):
@@ -223,8 +228,16 @@ class Song(object):
             metadata = metadata.encode('utf-8', 'replace')
         return sha1(metadata).hexdigest()
     @property
+    def filename(self):
+        return self._filename if self._filename != None else None
+    @property
     def id(self):
         return self._id if self._id != None else 0L
+    @property
+    def songid(self):
+        if (not self._songid):
+            self._songid = get_songid(self.digest)
+        return self._songid
     @property
     def metadata(self):
         return self._metadata if self._metadata != None else u''
@@ -256,19 +269,147 @@ class Song(object):
         return parse_lastplayed(0 if self.lp == None else self.lp)
     @property
     def favecount(self):
-        if (not self.afk):
-            return 0
-        with MySQLCursor() as cur:
-            cur.execute("SELECT count(*) AS favecount FROM efave \
-            WHERE isong={songid}".format(songid=self.id))
-            return cur.fetchone()['favecount']
+        return len(self.faves)
     @property
     def faves(self):
-        with MySQLCursor() as cur:
-            cur.execute("SELECT enick.nick FROM esong JOIN efave ON efave.isong \
-                        = esong.id JOIN enick ON efave.inick = enick.id WHERE esong.hash \
-                             = '{digest}'".format(digest=self.digest))
-            return [result['nick'] for result in cur]
+        class Faves(object):
+            def __init__(self, song):
+                self.song = song
+            def index(self, key):
+                return list(self).index(key)
+            def count(self, key):
+                if (key in self):
+                    return 1
+                return 0
+            def remove(self, key):
+                self.__delitem__(key)
+            def pop(self, index):
+                raise NotImplemented("No popping allowed")
+            def insert(self, index, value):
+                raise NotImplemented("No inserting allowed, use append")
+            def sort(self, cmp, key, reverse):
+                raise NotImplemented("Sorting now allowed, use reverse(faves) or list(faves)")
+            def append(self, nick):
+                if (nick in self):
+                    return
+                with webcom.MySQLCursor() as cur:
+                    cur.execute("SELECT * FROM enick WHERE nick=%s;",
+                                (nick,))
+                    if (cur.rowcount == 0):
+                        cur.execute("INSERT INTO enick (`nick`) VALUES(%s);",
+                                    (nick,))
+                        cur.execute("SELECT * FROM enick WHERE nick=%s;",
+                                    (nick,))
+                        nickid = cur.fetchone()['id']
+                        cur.execute("INSERT INTO efave (`inick`, `isong`) \
+                        VALUES(%d, %d);", (nickid, self.song.songid))
+                    elif (cur.rowcount == 1):
+                        nickid = cur.fetchone()['id']
+                        cur.execute("INSERT INTO efave (inick, isong) \
+                        VALUES(%d, %d);", (nickid, self.song.songid))
+                    if (self.song.id != 0L):
+                        cur.execute("UPDATE `tracks` SET `priority`=priority+2\
+                         WHERE `id`=%d;", (self.song.id,))
+            def extend(self, seq):
+                original = list(self)
+                with webcom.MySQLCursor() as cur:
+                    for nick in seq:
+                        if (nick in original):
+                            continue
+                        original.append(nick)
+                        cur.execute("SELECT * FROM enick WHERE nick=%s;",
+                                (nick,))
+                        if (cur.rowcount == 0):
+                            cur.execute("INSERT INTO enick (`nick`) VALUES(%s);",
+                                        (nick,))
+                            cur.execute("SELECT * FROM enick WHERE nick=%s;",
+                                        (nick,))
+                            nickid = cur.fetchone()['id']
+                            cur.execute("INSERT INTO efave (`inick`, `isong`) \
+                            VALUES(%d, %d);", (nickid, self.song.songid))
+                        elif (cur.rowcount == 1):
+                            nickid = cur.fetchone()['id']
+                            cur.execute("INSERT INTO efave (inick, isong) \
+                            VALUES(%d, %d);", (nickid, self.song.songid))
+                        if (self.song.id != 0L):
+                            cur.execute("UPDATE `tracks` SET `priority`=\
+                            priority+2 WHERE `id`=%d;", (self.song.id,))
+            def __iter__(self):
+                with webcom.MySQLCursor() as cur:
+                    cur.execute("SELECT enick.nick FROM esong JOIN efave ON \
+                    efave.isong = esong.id JOIN enick ON efave.inick = \
+                    enick.id WHERE esong.hash = '{digest}' ORDER BY enick.nick\
+                     ASC"\
+                    .format(digest=self.song.digest))
+                    for result in cur:
+                        yield result['nick']
+            def __reversed__(self):
+                with webcom.MySQLCursor() as cur:
+                    cur.execute("SELECT enick.nick FROM esong JOIN efave ON \
+                    efave.isong = esong.id JOIN enick ON efave.inick = \
+                    enick.id WHERE esong.hash = '{digest}' ORDER BY enick.nick\
+                     DESC"\
+                    .format(digest=self.song.digest))
+                    for result in cur:
+                        yield result['nick']
+            def __len__(self):
+                if (not self.song.afk):
+                    return 0
+                return len(self.faves)
+                with webcom.MySQLCursor() as cur:
+                    cur.execute("SELECT count(*) AS favecount FROM efave \
+                    WHERE isong={songid}".format(songid=self.song.id))
+                    return cur.fetchone()['favecount']
+            def __getitem__(self, key):
+                return list(self)[key]
+            def __setitem__(self, key, value):
+                raise NotImplemented("Can't set on <Faves> object")
+            def __delitem__(self, key):
+                original = list(self)
+                if (isinstance(key, basestring)):
+                    # Nick delete
+                    if (key in original):
+                        # It is in there
+                        with webcom.MySQLCursor() as cur:
+                            cur.execute(
+                                        "DELETE FROM efave JOIN enick ON \
+                                        enick.id = efave.inick WHERE enick.nick\
+                                        =%s AND isong=%d;",
+                                        (key, self.song.songid))
+                    else:
+                        raise KeyError("{0}".format(key))
+                elif (isinstance(key, (int, long))):
+                    try:
+                        key = original[key]
+                    except (IndexError):
+                        raise IndexError("Fave index out of range")
+                    else:
+                        with webcom.MySQLCursor() as cur:
+                            cur.execute(
+                                        "DELETE FROM efave JOIN enick ON \
+                                        enick.id = efave.inick WHERE enick.nick\
+                                        =%s AND isong=%d;",
+                                        (key, self.song.songid))
+                else:
+                    raise TypeError("Fave key has to be 'string' or 'int'")
+            def __contains__(self, key):
+                # TODO safe
+                with webcom.MySQLCursor() as cur:
+                    cur.execute("SELECT count(*) AS contains FROM efave JOIN\
+                     enick ON enick.id = efave.inick WHERE enick.nick=%s \
+                     AND efave.isong=%d;",
+                     (key, self.song.songid))
+                    if (cur.fetchone()['contains'] > 0):
+                        return True
+                    return False
+            def __repr__(self):
+                return u"Favorites of %s" % repr(self.song)
+            def __str__(self):
+                return self.__repr__().encode('utf-8')
+        if (not self._faves):
+            return Faves(self)
+        return self._faves
+
     @property
     def playcount(self):
         with webcom.MySQLCursor() as cur:
@@ -296,7 +437,7 @@ class Song(object):
     def get_file(songid):
         """Retrieve song path and metadata from the track ID"""
         from os.path import join
-        with MySQLCursor() as cur:
+        with webcom.MySQLCursor() as cur:
             cur.execute("SELECT * FROM `tracks` WHERE `id`=%s LIMIT 1;" % (songid))
             if cur.rowcount == 1:
                 row = cur.fetchone()
@@ -308,6 +449,15 @@ class Song(object):
                 return (path, meta)
             else:
                 return (None, None)
+    @staticmethod
+    def get_songid(digest):
+        with webcom.MySQLCursor as cur:
+            cur.execute("SELECT * FROM `esong` WHERE `hash`=%s LIMIT 1;",
+                        (digest,))
+            if (cur.rowcount == 1):
+                return cur.fetchone()['id']
+            else:
+                return None
     def __str__(self):
         return self.__repr__().encode("utf-8")
     def __repr__(self):
