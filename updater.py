@@ -202,7 +202,7 @@ class Song(object):
             raise TypeError("'id' incorrect type, expected int or long")
         if (not isinstance(meta, (basestring, type(None)))):
             raise TypeError("'meta' incorrect type, expected string or unicode")
-        if (not isinstance(length, (int, long, type(None)))):
+        if (not isinstance(length, (int, long, float, type(None)))):
             raise TypeError("'length' incorrect type, expected int or long")
         if (not isinstance(filename, (basestring, type(None)))):
             raise TypeError("'filename' incorrect type, expected string or unicode")
