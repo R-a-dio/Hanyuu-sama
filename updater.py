@@ -147,25 +147,61 @@ class lp(object):
         lp = time.time() if song.lp is None else song.lp
         webcom.send_hash(song.digest, song.metadata, song.length, lp)
 
+class status(object):
+    _timeout = time.time() - 60
+    @property
+    def listeners(self):
+        return int(self.cached_status.get('Current Listeners', 0))
+    @property
+    def peak_listeners(self):
+        return int(self.cached_status.get('Peak Listeners', 0))
+    @property
+    def online(self):
+        return config.icecast_mount in self.status
+    @property
+    def started(self):
+        return self.cached_status.get("Mount started", "Unknown")
+    @property
+    def type(self):
+        return self.cached_status.get("Content Type", None)
+    @property
+    def current(self):
+        return self.cached_status.get("Current Song", u"")
+    @property
+    def cached_status(self):
+        import streamstatus
+        if (time.time() - self._timeout > 9):
+            self._status = streamstatus.get_status(config.icecast_server)
+            self._timeout = time.time()
+        return self._status[config.icecast_mount]
+    @property
+    def status(self):
+        import streamstatus
+        self._status = streamstatus.get_status(config.icecast_server)
+        self._timeout = time.time()
+        return self._status
 class np(object):
     _end = 0
     _start = int(time.time())
     def __init__(self):
+        from threading import Thread
         self.song = Song(meta=u"Placeholder", length=0.0)
         self.updater = Thread(target=self.send)
+        self.updater.daemon = 1
         self.updater.start()
     def send(self):
         while True:
-            with webcom.MySQLCursor() as cur:
-                cur.execute(
-                            "UPDATE `streamstatus` SET `lastset`=NOW(), \
-                            `np`=%s, `djid`=%s, `listeners`=%s, \
-                            `start_time`=%s, `end_time`=%s, \
-                            `isafkstream`=%s WHERE `id`=0;",
-                            (self.metadata, dj.id, status.listeners,
-                             self._start, self.end(),
-                             1 if self.afk else 0)
-                            )
+            if (status.online):
+                with webcom.MySQLCursor() as cur:
+                    cur.execute(
+                                "UPDATE `streamstatus` SET `lastset`=NOW(), \
+                                `np`=%s, `djid`=%s, `listeners`=%s, \
+                                `start_time`=%s, `end_time`=%s, \
+                                `isafkstream`=%s WHERE `id`=0;",
+                                (self.metadata, dj.id, status.listeners,
+                                 self._start, self.end(),
+                                 1 if self.afk else 0)
+                                )
             time.sleep(10)
     def change(self, song):
         """Changes the current playing song to 'song' which should be an
@@ -192,12 +228,13 @@ class np(object):
 class DJError(Exception):
     pass
 class dj(object):
-    _name = "Unknown"
+    _name = None
+    _cache = {}
     def g_id(self):
         user = self.user
         if (user in self._cache):
             return self._cache[user]
-        with MySQLCursor() as cur:
+        with webcom.MySQLCursor() as cur:
             # we don't have a user
             if (not self.user):
                 cur.execute("SELECT `djid` FROM `streamstatus`")
@@ -210,7 +247,7 @@ class dj(object):
                     self._name = user
                 return djid
             
-            cur.execute("SELECT `djid` FROM `users` WHERE `user`='%s' LIMIT 1;",
+            cur.execute("SELECT `djid` FROM `users` WHERE `user`=%s LIMIT 1;",
                         (user,))
             if cur.rowcount > 0:
                 djid = cur.fetchone()['djid']
@@ -242,19 +279,32 @@ class dj(object):
     name = property(g_name, s_name)
     @property
     def user(self):
-        djname = self.name
-        if (djname == None):
-            return None
+        from re import escape, search, IGNORECASE
+        name = self.name
+        if (name == None):
+            with webcom.MySQLCursor() as cur:
+                cur.execute("SELECT `djid` FROM `streamstatus`")
+                djid = cur.fetchone()['djid']
+                cur.execute("SELECT `user` FROM `users` WHERE `djid`=%s \
+                LIMIT 1;", (djid,))
+                if (cur.rowcount > 0):
+                    user = cur.fetchone()['user']
+                    self._cache[user] = djid
+                    self._name = user
+                    name = user
+                else:
+                    return None
         with open(config.djfile) as djs:
+            djname = None
             for line in djs:
                 temp = line.split('@')
                 wildcards = temp[0].split('!')
                 djname_temp = temp[1].strip()
                 for wildcard in wildcards:
-                    wildcard = re.escape(wildcard)
+                    wildcard = escape(wildcard)
                     '^' + wildcard
                     wildcard = wildcard.replace('*', '.*')
-                    if (re.search(wildcard, djname_temp, re.IGNORECASE)):
+                    if (search(wildcard, name, IGNORECASE)):
                         djname = djname_temp
                         break
                 if (djname):
@@ -288,8 +338,16 @@ class Song(object):
         self._filename = filename
         self._metadata = self.fix_encoding(meta)
     def update(self, **kwargs):
+        """Gives you the possibility to update the
+            'lp', 'id', 'length', 'filename' and 'metadata'
+            variables in the Song instance
+            
+            Updating the 'lp' and 'length' will directly affect the database
+            while 'filename', 'metadata' and 'id' don't, updating 'id' also
+            updates 'filename' but not 'metadata'
+            """
         for key, value in kwargs.iteritems():
-            if (key in dir(self)):
+            if (key in ["lp", "id", "length", "filename", "metadata"]):
                 setattr(self, "_" + key, value)
                 with webcom.MySQLCursor() as cur:
                     if (key == "lp"):
@@ -304,44 +362,56 @@ class Song(object):
                     elif (key == "length"):
                         # change database entries for length data
                         cur.execute("UPDATE `esong` SET `len`=%s WHERE \
-                        hash=%s", (self.length, self.digest))
+                        id=%s", (self.length, self.songid))
+                    elif (key == "id"):
+                        self._filename, temp = self.get_file(value)
     @staticmethod
     def create_digest(metadata):
+        """Creates a digest of 'metadata'"""
         from hashlib import sha1
         if (type(metadata) == unicode):
             metadata = metadata.encode('utf-8', 'replace')
         return sha1(metadata).hexdigest()
     @property
     def filename(self):
+        """Filename, returns None if none found"""
         return self._filename if self._filename != None else None
     @property
     def id(self):
+        """Returns the trackid, as in tracks.id"""
         return self._id if self._id != None else 0L
     @property
     def songid(self):
+        """Returns the songid as in esong.id, efave.isong, eplay.isong"""
         if (not self._songid):
             self._songid = self.get_songid(self)
         return self._songid
     @property
     def metadata(self):
+        """Returns metadata or an empty unicode string"""
         return self._metadata if self._metadata != None else u''
     @property
     def digest(self):
+        """A sha1 digest of the metadata, can be changed by updating the
+        metadata"""
         if (self._digest == None):
             self._digest = self.create_digest(self.metadata)
         return self._digest
     @property
     def length(self):
-        # Make it int instead of float
+        """Returns the length from song as integer, defaults to 0"""
         if (self._length == None):
             self._length = self.get_length(self)
         return int(self._length if self._length != None else 0)
     @property
     def lengthf(self):
-        # Formatted
+        """Returns the length formatted as mm:nn where mm is minutes and
+        nn is seconds, defaults to 00:00. Returns an unicode string"""
         return u'%02d:%02d' % divmod(self.length, 60)
     @property
     def lp(self):
+        """Returns the unixtime of when this song was last played, defaults
+        to None"""
         with webcom.MySQLCursor() as cur:
             query = "SELECT unix_timestamp(`dt`) AS ut FROM eplay,esong \
             WHERE eplay.isong = esong.id AND esong.hash = '{digest}' \
@@ -352,30 +422,47 @@ class Song(object):
             return None
     @property
     def lpf(self):
+        """Returns a unicode string of when this song was last played,
+        looks like '5 years, 3 months, 1 week, 4 days, 2 hours,
+         54 minutes, 20 seconds', defaults to 'Never before'"""
         return parse_lastplayed(0 if self.lp == None else self.lp)
     @property
     def favecount(self):
+        """Returns the amount of favorites on this song as integer,
+        defaults to 0"""
         return len(self.faves)
     @property
     def faves(self):
+        """Returns a Faves instance, list-like object that allows editing of
+        the favorites of this song"""
         class Faves(object):
             def __init__(self, song):
                 self.song = song
             def index(self, key):
+                """Same as a normal list, very inefficient shouldn't be used"""
                 return list(self).index(key)
             def count(self, key):
+                """returns 1 if nick exists else 0, use "key in faves" instead
+                of faves.count(key)"""
                 if (key in self):
                     return 1
                 return 0
             def remove(self, key):
+                """Removes 'key' from the favorites"""
                 self.__delitem__(key)
             def pop(self, index):
+                """Not implemented"""
                 raise NotImplemented("No popping allowed")
             def insert(self, index, value):
+                """Not implemented"""
                 raise NotImplemented("No inserting allowed, use append")
             def sort(self, cmp, key, reverse):
+                """Not implemented"""
                 raise NotImplemented("Sorting now allowed, use reverse(faves) or list(faves)")
             def append(self, nick):
+                """Add a nickname to the favorites of this song, handles
+                creation of nicknames in the database. Does nothing if
+                nick is already in the favorites"""
                 if (nick in self):
                     return
                 with webcom.MySQLCursor() as cur:
@@ -397,6 +484,8 @@ class Song(object):
                         cur.execute("UPDATE `tracks` SET `priority`=priority+2\
                          WHERE `id`=%s;", (self.song.id,))
             def extend(self, seq):
+                """Same as 'append' but allows multiple nicknames to be added
+                by suppling a list of nicknames"""
                 original = list(self)
                 with webcom.MySQLCursor() as cur:
                     for nick in seq:
@@ -421,6 +510,9 @@ class Song(object):
                             cur.execute("UPDATE `tracks` SET `priority`=\
                             priority+2 WHERE `id`=%s;", (self.song.id,))
             def __iter__(self):
+                """Returns an iterator over the favorite list, sorted 
+                alphabetical. Use list(faves) to generate a list copy of the
+                nicknames"""
                 with webcom.MySQLCursor() as cur:
                     cur.execute("SELECT enick.nick FROM esong JOIN efave ON \
                     efave.isong = esong.id JOIN enick ON efave.inick = \
@@ -430,6 +522,7 @@ class Song(object):
                     for result in cur:
                         yield result['nick']
             def __reversed__(self):
+                """Just here for fucks, does the normal as you expect"""
                 with webcom.MySQLCursor() as cur:
                     cur.execute("SELECT enick.nick FROM esong JOIN efave ON \
                     efave.isong = esong.id JOIN enick ON efave.inick = \
@@ -439,6 +532,7 @@ class Song(object):
                     for result in cur:
                         yield result['nick']
             def __len__(self):
+                """len(faves) is efficient"""
                 with webcom.MySQLCursor() as cur:
                     cur.execute("SELECT count(*) AS favecount FROM efave \
                     WHERE isong={songid}".format(songid=self.song.songid))
@@ -446,6 +540,7 @@ class Song(object):
             def __getitem__(self, key):
                 return list(self)[key]
             def __setitem__(self, key, value):
+                """Not implemented"""
                 raise NotImplemented("Can't set on <Faves> object")
             def __delitem__(self, key):
                 original = list(self)
@@ -474,7 +569,6 @@ class Song(object):
                 else:
                     raise TypeError("Fave key has to be 'string' or 'int'")
             def __contains__(self, key):
-                # TODO safe
                 with webcom.MySQLCursor() as cur:
                     cur.execute("SELECT count(*) AS contains FROM efave JOIN\
                      enick ON enick.id = efave.inick WHERE enick.nick=%s \
@@ -493,19 +587,29 @@ class Song(object):
 
     @property
     def playcount(self):
+        """returns the playcount as long, defaults to 0L"""
         with webcom.MySQLCursor() as cur:
-            query = "SELECT count(*) playcount FROM eplay,esong WHERE \
+            query = "SELECT count(*) AS playcount FROM eplay,esong WHERE \
             eplay.isong = esong.id AND esong.hash = '{digest}';"
             cur.execute(query.format(digest=self.digest))
             if (cur.rowcount > 0):
                 return cur.fetchone()['playcount']
             else:
-                return 0
+                return 0L
     @property
     def afk(self):
-        return False if self.id == None else True
+        """Returns true if there is an self.id, which means there is an
+        entry in the 'tracks' table for this song"""
+        return False if self.id == 0L else True
     @staticmethod
     def get_length(song):
+        if (song.filename != None):
+            try:
+                length = mutagen.File(song.filename).info.length
+            except (IOError):
+                logging.exception("Failed length check")
+                return 0.0
+            return length
         if (song.filename == None):
             # try hash
             with webcom.MySQLCursor() as cur:
@@ -515,12 +619,6 @@ class Song(object):
                     return cur.fetchone()['len']
                 else:
                     return 0.0
-        else:
-            try:
-                length = mutagen.File(song.filename).info.length
-            except (IOError):
-                logging.exception("Failed length check")
-                return 0.0
     @staticmethod
     def get_file(songid):
         """Retrieve song path and metadata from the track ID"""
@@ -545,7 +643,7 @@ class Song(object):
             if (cur.rowcount == 1):
                 return cur.fetchone()['id']
             else:
-                cur.execute("INSERT INTO `esong` ('hash', 'len', 'title') \
+                cur.execute("INSERT INTO `esong` (`hash`, `len`, `meta`) \
                 VALUES (%s, %s, %s);", (song.digest, song.length, song.metadata))
                 cur.execute("SELECT * FROM `esong` WHERE `hash`=%s LIMIT 1;",
                         (song.digest,))
@@ -561,6 +659,8 @@ class Song(object):
             return metadata
     @classmethod
     def search(cls, query, limit=5):
+        """Searches the 'tracks' table in the database, returns a list of
+        Song objects. Defaults to 5 results, can be less"""
         from re import compile, escape, sub
         def replace(query):
             re = compile("|".join(escape(s) for s in \
@@ -604,6 +704,7 @@ class Song(object):
                                              .encode("utf-8")
         
 # declaration goes here
+status = status()
 np = np()
 dj = dj()
 queue = queue()
