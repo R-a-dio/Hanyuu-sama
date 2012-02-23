@@ -475,7 +475,8 @@ class Song(object):
             return metadata
     _search_replacer = webcom.make_replacer(**{r"\\": "", r"(": "",
                                          r")": "", r"*": ""})
-    _search_regex = re.compile(r"^[+\-<>~]")
+    from re import compile
+    _search_regex = compile(r"^[+\-<>~]")
     @classmethod
     def search(cls, query, limit=5):
         from os.path import join
