@@ -302,14 +302,14 @@ class Song(object):
                                     (nick,))
                         nickid = cur.fetchone()['id']
                         cur.execute("INSERT INTO efave (`inick`, `isong`) \
-                        VALUES(%d, %d);", (nickid, self.song.songid))
+                        VALUES(%s, %s);", (nickid, self.song.songid))
                     elif (cur.rowcount == 1):
                         nickid = cur.fetchone()['id']
                         cur.execute("INSERT INTO efave (inick, isong) \
-                        VALUES(%d, %d);", (nickid, self.song.songid))
+                        VALUES(%s, %s);", (nickid, self.song.songid))
                     if (self.song.id != 0L):
                         cur.execute("UPDATE `tracks` SET `priority`=priority+2\
-                         WHERE `id`=%d;", (self.song.id,))
+                         WHERE `id`=%s;", (self.song.id,))
             def extend(self, seq):
                 original = list(self)
                 with webcom.MySQLCursor() as cur:
@@ -326,14 +326,14 @@ class Song(object):
                                         (nick,))
                             nickid = cur.fetchone()['id']
                             cur.execute("INSERT INTO efave (`inick`, `isong`) \
-                            VALUES(%d, %d);", (nickid, self.song.songid))
+                            VALUES(%s, %s);", (nickid, self.song.songid))
                         elif (cur.rowcount == 1):
                             nickid = cur.fetchone()['id']
                             cur.execute("INSERT INTO efave (inick, isong) \
-                            VALUES(%d, %d);", (nickid, self.song.songid))
+                            VALUES(%s, %s);", (nickid, self.song.songid))
                         if (self.song.id != 0L):
                             cur.execute("UPDATE `tracks` SET `priority`=\
-                            priority+2 WHERE `id`=%d;", (self.song.id,))
+                            priority+2 WHERE `id`=%s;", (self.song.id,))
             def __iter__(self):
                 with webcom.MySQLCursor() as cur:
                     cur.execute("SELECT enick.nick FROM esong JOIN efave ON \
@@ -373,7 +373,7 @@ class Song(object):
                             cur.execute(
                                         "DELETE FROM efave JOIN enick ON \
                                         enick.id = efave.inick WHERE enick.nick\
-                                        =%s AND isong=%d;",
+                                        =%s AND isong=%s;",
                                         (key, self.song.songid))
                     else:
                         raise KeyError("{0}".format(key))
@@ -387,7 +387,7 @@ class Song(object):
                             cur.execute(
                                         "DELETE FROM efave JOIN enick ON \
                                         enick.id = efave.inick WHERE enick.nick\
-                                        =%s AND isong=%d;",
+                                        =%s AND isong=%s;",
                                         (key, self.song.songid))
                 else:
                     raise TypeError("Fave key has to be 'string' or 'int'")
@@ -396,7 +396,7 @@ class Song(object):
                 with webcom.MySQLCursor() as cur:
                     cur.execute("SELECT count(*) AS contains FROM efave JOIN\
                      enick ON enick.id = efave.inick WHERE enick.nick=%s \
-                     AND efave.isong=%d;",
+                     AND efave.isong=%s;",
                      (key, self.song.songid))
                     if (cur.fetchone()['contains'] > 0):
                         return True
