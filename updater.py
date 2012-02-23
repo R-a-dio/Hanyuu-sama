@@ -198,6 +198,14 @@ class dj(object):
 
 class Song(object):
     def __init__(self, id=None, meta=None, length=None, filename=None):
+        if (not isinstance(id, (int, long, None))):
+            raise TypeError("'id' incorrect type, expected int or long")
+        if (not isinstance(meta, (basestring, None))):
+            raise TypeError("'meta' incorrect type, expected string or unicode")
+        if (not isinstance(length, (int, long, None))):
+            raise TypeError("'length' incorrect type, expected int or long")
+        if (not isinstance(filename, (basestring, None))):
+            raise TypeError("'filename' incorrect type, expected string or unicode")
         self._length = length
         self._id = id
         self._digest = None
@@ -465,6 +473,40 @@ class Song(object):
                 return unicode(metadata, 'shiftjis', 'replace')
         except (TypeError):
             return metadata
+    _search_replacer = make_replacer(**{r"\\": "", r"(": "",
+                                         r")": "", r"*": ""})
+    _search_regex = re.compile(r"^[+\-<>~]")
+    @classmethod
+    def search(cls, query, limit=5):
+        from os.path import join
+        query_raw = query
+        with webcom.MySQLCursor() as cur:
+            search = cls._search_replacer(query)
+            temp = []
+            search = search.split(" ")
+            for item in search:
+                result = cls._search_regex.sub("", item)
+                temp.append("+" + result)
+            query = " ".join(temp)
+            del temp
+            try:
+                query = query.encode("utf-8")
+                query_raw = query_raw.encode("utf-8")
+            except (UnicodeDecodeError):
+                return []
+            cur.execute("SELECT * FROM `tracks` WHERE `usable`='1' AND MATCH \
+            (tags, artist, track, album) AGAINST (%s IN BOOLEAN MODE) \
+            ORDER BY `priority` DESC, MATCH (tags, artist, track, \
+            album) AGAINST (%s) DESC LIMIT %s;",
+                    (query, query_raw, limit))
+        result = []
+        for row in cur:
+            result.append(cls(
+                              id=row['id'],
+                              meta=row['title'] if row['artist'] == u'' \
+                                else row['artist'] + u' - ' + row['title'],
+                            filename=join(config.music_directory, row['path'])))
+        return result
     def __str__(self):
         return self.__repr__()
     def __repr__(self):
