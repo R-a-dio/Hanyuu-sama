@@ -116,23 +116,35 @@ class queue(object):
                 else:
                     raise EmptyQueue("Queue is empty")
         finally:
-            if (len(cls) < 20):
-                cls.append_random(20 - len(cls))
+            if (cls.length < 20):
+                cls.append_random(20 - cls.length)
     @classmethod
     def clear(cls):
         with webcom.MySQLCursor(lock=cls._lock) as cur:
             cur.execute("DELETE FROM `queue`;")
-    def __len__(self):
-        with webcom.MySQLCursor(lock=self._lock) as cur:
+    @classmethod
+    @property
+    def length(cls):
+        with webcom.MySQLCursor(lock=cls._lock) as cur:
             cur.execute("SELECT COUNT(*) as count FROM `queue`;")
             return int(cur.fetchone()['count'])
-    def __iter__(self):
-        with webcom.MySQLCursor(lock=self._lock) as cur:
+    @classmethod
+    @property
+    def _list(cls):
+        with webcom.MySQLCursor(lock=cls._lock) as cur:
             cur.execute("SELECT * FROM `queue` ORDER BY `time` ASC LIMIT 5;")
             for row in cur:
                 yield Song(id=row['trackid'],
                            meta=row['meta'].decode('utf-8'),
                            length=row['length'])
+    @classmethod
+    @property
+    def list(cls):
+        return list(cls._list)
+    def __len__(self):
+        return self.length
+    def __iter__(self):
+        return self._list
 #queue = Queue()
 
 class LastPlayed(object):
