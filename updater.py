@@ -201,8 +201,7 @@ class Song(object):
         if (meta is None) and (id is None):
             raise TypeError("Require either 'id' or 'meta' argument")
         elif (id != None):
-            # do shit
-            filename, temp_meta = webcom.get_song(id)
+            filename, temp_meta = self.get_file(id)
             temp_length = self.get_length(filename)
             if (meta == None):
                 meta = temp_meta
@@ -225,7 +224,7 @@ class Song(object):
         return sha1(metadata).hexdigest()
     @property
     def id(self):
-        return self._id if self._id != None else L0
+        return self._id if self._id != None else 0L
     @property
     def metadata(self):
         return self._metadata if self._metadata != None else u''
@@ -257,10 +256,19 @@ class Song(object):
         return parse_lastplayed(0 if self.lp == None else self.lp)
     @property
     def favecount(self):
-        return webcom.count_fave(self.id)
+        if (not self.afk):
+            return 0
+        with MySQLCursor() as cur:
+            cur.execute("SELECT count(*) AS favecount FROM efave \
+            WHERE isong={songid}".format(songid=self.id))
+            return cur.fetchone()['favecount']
     @property
     def faves(self):
-        return webcom.get_faves(self.digest)
+        with MySQLCursor() as cur:
+            cur.execute("SELECT enick.nick FROM esong JOIN efave ON efave.isong \
+                        = esong.id JOIN enick ON efave.inick = enick.id WHERE esong.hash \
+                             = '{digest}'".format(digest=self.digest))
+            return [result['nick'] for result in cur]
     @property
     def playcount(self):
         with webcom.MySQLCursor() as cur:
@@ -276,12 +284,30 @@ class Song(object):
         return False if self.id == None else True
     @staticmethod
     def get_length(filename):
+        if (filename == None):
+            return 0.0
         try:
             length = mutagen.File(filename).info.length
         except (IOError):
             logging.exception("Failed length check")
             length = 0.0
         return length
+    @staticmethod
+    def get_file(songid):
+        """Retrieve song path and metadata from the track ID"""
+        from os.path import join
+        with MySQLCursor() as cur:
+            cur.execute("SELECT * FROM `tracks` WHERE `id`=%s LIMIT 1;" % (songid))
+            if cur.rowcount == 1:
+                row = cur.fetchone()
+                artist = row['artist']
+                title = row['track']
+                path = join(config.music_directory, row['path'])
+                meta = title if artist == u'' \
+                        else artist + u' - ' + title
+                return (path, meta)
+            else:
+                return (None, None)
     def __str__(self):
         return self.__repr__().encode("utf-8")
     def __repr__(self):
