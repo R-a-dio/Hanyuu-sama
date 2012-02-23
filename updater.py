@@ -473,20 +473,22 @@ class Song(object):
                 return unicode(metadata, 'shiftjis', 'replace')
         except (TypeError):
             return metadata
-    _search_replacer = webcom.make_replacer(**{r"\\": "", r"(": "",
-                                         r")": "", r"*": ""})
-    from re import compile
-    _search_regex = compile(r"^[+\-<>~]")
     @classmethod
     def search(cls, query, limit=5):
+        from re import compile, escape, sub
+        def replace(query):
+            re = compile("|".join(escape(s) for s in \
+                                  {r"\\": "", r"(": "",
+                                         r")": "", r"*": ""}))
+            return re.sub(lambda x: replacements[x.group()], query)
         from os.path import join
         query_raw = query
         with webcom.MySQLCursor() as cur:
-            search = cls._search_replacer(query)
+            search = replace(query)
             temp = []
             search = search.split(" ")
             for item in search:
-                result = cls._search_regex.sub("", item)
+                result = sub(r"^[+\-<>~]", "", item)
                 temp.append("+" + result)
             query = " ".join(temp)
             del temp
