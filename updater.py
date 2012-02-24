@@ -133,10 +133,16 @@ class queue(object):
 
 class lp(object):
     def get(self, amount=5):
-        limit = amount
+        return list(self.iter(amount))
+    def iter(self, amount=5):
         if (not isinstance(amount, int)):
             pass
-        return list(webcom.fetch_lastplayed())
+        with webcom.MySQLCursor() as cur:
+            cur.execute("SELECT esong.meta FROM eplay JOIN esong ON \
+            esong.id = eplay.isong ORDER BY eplay.dt DESC LIMIT %s;",
+            (amount,))
+            for row in cur:
+                yield Song(meta=row['meta'])
     def update(self, song):
         if (song.afk):
             self.update_track(song)
