@@ -4,7 +4,7 @@ import pyinotify as pi
 import webcom
 import config
 import logging
-import updater
+import manager
 from os import path
 
 def start_watcher():
@@ -40,12 +40,13 @@ def parse_queue_file():
 					song = line[spacepos+1:]
 					
 					song = webcom.fix_encoding(song)
-					queue.append((None, song, stime, updater.TYPE_REGULAR))
+					queue.append(manager.Song(meta=song, length=stime))
 			else:
 				logging.info("Queue discarded because djid does not match")
 	if (len(queue) > 0):
-		updater.queue.appendmany(queue)
-		updater.queue.send(remaining)
+		manager.queue.clear()
+		manager.np.remaining(remaining)
+		manager.queue.append_many(queue)
 			
 class handler(pi.ProcessEvent):
 	def process_IN_MODIFY(self, event):

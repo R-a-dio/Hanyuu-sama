@@ -5,11 +5,9 @@ import time
 import config
 from random import randint
 from multiprocessing import RLock
-TYPE_REGULAR = 0
-TYPE_REQUEST = 1
+REGULAR = 0
+REQUEST = 1
 
-KIND_META_LENGTH = 0
-KIND_TRACKID_META_LENGTH = 1
 class EmptyQueue(Exception):
     pass
 
@@ -21,10 +19,10 @@ class EmptyQueue(Exception):
 class queue(object):
     _lock = RLock()
     @staticmethod
-    def get_timestamp(cur, type=TYPE_REGULAR):
-        if (type == TYPE_REGULAR):
+    def get_timestamp(cur, type=REGULAR):
+        if (type == REGULAR):
             cur.execute("SELECT unix_timestamp(time) AS timestamp, length FROM `queue` ORDER BY `time` DESC LIMIT 1;")
-        elif (type == TYPE_REQUEST):
+        elif (type == REQUEST):
             cur.execute("SELECT unix_timestamp(time) AS timestamp, length FROM `queue` WHERE type={type} ORDER BY `time` DESC LIMIT 1;"\
                         .format(type=type))
         if (cur.rowcount > 0):
@@ -32,50 +30,51 @@ class queue(object):
             return result['timestamp'] + int(result['length'])
         else:
             return np.end()
-    def append_by_id(self, trackid, type=TYPE_REGULAR, meta=None, ip="0.0.0.0"):
-        filename, metadata = webcom.get_song(trackid)
-        length = Song.get_length(filename)
-        if (meta == None):
-            meta = metadata
+    def append_request(self, song, ip="0.0.0.0"):
         with webcom.MySQLCursor(lock=self._lock) as cur:
-            timestamp = self.get_timestamp(cur, type)
-            meta = cur.escape_string(meta.encode("utf-8"))
-            if (type == TYPE_REQUEST):
-                cur.execute("DELETE FROM `queue` WHERE trackid={trackid}"\
-                            .format(trackid=trackid))
-                cur.execute("UPDATE `queue` SET time=from_unixtime(unix_timestamp(time) + {length}) WHERE type=0;"\
-                            .format(length=length))
-                cur.execute("DELETE FROM `queue` WHERE type=0 ORDER BY time DESC LIMIT 1")
-            cur.execute("INSERT INTO `queue` (time, ip, type, meta, length, trackid) VALUES (from_unixtime({timestamp}), '{ip}', {type}, '{meta}', {length}, {trackid});"\
-                    .format(timestamp=int(timestamp), ip=ip, type=type, meta=meta, length=length, trackid=trackid))
-    def append_by_meta(self, meta, length, type=TYPE_REGULAR, ip="0.0.0.0"):
+            timestamp = self.get_timestamp(cur, REQUEST)
+            cur.execute("UPDATE `queue` SET time=from_unixtime(\
+                            unix_timestamp(time) + %s) WHERE type=0;",
+                            (song.length,))
+            cur.execute("DELETE FROM `queue` WHERE type=0 \
+                            ORDER BY time DESC LIMIT 1")
+            cur.execute("INSERT INTO `queue` (trackid, time, ip, \
+            type, meta, length) VALUES (%s, from_unixtime(%s), %s, %s, %s, %s);",
+                        (song.id, int(timestamp), ip, REQUEST,
+                          song.metadata, song.length))
+  
+    def append(self, song):
         with webcom.MySQLCursor(lock=self._lock) as cur:
-            timestamp = self.__get_timestamp(cur, type)
-            meta = cur.escape_string(meta.encode("utf-8"))
-            if (type == TYPE_REQUEST):
-                cur.execute("UPDATE `queue` SET time=from_unixtime(unix_timestamp(time) + {length}) WHERE type=0;"\
-                            .format(length=length))
-                cur.execute("DELETE FROM `queue` WHERE type=0 ORDER BY time DESC LIMIT 1")
-            cur.execute("INSERT INTO `queue` (time, ip, type, meta, length) VALUES (from_unixtime({timestamp}), '{ip}', {type}, '{meta}', {length});"\
-                        .format(timestamp=int(timestamp), ip=ip, type=type, meta=meta, length=length))
-    def append_many(self, queuelist, kind=KIND_META_LENGTH):
+            timestamp = self.get_timestamp(cur, REGULAR)
+            cur.execute("INSERT INTO `queue` (trackid, time, type, meta, \
+            length) VALUES (%s, from_unixtime(%s), %s, %s, %s);",
+                        (song.id, int(timestamp), REGULAR,
+                          song.metadata, song.length))
+    def append_many(self, songlist):
         """queue should be an iterater containing
-            (metadata, length) tuples
+            Song objects
         """
         with webcom.MySQLCursor(lock=self._lock) as cur:
             timestamp = self.get_timestamp(cur)
-            if (kind == KIND_META_LENGTH):
-                query = "INSERT INTO `queue` (time, meta, length) VALUES (from_unixtime({time}), '{meta}', {length});"
-                for meta, length in queuelist:
-                    meta = cur.escape_string(meta.encode("utf-8"))
-                    cur.execute(query.format(time=int(timestamp), meta=meta, length=length))
+            for song in songlist:
+                if (song.afk):
+                    cur.execute(
+                                "INSERT INTO `queue` (trackid, time, meta, \
+                                length) VALUES (%s, \
+                                from_unixtime(%s), %s, %s);",
+                                (song.id, int(timestamp),
+                                  song.metadata, song.length)
+                                )
+                    timestamp += song.length
+                else:
+                    cur.execute(
+                                "INSERT INTO `queue` (time, meta, length) \
+                                VALUES (from_unixtime(%s), %s, \
+                                %s);",
+                                (int(timestamp), song.metadata, song.length)
+                                )
                     timestamp += length
-            elif (kind == KIND_TRACKID_META_LENGTH):
-                query = "INSERT INTO `queue` (trackid, time, meta, length) VALUES ({trackid}, from_unixtime({time}), '{meta}', {length});"
-                for trackid, meta, length in queuelist:
-                    meta = cur.escape_string(meta.encode("utf-8"))
-                    cur.execute(query.format(trackid=trackid, time=int(timestamp), meta=meta, length=length))
-                    timestamp += length
+
     def append_random(self, amount=10):
         """Appends random songs to the queue,
         these come from the tracks table in
@@ -83,20 +82,18 @@ class queue(object):
         if (amount > 100):
             amount = 100
         with webcom.MySQLCursor(lock=self._lock) as cur:
-            cur.execute("SELECT tracks.id AS trackid, artist, track, path FROM tracks WHERE `usable`=1 AND NOT EXISTS (SELECT 1 FROM queue WHERE queue.trackid = tracks.id) ORDER BY `lastplayed` ASC, `lastrequested` ASC LIMIT 100;")
+            cur.execute("SELECT tracks.id AS trackid \
+            FROM tracks WHERE `usable`=1 AND NOT EXISTS (SELECT 1 FROM queue \
+            WHERE queue.trackid = tracks.id) ORDER BY `lastplayed` ASC, \
+            `lastrequested` ASC LIMIT 100;")
             result = list(cur.fetchall())
             queuelist = []
             n = 99
             for i in xrange(amount):
                 row = result.pop(randint(0, n))
-                filename = "{0}/{1}".format(config.music_directory, row['path'])
-                meta = row['track']
-                if row['artist'] != u'':
-                    meta = row['artist'] + u' - ' + meta
-                length = Song.get_length(filename)
-                queuelist.append((row['trackid'], meta, length))
+                queuelist.append(Song(id=row['trackid']))
                 n -= 1
-        self.append_many(queuelist, kind=KIND_TRACKID_META_LENGTH)
+        self.append_many(queuelist)
     def pop(self):
         try:
             with webcom.MySQLCursor(lock=self._lock) as cur:
@@ -106,7 +103,7 @@ class queue(object):
                     cur.execute("DELETE FROM `queue` WHERE id={id};"\
                                 .format(id=result['id']))
                     return Song(id=result['trackid'],
-                                meta=result['meta'].decode('utf-8'),
+                                meta=result['meta'],
                                 length=result['length'])
                 else:
                     raise EmptyQueue("Queue is empty")
@@ -143,15 +140,8 @@ class lp(object):
             (amount,))
             for row in cur:
                 yield Song(meta=row['meta'])
-    def update(self, song):
-        if (song.afk):
-            self.update_track(song)
-        self.update_hash(song)
-    def update_track(self, song):
-        webcom.update_lastplayed(song.id)
-    def update_hash(self, song):
-        lp = time.time() if song.lp is None else song.lp
-        webcom.send_hash(song.digest, song.metadata, song.length, lp)
+    def __iter__(self):
+        return self.iter()
 
 class status(object):
     _timeout = time.time() - 60
@@ -186,42 +176,45 @@ class status(object):
         self._status = streamstatus.get_status(config.icecast_server)
         self._timeout = time.time()
         return self._status
+    def update(self):
+        """Updates the database with current collected info"""
+        with webcom.MySQLCursor() as cur:
+            cur.execute(
+                        "UPDATE `streamstatus` SET `lastset`=NOW(), \
+                        `np`=%s, `djid`=%s, `listeners`=%s, \
+                        `start_time`=%s, `end_time`=%s, \
+                        `isafkstream`=%s WHERE `id`=0;",
+                        (np.metadata, dj.id, self.listeners,
+                         np._start, np.end(),
+                         1 if np.afk else 0)
+                        )
 class np(object):
     _end = 0
     _start = int(time.time())
     def __init__(self):
         from threading import Thread
-        self.song = Song(meta=u"Placeholder", length=0.0)
+        self.song = Song(meta=u"", length=0.0)
         self.updater = Thread(target=self.send)
         self.updater.daemon = 1
         self.updater.start()
     def send(self):
         while True:
             if (status.online):
-                with webcom.MySQLCursor() as cur:
-                    cur.execute(
-                                "UPDATE `streamstatus` SET `lastset`=NOW(), \
-                                `np`=%s, `djid`=%s, `listeners`=%s, \
-                                `start_time`=%s, `end_time`=%s, \
-                                `isafkstream`=%s WHERE `id`=0;",
-                                (self.metadata, dj.id, status.listeners,
-                                 self._start, self.end(),
-                                 1 if self.afk else 0)
-                                )
+                status.update()
             time.sleep(10)
     def change(self, song):
         """Changes the current playing song to 'song' which should be an
-        updater.Song object"""
-        self.song.update(lp=time.time())
-        if (self.length == 0):
-            self.song.update(length=(time.time() + duration) - self._start)
+        manager.Song object"""
+        if (self.song.metadata != u""):
+            self.song.update(lp=time.time())
+            if (self.song.length == 0):
+                self.song.update(length=(time.time() - self._start))
         self.song = song
         self._start = int(time.time())
-        self._end = int(time.time()) + self.length
-    def remaining(self, duration):
-        self.length = (time.time() + duration) - self._start
-        self._end = time.time() + self.length
-        return self._end
+        self._end = int(time.time()) + self.song.length
+    def remaining(self, remaining):
+        self.song.update(length=(time.time() + remaining) - self._start)
+        self._end = time.time() + remaining
     def end(self):
         return self._end if self._end != 0 else int(time.time())
     def __getattr__(self, name):
@@ -352,6 +345,8 @@ class Song(object):
             while 'filename', 'metadata' and 'id' don't, updating 'id' also
             updates 'filename' but not 'metadata'
             """
+        if (self.metadata == u'') and (kwargs.get("metadata", u"") == u""):
+            return
         for key, value in kwargs.iteritems():
             if (key in ["lp", "id", "length", "filename", "metadata"]):
                 setattr(self, "_" + key, value)
