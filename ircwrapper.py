@@ -91,41 +91,41 @@ class IRC(Thread):
 			if (request == 'VERSION'):
 				conn.ctcp_reply(nick, 'VERSION {version}'.format(version=self.version))
 			#print("CTCP: {0}".format(request))
-		elif (e == "featurelist"):
+		elif (e == "featurelist"): # Done
 			flist = " ".join(event.arguments())
 			match = re.search(r"\sPREFIX=\((.*?)\)(.*?)\s", flist)
 			if match:
 				self.nickchars = match.groups()[1]
 				self.nickmodes = match.groups()[0]
 				self.argmodes += self.nickmodes
-		elif (e == 'join'):
+		elif (e == 'join'): # Done
 			data.join(chan, irclib.nm_to_n(event.source()))
 			#print(data.get_nicks(chan))
-		elif (e == 'part'):
+		elif (e == 'part'): # Done
 			data.part(chan, irclib.nm_to_n(event.source()))
 			#print(data.get_nicks(chan))
-		elif (e == 'quit'):
+		elif (e == 'quit'): # Done
 			data.quit(irclib.nm_to_n(event.source()))
 			#print(data.get_nicks(chan))
-		elif (e == 'kick'):
+		elif (e == 'kick'): # Done
 			kickee = event.arguments()[0]
 			data.part(chan, kickee)
 			#print(data.get_nicks(chan))
-		elif (e == 'nick'):
+		elif (e == 'nick'): # Done
 			old = nick
 			new = chan  # bad terminology, source is the old nick, target is the new one
 			data.nick(old, new)
 			#print("Nick: {0} {1}".format(old, new))
-		elif (e == 'topic'):
+		elif (e == 'topic'): # Done
 			topic = event.arguments()[0]
 			data.topic(chan, topic)
 			#print("Topic: {0}".format(topic))
-		elif (e == 'currenttopic'):
+		elif (e == 'currenttopic'): # Done
 			chan = event.arguments()[0]
 			topic = " ".join(event.arguments()[1:])
 			data.topic(chan, topic)
 			#print("Topic: {0}".format(topic))
-		elif (e == 'mode'):
+		elif (e == 'mode'): # Done
 			modeaction = event.arguments()[0][0] # + or -
 			modes = list(event.arguments()[0]) # example: [+, o, o, -, h]
 			modetargets = event.arguments()[1:]
@@ -150,7 +150,7 @@ class IRC(Thread):
 			
 			#print('Channel: {0}'.format(chan))
 			#print('Args: {0}'.format(event.arguments()[1:]))
-		elif (e == 'notopic'):
+		elif (e == 'notopic'): # Done
 			info = " ".join(event.arguments()[1:])
 			data.topic(chan, '')
 			#print("Topic: {0}".format(topic))
@@ -158,7 +158,7 @@ class IRC(Thread):
 			# chan = event.arguments()[0]
 			# info = " ".join(event.arguments()[1:])
 			# data.add_topicinfo(chan, info)
-		elif (e == 'namreply'):
+		elif (e == 'namreply'): # Done
 			kind = event.arguments()[0]
 			chan = event.arguments()[1]
 			names = event.arguments()[2].strip().split(' ')
