@@ -55,7 +55,7 @@ class FastCGIServer(Process):
             sitetext = ""
             if len(splitdata) == 2 and splitdata[0] == 'songid' \
                     and is_int(splitdata[1]):
-                songid = int(splitdata[1])
+                trackid = int(splitdata[1])
                 canrequest_ip = False
                 canrequest_song = False
                 with webcom.MySQLCursor() as cur:
@@ -83,7 +83,7 @@ class FastCGIServer(Process):
                         canrequest_ip = True
                     
                     cur.execute("SELECT * FROM `tracks` WHERE \
-                    `id`=%s LIMIT 1;", (songid,))
+                    `id`=%s LIMIT 1;", (trackid,))
                     if cur.rowcount >= 1:
                         try:
                             lptime = int(time.mktime(time.strptime(
@@ -121,12 +121,14 @@ class FastCGIServer(Process):
                             cur.execute("UPDATE `requesttime` SET `time`=NOW() WHERE `ip`='%s';" % (environ["REMOTE_ADDR"]))
                         else:
                             cur.execute("INSERT INTO `requesttime` (`ip`) VALUES ('%s');" % (environ["REMOTE_ADDR"]))
-                        cur.execute("UPDATE `tracks` SET `lastrequested`=NOW(), `priority`=priority+4 WHERE `id`=%s;" % (songid))
+                        cur.execute("UPDATE `tracks` SET `lastrequested`=NOW(), \
+                        `priority`=priority+4 WHERE `id`=%s;", (trackid,))
+                        song = manager.Song(trackid)
                         try:
-                            commands.request_announce(songid)
+                            self.irc.request_announce(song)
                         except:
                             logging.exception("Announcing request failure")
-                        manager.queue.append_request(manager.Song(songid))
+                        manager.queue.append_request(song)
             else:
                 sitetext = "Invalid parameter."
         else:
