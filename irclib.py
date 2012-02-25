@@ -653,7 +653,7 @@ class ServerConnection(Connection):
                     if (match):
                         self.sqlite.nickchars = match.groups()[1]
                         self.sqlite.nickmodes = match.groups()[0]
-                        self.sqlite.argmodes += self.nickmodes
+                        self.sqlite.argmodes += self.sqlite.nickmodes
                 elif command == "namreply":
                     chan = arguments[1]
                     names = arguments[2].strip().split(' ')
@@ -760,10 +760,22 @@ class ServerConnection(Connection):
         self.socket = None
         self._handle_event(Event("disconnect", self.server, "", [message]))
 
+    def get_topic(self, channel):
+        """Return the topic of channel"""
+        return self.sqlite.topic(channel)
+    
     def globops(self, text):
         """Send a GLOBOPS command."""
         self.send_raw("GLOBOPS :" + text)
 
+    def hasaccess(self, channel, nick):
+        """Check if nick is halfop or higher"""
+        return self.has_modes(channel, nick, 'oaqh', 'or')
+    
+    def inchannel(self, channel, nick):
+        """Check if nick is in channel"""
+        self.sqlite.in_chan(channel, nick)
+        
     def info(self, server=""):
         """Send an INFO command."""
         self.send_raw(" ".join(["INFO", server]).strip())
@@ -772,6 +784,14 @@ class ServerConnection(Connection):
         """Send an INVITE command."""
         self.send_raw(" ".join(["INVITE", nick, channel]).strip())
 
+    def ishop(self, channel, nick):
+        """Check if nick is half operator on channel"""
+        return self.sqlite.has_modes(channel, nick, 'h')
+    
+    def isnormal(self, channel, nick):
+        """Check if nick is a normal on channel"""
+        return not self.sqlite.has_modes(channel, nick, 'oaqvh', 'or')
+    
     def ison(self, nicks):
         """Send an ISON command.
 
@@ -780,7 +800,14 @@ class ServerConnection(Connection):
             nicks -- List of nicks.
         """
         self.send_raw("ISON " + " ".join(nicks))
+    def isop(self, channel, nick):
+        """Check if nick is operator or higher on channel"""
+        return self.sqlite.has_modes(channel, nick, 'oaq', 'or')
 
+    def isvoice(self, channel, nick):
+        """Check if nick is voice on channel"""
+        return self.sqlite.has_modes(channel, nick, 'v')
+    
     def join(self, channel, key=""):
         """Send a JOIN command."""
         self.send_raw("JOIN %s%s" % (channel, (key and (" " + key))))
@@ -1106,7 +1133,7 @@ class SqliteConnection:
                     return True
         return False
     
-    def has_modes(self, chan, nick, modes):
+    def has_modes(self, chan, nick, modes, operator='and'):
         if self.in_chan(chan, nick):
             chan_id = self.__get_chan_id(chan)
             nick_id = self.__get_nick_id(nick)
@@ -1114,8 +1141,12 @@ class SqliteConnection:
                 cur.execute("SELECT modes FROM nick_chan_link WHERE nick_id=? AND chan_id=?", (nick_id, chan_id))
                 nick_modes = cur.fetchone()[0]
                 for mode in modes:
-                    if not mode in nick_modes:
-                        return False
+                    if (operator == 'and'):
+                        if not mode in nick_modes:
+                            return False
+                    elif (operator == 'or'):
+                        if mode in nick_modes:
+                            return True
                 return True
         return False
     

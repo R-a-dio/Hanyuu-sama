@@ -40,21 +40,21 @@ class IRC(Thread):
 		self.servers[s].__attr = {"nickpwd": nickpwd, "channels": ",".join(channels)}
 		self.start()
 		return self.counter
-	def isop(self, conn, channel, nick):
+	def isop(self, conn, channel, nick): # Done
 		return self.servers[conn].has_modes(channel, nick, 'o') or self.servers[conn].has_modes(channel, nick, 'a') or self.servers[conn].has_modes(channel, nick, 'q')
-	def ishop(self, conn, channel, nick):
+	def ishop(self, conn, channel, nick): # Done
 		return self.servers[conn].has_modes(channel, nick, 'h')
-	def isvoice(self, conn, channel, nick):
+	def isvoice(self, conn, channel, nick): # Done
 		return self.servers[conn].has_modes(channel, nick, 'v')
-	def isnormal(self, conn, channel, nick):
+	def isnormal(self, conn, channel, nick): # Done
 		return not self.hasaccess(conn, channel, nick) and not self.isvoice(conn, channel, nick)
-	def hasaccess(self, conn, channel, nick):
+	def hasaccess(self, conn, channel, nick): # Done
 		if (self.isop(conn, channel, nick)) or (self.ishop(conn, channel, nick)):
 			return True
 		return False
-	def inchannel(self, conn, channel, nick):
+	def inchannel(self, conn, channel, nick): # Done
 		return self.servers[conn].in_chan(channel, nick)
-	def topic(self, conn, channel):
+	def topic(self, conn, channel): # Done as get_topic
 		print("Server: {0}".format(self.servers[conn]))
 		return self.servers[conn].topic(channel)
 	def set_topic(self, conn, channel, topic):

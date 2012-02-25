@@ -131,7 +131,7 @@ class SqliteConnection:
                     return True
         return False
     
-    def has_modes(self, chan, nick, modes):
+    def has_modes(self, chan, nick, modes, mode='and'):
         if self.in_chan(chan, nick):
             chan_id = self.__get_chan_id(chan)
             nick_id = self.__get_nick_id(nick)
@@ -139,8 +139,12 @@ class SqliteConnection:
                 cur.execute("SELECT modes FROM nick_chan_link WHERE nick_id=? AND chan_id=?", (nick_id, chan_id))
                 nick_modes = cur.fetchone()[0]
                 for mode in modes:
-                    if not mode in nick_modes:
-                        return False
+                    if (operator='and'):
+                        if not mode in nick_modes:
+                            return False
+                    elif (operator='or'):
+                        if mode in nick_modes:
+                            return True
                 return True
         return False
     
