@@ -291,6 +291,8 @@ class AudioFile(object):
 				self._file.close()
 			logging.debug("Removing FIFO")
 			os.remove(self._temp_filename)
+			self._CON.join(timeout=0)
+			self._PCM.join(timeout=0)
 	def add_file(self, file):
 		"""Add a file to the queue for transcoding"""
 		if (self._active):

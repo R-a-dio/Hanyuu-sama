@@ -376,7 +376,7 @@ class Connection:
     def __init__(self, irclibobj):
         self.irclibobj = irclibobj
 
-    def _get_socket():
+    def _get_socket(self):
         raise IRCError, "Not overridden"
 
     ##############################
@@ -770,7 +770,7 @@ class ServerConnection(Connection):
 
     def hasaccess(self, channel, nick):
         """Check if nick is halfop or higher"""
-        return self.has_modes(channel, nick, 'oaqh', 'or')
+        return self.sqlite.has_modes(channel, nick, 'oaqh', 'or')
     
     def inchannel(self, channel, nick):
         """Check if nick is in channel"""
