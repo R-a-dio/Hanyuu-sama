@@ -1,6 +1,7 @@
 import logging
 import re
 import config
+import irc
 
 irc_colours = {"c": u"\x03", "c1": u"\x0301", "c2": u"\x0302",
             "c3": u"\x0303", "c4": u"\x0304", "c5": u"\x0305",
@@ -8,18 +9,6 @@ irc_colours = {"c": u"\x03", "c1": u"\x0301", "c2": u"\x0302",
             "c9": u"\x0309", "c10": u"\x0310", "c11": u"\x0311",
             "c12": u"\x0312", "c13": u"\x0313", "c14": u"\x0314",
             "c15": u"\x0315"}
-# Handler constants
-# Channels
-ALL_CHANNELS = 0
-MAIN_CHANNELS = ["#r/a/dio"]
-# Nicks
-ALL_NICKS = 0 # All nicknames can trigger this
-ACCESS_NICKS = 1 # Nicks with halfop or higher can trigger this
-OP_NICKS = 2 # Only operators or higher can trigger this
-HALFOP_NICKS = 3 # Only half operators can trigger this
-VOICE_NICKS = 4 # Only voiced people can trigger this
-REGULAR_NICKS = 5 # Only regulars can trigger this
-DEV_NICKS = 6 # Only the nicknames defined in config.irc_devs can trigger this
 
 def np(conn, nick, channel, text, hostmask):
     if (streamer.active()):
@@ -40,7 +29,7 @@ def np(conn, nick, channel, text, hostmask):
     except:
         logging.exception("Error sending np message to channel '{chan}'".format(chan=channel))
         conn.privmsg(channel, u"Encoding errors go here")
-np.handler = ("on_text", r'[.!@]np$', ALL_NICKS, ALL_CHANNELS)
+np.handler = ("on_text", r'[.!@]np$', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def lp(conn, nick, channel, text, hostmask):
     lp = streamer.lastplayed()
@@ -55,7 +44,7 @@ def lp(conn, nick, channel, text, hostmask):
     except:
         logging.exception("Error sending lp message to channel '{chan}'".format(chan=channel))
         conn.privmsg(channel, u"Encoding errors go here")
-lp.handler = ("on_text", r'[.!@]lp$', ALL_NICKS, ALL_CHANNELS)
+lp.handler = ("on_text", r'[.!@]lp$', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def queue(conn, nick, channel, text, hostmask):
     string = u"No queue at the moment (lazy Wessie)"
@@ -71,7 +60,7 @@ def queue(conn, nick, channel, text, hostmask):
     except:
         logging.exception("Error sending queue message to channel '{chan}'".format(chan=channel))
         conn.privmsg(channel, u"Encoding errors go here")
-queue.handler = ("on_text", r'[.!@]q(ueue)?$', ALL_NICKS, ALL_CHANNELS)
+queue.handler = ("on_text", r'[.!@]q(ueue)?$', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def dj(conn, nick, channel, text, hostmask):
     tokens = text.split(' ')
@@ -103,7 +92,7 @@ def dj(conn, nick, channel, text, hostmask):
             conn.notice(nick, "You don't have the necessary privileges to do this.")
     else:
         conn.privmsg(channel, "Current DJ: {c3}{dj}".format(dj=current_dj, **irc_colours))
-dj.handler = ("on_text", r'[.!@]dj.*', ALL_NICKS, MAIN_CHANNELS)
+dj.handler = ("on_text", r'[.!@]dj.*', irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def favorite(conn, nick, channel, text, hostmask):
     if (webcom.check_fave(nick, streamer.songid)):
@@ -115,7 +104,7 @@ def favorite(conn, nick, channel, text, hostmask):
             webcom.add_fave(nick, streamer.songid)
         response = u"Added {c3}'{np}'{c} to your favorites.".format(np=streamer.nowplaying(), **irc_colours)
     conn.notice(nick, response)
-favorite.handler = ("on_text", r'[.!@]fave.*', ALL_NICKS, ALL_CHANNELS)
+favorite.handler = ("on_text", r'[.!@]fave.*', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def unfavorite(conn, nick, channel, text, hostmask):
     if (webcom.check_fave(nick, streamer.songid)):
@@ -124,7 +113,8 @@ def unfavorite(conn, nick, channel, text, hostmask):
     else:
         response = u"You don't have {c3}'{np}'{c} in your favorites.".format(np=streamer.nowplaying(), **irc_colours)
     conn.notice(nick, response)
-unfavorite.handler = ("on_text", r'[.!@]unfave.*', ALL_NICKS, ALL_CHANNELS)
+unfavorite.handler = ("on_text", r'[.!@]unfave.*',
+                       irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def set_curthread(conn, nick, channel, text, hostmask):
     tokens = text.split(' ')
@@ -137,7 +127,8 @@ def set_curthread(conn, nick, channel, text, hostmask):
     curthread = webcom.get_curthread()
     response = u"Thread: {thread}".format(thread=curthread)
     conn.privmsg(channel, response)
-set_curthread.handler = ("on_text", r'[.!@]thread(\s.*)?', ACCESS_NICKS, MAIN_CHANNELS)
+set_curthread.handler = ("on_text", r'[.!@]thread(\s.*)?',
+                          irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
 
 def topic(conn, nick, channel, text, hostmask):
     tokens = text.split(' ')
@@ -159,7 +150,8 @@ def topic(conn, nick, channel, text, hostmask):
     else:
         topic = irc.topic(conn, channel)
         conn.privmsg(channel, u"Topic: {topic}".format(topic=topic))
-topic.handler = ("on_text", r'[.!@]topic(\s.*)?', ACCESS_NICKS, MAIN_CHANNELS)
+topic.handler = ("on_text", r'[.!@]topic(\s.*)?',
+                  irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
 
 def kill_afk(conn, nick, channel, text, hostmask):
     if (irc.isop(conn, channel, nick)):
@@ -173,7 +165,8 @@ def kill_afk(conn, nick, channel, text, hostmask):
         conn.privmsg(channel, message)
     else:
         conn.notice(nick, u"You don't have high enough access to do this.")
-kill_afk.handler = ("on_text", r'[.!@]kill', DEV_NICKS, ALL_CHANNELS)
+kill_afk.handler = ("on_text", r'[.!@]kill',
+                     irc.DEV_NICKS, irc.ALL_CHANNELS)
 
 def shut_afk(conn, nick, channel, text, hostmask):
     if (irc.isop(conn, channel, nick)):
@@ -186,7 +179,8 @@ def shut_afk(conn, nick, channel, text, hostmask):
         conn.privmsg(channel, message)
     else:
         conn.notice(nick, u"You don't have high enough access to do this.")
-shut_afk.handler = ("on_text", r'[.!@]cleankill', ACCESS_NICKS, MAIN_CHANNELS)
+shut_afk.handler = ("on_text", r'[.!@]cleankill',
+                     irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
 
 def announce(faves):
     for fave in faves:
@@ -237,7 +231,8 @@ def search(conn, nick, channel, text, hostmask):
         conn.privmsg(channel, result_msg)
     else:
         conn.notice(nick, result_msg)
-search.handler = ("on_text", r'[.!@]s(earch)?\b', ALL_NICKS, ALL_CHANNELS)
+search.handler = ("on_text", r'[.!@]s(earch)?\b',
+                   irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def request(conn, nick, channel, text, hostmask):
     #this should probably be fixed to remove the nick thing, but i can't into regex
@@ -272,7 +267,8 @@ def request(conn, nick, channel, text, hostmask):
         conn.privmsg(channel, msg)
     except:
         logging.exception("IRC request send message failed")
-request.handler = ("on_text", r'[.!@]r(equest)?\b', ALL_NICKS, MAIN_CHANNELS)
+request.handler = ("on_text", r'[.!@]r(equest)?\b',
+                   irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def request_help(conn, nick, channel, text, hostmask):
     try:
@@ -280,4 +276,5 @@ def request_help(conn, nick, channel, text, hostmask):
         irc.server.privmsg(channel, message)
     except:
         print "Error in request help function"
-request_help.handler = ("on_text", r'.*how.+request', ALL_NICKS, MAIN_CHANNELS)
+request_help.handler = ("on_text", r'.*how.+request',
+                        irc.ALL_NICKS, irc.MAIN_CHANNELS)
