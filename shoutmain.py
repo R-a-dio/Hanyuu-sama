@@ -114,7 +114,7 @@ class StreamInstance(Thread):
 			self.djid = '0'
 		if (self.djid == '18'):
 			_connection_timeout = 0.0
-		self.connect()
+		#self.connect()
 		
 		self.thread = Thread(target=self.updateinfo)
 		self.thread.daemon = 1
