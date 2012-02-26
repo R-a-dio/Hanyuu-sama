@@ -86,7 +86,7 @@ class StreamInstance(Thread):
 		
 		self.request = False
 		self.afk_streaming = False
-		self.connected = True
+		self.connected = False
 		self.exit = True
 		
 		self._start_time = 0
