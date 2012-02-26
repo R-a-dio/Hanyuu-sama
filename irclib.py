@@ -1147,7 +1147,7 @@ class SqliteConnection:
                     elif (operator == 'or'):
                         if mode in nick_modes:
                             return True
-                return True
+                return True if operator == 'and' else False
         return False
     
     def __get_nick_id(self, nick):
