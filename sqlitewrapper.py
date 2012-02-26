@@ -139,13 +139,13 @@ class SqliteConnection:
                 cur.execute("SELECT modes FROM nick_chan_link WHERE nick_id=? AND chan_id=?", (nick_id, chan_id))
                 nick_modes = cur.fetchone()[0]
                 for mode in modes:
-                    if (operator='and'):
+                    if (operator=='and'):
                         if not mode in nick_modes:
                             return False
-                    elif (operator='or'):
+                    elif (operator=='or'):
                         if mode in nick_modes:
                             return True
-                return True
+                return True if operator == 'and' else False
         return False
     
     def __get_nick_id(self, nick):
