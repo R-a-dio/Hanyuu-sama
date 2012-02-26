@@ -126,7 +126,8 @@ class IRC:
 
     def __init__(self, fn_to_add_socket=None,
                  fn_to_remove_socket=None,
-                 fn_to_add_timeout=None):
+                 fn_to_add_timeout=None,
+                 encoding='utf-8'):
         """Constructor for IRC objects.
 
         Optional arguments are fn_to_add_socket, fn_to_remove_socket
@@ -161,7 +162,7 @@ class IRC:
         self.connections = []
         self.handlers = {}
         self.delayed_commands = [] # list of tuples in the format (time, function, arguments)
-
+        self.encoding = encoding
         self.add_global_handler("ping", _ping_ponger, -42)
         
     def server(self):
@@ -418,9 +419,11 @@ class ServerConnection(Connection):
         self.send_time = 0
         self.last_time = time.time()
         self._last_ping = time.time()
-
+        self.encoding = irclibobj.encoding
+        
     def connect(self, server, port, nickname, password=None, username=None,
-                ircname=None, localaddress="", localport=0, ssl=False, ipv6=False):
+                ircname=None, localaddress="", localport=0,
+                ssl=False, ipv6=False, encoding='utf-8'):
         """Connect/reconnect to a server.
 
         Arguments:
