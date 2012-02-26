@@ -1,18 +1,25 @@
-import webcom
 import logging
 import re
-import shoutmain
 import config
 
-streamer = "" # Should be assigned with shoutmain.instance
-irc = "" # Should be assigned with irc.IRCSubHandlers
-current_dj = 0
 irc_colours = {"c": u"\x03", "c1": u"\x0301", "c2": u"\x0302",
             "c3": u"\x0303", "c4": u"\x0304", "c5": u"\x0305",
             "c7": u"\x0306", "c7": u"\x0307", "c8": u"\x0308",
             "c9": u"\x0309", "c10": u"\x0310", "c11": u"\x0311",
             "c12": u"\x0312", "c13": u"\x0313", "c14": u"\x0314",
             "c15": u"\x0315"}
+# Handler constants
+# Channels
+ALL_CHANNELS = 0
+MAIN_CHANNELS = ["#r/a/dio"]
+# Nicks
+ALL_NICKS = 0 # All nicknames can trigger this
+ACCESS_NICKS = 1 # Nicks with halfop or higher can trigger this
+OP_NICKS = 2 # Only operators or higher can trigger this
+HALFOP_NICKS = 3 # Only half operators can trigger this
+VOICE_NICKS = 4 # Only voiced people can trigger this
+REGULAR_NICKS = 5 # Only regulars can trigger this
+DEV_NICKS = 6 # Only the nicknames defined in config.irc_devs can trigger this
 
 def np(conn, nick, channel, text, hostmask):
     if (streamer.active()):
@@ -33,7 +40,8 @@ def np(conn, nick, channel, text, hostmask):
     except:
         logging.exception("Error sending np message to channel '{chan}'".format(chan=channel))
         conn.privmsg(channel, u"Encoding errors go here")
-        
+np.handler = ("on_text", r'[.!@]np$', ALL_NICKS, ALL_CHANNELS)
+
 def lp(conn, nick, channel, text, hostmask):
     lp = streamer.lastplayed()
     try:
@@ -47,7 +55,8 @@ def lp(conn, nick, channel, text, hostmask):
     except:
         logging.exception("Error sending lp message to channel '{chan}'".format(chan=channel))
         conn.privmsg(channel, u"Encoding errors go here")
-    
+lp.handler = ("on_text", r'[.!@]lp$', ALL_NICKS, ALL_CHANNELS)
+
 def queue(conn, nick, channel, text, hostmask):
     string = u"No queue at the moment (lazy Wessie)"
     queue = webcom.queue
@@ -62,7 +71,8 @@ def queue(conn, nick, channel, text, hostmask):
     except:
         logging.exception("Error sending queue message to channel '{chan}'".format(chan=channel))
         conn.privmsg(channel, u"Encoding errors go here")
-    
+queue.handler = ("on_text", r'[.!@]q(ueue)?$', ALL_NICKS, ALL_CHANNELS)
+
 def dj(conn, nick, channel, text, hostmask):
     tokens = text.split(' ')
     new_dj = " ".join(tokens[1:])
@@ -93,7 +103,8 @@ def dj(conn, nick, channel, text, hostmask):
             conn.notice(nick, "You don't have the necessary privileges to do this.")
     else:
         conn.privmsg(channel, "Current DJ: {c3}{dj}".format(dj=current_dj, **irc_colours))
-        
+dj.handler = ("on_text", r'[.!@]dj.*', ALL_NICKS, MAIN_CHANNELS)
+
 def favorite(conn, nick, channel, text, hostmask):
     if (webcom.check_fave(nick, streamer.songid)):
         response = u"You already have {c3}'{np}'{c} favorited".format(np=streamer.nowplaying(), **irc_colours)
@@ -104,7 +115,8 @@ def favorite(conn, nick, channel, text, hostmask):
             webcom.add_fave(nick, streamer.songid)
         response = u"Added {c3}'{np}'{c} to your favorites.".format(np=streamer.nowplaying(), **irc_colours)
     conn.notice(nick, response)
-    
+favorite.handler = ("on_text", r'[.!@]fave.*', ALL_NICKS, ALL_CHANNELS)
+
 def unfavorite(conn, nick, channel, text, hostmask):
     if (webcom.check_fave(nick, streamer.songid)):
         webcom.del_fave(nick, streamer.songid)
@@ -112,7 +124,8 @@ def unfavorite(conn, nick, channel, text, hostmask):
     else:
         response = u"You don't have {c3}'{np}'{c} in your favorites.".format(np=streamer.nowplaying(), **irc_colours)
     conn.notice(nick, response)
-    
+unfavorite.handler = ("on_text", r'[.!@]unfave.*', ALL_NICKS, ALL_CHANNELS)
+
 def set_curthread(conn, nick, channel, text, hostmask):
     tokens = text.split(' ')
     threadurl = " ".join(tokens[1:]).strip()
@@ -124,7 +137,8 @@ def set_curthread(conn, nick, channel, text, hostmask):
     curthread = webcom.get_curthread()
     response = u"Thread: {thread}".format(thread=curthread)
     conn.privmsg(channel, response)
-    
+set_curthread.handler = ("on_text", r'[.!@]thread(\s.*)?', ACCESS_NICKS, MAIN_CHANNELS)
+
 def topic(conn, nick, channel, text, hostmask):
     tokens = text.split(' ')
     param = u" ".join(tokens[1:]).strip()
@@ -145,7 +159,8 @@ def topic(conn, nick, channel, text, hostmask):
     else:
         topic = irc.topic(conn, channel)
         conn.privmsg(channel, u"Topic: {topic}".format(topic=topic))
-        
+topic.handler = ("on_text", r'[.!@]topic(\s.*)?', ACCESS_NICKS, MAIN_CHANNELS)
+
 def kill_afk(conn, nick, channel, text, hostmask):
     if (irc.isop(conn, channel, nick)):
         try:
@@ -158,7 +173,8 @@ def kill_afk(conn, nick, channel, text, hostmask):
         conn.privmsg(channel, message)
     else:
         conn.notice(nick, u"You don't have high enough access to do this.")
-        
+kill_afk.handler = ("on_text", r'[.!@]kill', DEV_NICKS, ALL_CHANNELS)
+
 def shut_afk(conn, nick, channel, text, hostmask):
     if (irc.isop(conn, channel, nick)):
         try:
@@ -170,7 +186,8 @@ def shut_afk(conn, nick, channel, text, hostmask):
         conn.privmsg(channel, message)
     else:
         conn.notice(nick, u"You don't have high enough access to do this.")
-        
+shut_afk.handler = ("on_text", r'[.!@]cleankill', ACCESS_NICKS, MAIN_CHANNELS)
+
 def announce(faves):
     for fave in faves:
         if (irc.inchannel(irc.server, "#r/a/dio", fave)):
@@ -183,7 +200,8 @@ def announce(faves):
                 lp=streamer.get_lastplayed(),
                 **irc_colours)
         irc.server.privmsg("#r/a/dio", message)
-        
+announce.exposed = True
+
 def request_announce(request):
     try:
         path, message = webcom.get_song(request)
@@ -191,7 +209,8 @@ def request_announce(request):
         irc.server.privmsg("#r/a/dio", message)
     except:
         logging.exception("I'm broken with all the requests")
-        
+request_announce.exposed = True
+
 def search(conn, nick, channel, text, hostmask):
     match = re.match(r"^(?P<mode>[.!@])s(earch)?\s(?:@(?P<nick>.*?)\s)?(?P<query>.*)", text, re.I|re.U)
     mode, favenick, query = match.group('mode', 'nick', 'query')
@@ -218,7 +237,8 @@ def search(conn, nick, channel, text, hostmask):
         conn.privmsg(channel, result_msg)
     else:
         conn.notice(nick, result_msg)
-        
+search.handler = ("on_text", r'[.!@]s(earch)?\b', ALL_NICKS, ALL_CHANNELS)
+
 def request(conn, nick, channel, text, hostmask):
     #this should probably be fixed to remove the nick thing, but i can't into regex
     match = re.match(r"^(?P<mode>[.!@])r(equest)?\s(?:@(?P<nick>.*?)\s)?(?P<query>.*)", text, re.I|re.U)
@@ -252,6 +272,7 @@ def request(conn, nick, channel, text, hostmask):
         conn.privmsg(channel, msg)
     except:
         logging.exception("IRC request send message failed")
+request.handler = ("on_text", r'[.!@]r(equest)?\b', ALL_NICKS, MAIN_CHANNELS)
 
 def request_help(conn, nick, channel, text, hostmask):
     try:
@@ -259,18 +280,4 @@ def request_help(conn, nick, channel, text, hostmask):
         irc.server.privmsg(channel, message)
     except:
         print "Error in request help function"
-
-handlers = [
-            (np, 'on_text', {'text': r'[.!@]np$'}),
-            (lp, 'on_text', {'text': r'[.!@]lp$'}),
-            (queue, 'on_text', {'text': r'[.!@]q(ueue)?$'}),
-            (dj, 'on_text', {'text': r'[.!@]dj.*'}),
-            (favorite, 'on_text', {'text': r'[.!@]fave.*'}),
-            (unfavorite, 'on_text', {'text': r'[.!@]unfave.*'}),
-            (topic, 'on_text', {'text': r'[.!@]topic(\s.*)?'}),
-            (kill_afk, 'on_text', {'text': r'[.!@]kill', 'nick': ["Wessie", "Vin"]}),
-            (shut_afk, 'on_text', {'text': r'[.!@]cleankill', 'channel': ['#r/a/dio', '#r/a/dio-dev']}),
-            (request_help, 'on_text', {'text': r'.*how.+request'}),
-            (request, 'on_text', {'text': r'[.!@]r(equest)?\b'}),
-            (search, 'on_text', {'text': r'[.!@]s(earch)?\b'}),
-            ]
+request_help.handler = ("on_text", r'.*how.+request', ALL_NICKS, MAIN_CHANNELS)
