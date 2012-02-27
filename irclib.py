@@ -552,6 +552,7 @@ class ServerConnection(Connection):
         self.previous_buffer = lines.pop()
 
         for line in lines:
+            line.decode(self.encoding, 'replace')
             if DEBUG:
                 print "FROM SERVER:", line
 
@@ -672,7 +673,7 @@ class ServerConnection(Connection):
                         for mode in modes:
                             pos = self.sqlite.nickchars.index(mode)
                             self.sqlite.add_mode(chan, nick,
-                                                 self.sqlite.nickmodes[pos])
+                            self.sqlite.nickmodes[pos])
                 if command == "mode":
                     if not is_channel(target):
                         command = "umode"
@@ -933,8 +934,7 @@ class ServerConnection(Connection):
         try:
             message = string + u"\r\n"
             if (type(message) == unicode):
-                d = codecs.getencoder('utf-8')
-                message = d(message)[0]
+                message = message.encode('utf-8')
             self.message_queue.put(message)
             #if self.ssl:
             #    self.ssl.write(message)
