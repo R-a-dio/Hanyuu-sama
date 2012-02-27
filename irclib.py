@@ -674,7 +674,7 @@ class ServerConnection(Connection):
                         for mode in modes:
                             pos = self.sqlite.nickchars.index(mode)
                             self.sqlite.add_mode(chan, nick,
-                            self.sqlite.nickmodes[pos])
+                                                 self.sqlite.nickmodes[pos])
                 if command == "mode":
                     if not is_channel(target):
                         command = "umode"

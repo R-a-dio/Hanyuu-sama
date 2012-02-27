@@ -1,3 +1,48 @@
+"""
+All IRC related commands go here
+
+Description of how commands are now handled and should be created
+
+Handler creation:
+    All handlers get the following arguments passed
+    
+        session:
+            an irc.Session object having this handler loaded
+        server:
+            an irclib.ServerConnection object that triggered this handler
+        nick:
+            the IRC nickname that triggered this event
+        channel:
+            the IRC channel where this was triggered, can be None if private message
+        message:
+            the IRC message that triggered this handler as unicode object
+        hostmask:
+            the IRC hostmask of the nickname that triggered this event
+
+Handler registration:
+    Handlers should set their 'handler' attribute to a tuple with the following
+        format.
+        
+        (event type, regular expression, allowed nicknames, allowed channels)
+        
+        event type:
+            The type of event to trigger this handler on, currently only
+            supports 'on_text'
+            
+        regular expression:
+            A regex that is used to match against the incoming IRC message,
+            if it's a match the handler will be called if the
+            'allowed nicknames' and 'allowed channels' are True
+            
+        allowed nicknames:
+            A constant or list of nicknames that are allowed to trigger this
+            handler. Look in irc.py for the constants defined.
+            
+        allowed channels:
+            Same as above but then with the channel that is allowed, do note
+            that private messages always get accepted.
+"""
+
 import logging
 import re
 import config

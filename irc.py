@@ -59,6 +59,7 @@ class Session(object):
         self.irc.disconnect_all("Leaving...")
     def load_handlers(self, load=False):
         # load was ment to be reload, but that fucks up the reload command
+        logging.debug("Loading IRC Handlers")
         if (load) and (self.commands != None):
             try:
                 commands = reload(self.commands)
@@ -92,6 +93,8 @@ class Session(object):
                                            regex
                                            )
                                           )
+                    logging.debug("Loaded IRC handler: {name}"\
+                                  .format(name=name))
                 try:
                     expose = getattr(func, "exposed")
                 except (AttributeError):
@@ -226,4 +229,7 @@ class Session(object):
                             continue
                     # Call our func here since the above filters will call
                     # 'continue' if the filter fails
-                    handler[1](server, nick, channel, text, userhost)
+                    try:
+                        handler[1](self, server, nick, channel, text, userhost)
+                    except:
+                        logging.exception("IRC Handler exception")
