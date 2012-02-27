@@ -38,12 +38,25 @@ class Session(object):
         self.irc = irclib.IRC()
         self.load_handlers()
         self.irc.add_global_handler("all_events", self._dispatcher)
+        
+        # initialize our process thread
+        self.processor_thread = Thread(target=self.processor)
+        self.processor_thread.daemon = 1
+        self.processor_thread.start()
+    def processor(self):
+        # Our shiny thread that processes the socket
+        while (self._active):
+            # Call the process once
+            self.irc.process_once(timeout=1)
     def connect(self):
         # We really only need one server
         self.server = self.irc.server()
         self.server.connect(config.irc_server,
                             config.irc_port,
                             config.irc_name)
+    def shutdown(self):
+        self._active = False
+        self.irc.disconnect_all("Leaving...")
     def load_handlers(self, load=False):
         if (load) and (self.commands != None):
             try:
