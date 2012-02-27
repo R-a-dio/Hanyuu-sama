@@ -17,6 +17,7 @@
 # keltus <keltus@users.sourceforge.net>
 #
 # $Id: irclib.py,v 1.47 2008/09/25 22:00:59 keltus Exp $
+from Queue import Full
 
 """irclib -- Internet Relay Chat (IRC) protocol client library.
 
@@ -213,9 +214,9 @@ class IRC:
                     message = c.message_queue.get()
                     try:
                         if c.ssl:
-                            c.ssl.write(message)
+                            c.send_raw_instant(message)
                         else:
-                            c.socket.sendall(message)
+                            c.send_raw_instant(message)
                     except (AttributeError):
                         c.reconnect()
                     c.sent_lines += 1
@@ -249,8 +250,9 @@ class IRC:
             if (_difference >= 240.0):
                 print("Good morning, client-side ping is here")
                 connection.reconnect("Ping timeout: 240 seconds")
+        self.send_once()
         self.process_timeout()
-
+        
     def process_forever(self, timeout=0.2):
         """Run an infinite loop, processing data from connections.
 
@@ -262,7 +264,6 @@ class IRC:
         """
         while 1:
             self.process_once(timeout)
-            self.send_once()
 
     def disconnect_all(self, message=""):
         """Disconnects all connections."""
@@ -915,7 +916,7 @@ class ServerConnection(Connection):
         try:
             message = string + u'\r\n'
             if (type(message) == unicode):
-                message = message.encode('utf-8')
+                message = message.encode(self.encoding)
             if self.ssl:
                 self.ssl.write(message)
             else:
@@ -932,19 +933,10 @@ class ServerConnection(Connection):
         if self.socket is None:
             raise ServerNotConnectedError, "Not connected."
         try:
-            message = string + u"\r\n"
-            if (type(message) == unicode):
-                message = message.encode('utf-8')
-            self.message_queue.put(message)
-            #if self.ssl:
-            #    self.ssl.write(message)
-            #else:
-            #    self.socket.send(message)
-            #if DEBUG:
-            #    print "TO SERVER:", message
-        except socket.error, x:
+            self.message_queue.put(string)
+        except (Full):
             # Ouch!
-            self.disconnect("Connection reset by peer.")
+            self.disconnect("Queue is full.")
 
     def squit(self, server, comment=""):
         """Send an SQUIT command."""
