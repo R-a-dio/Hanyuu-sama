@@ -1,42 +1,70 @@
 import pyices
 import logging
 import config
-import updater
-import webcom
+import manager
+from multiprocessing import Queue, Process
+from threading import Thread
+from Queue import Empty
 
-def afkstreamer(attributes, queue):
-    return pyices.instance(attributes)
+def start():
+    global streamer
+    streamer = Streamer(config.icecast_attributes)
+    return streamer
 
-class Streamer(object):
+class Streamer(Process):
     """Streamer class that streams to a certain server and mountpoint specified
     with attributes which is a dictionary of ... attributes.
     """
     def __init__(self, attributes):
-        instance = pyices.instance(attributes)
+        self._instance = None
+        self.attributes = attributes
+        self.connect()
+        self._shutdown = Queue()
+        self.finish_shutdown = False
+        Thread(target=self.check_shutdown, args=(self._shutdown,)).start()
+        
+    def connect(self, attributes):
+        instance = pyices.instance(self.attributes)
         self._instance = instance
         instance.add_handle("disconnect", self.on_disconnect)
         instance.add_handle("start", self.on_start)
         instance.add_handle("finishing", self.on_finishing)
         instance.add_handle("finish", self.on_finish)
         
+    def shutdown(self, force=False):
+        """Shuts down the AFK streamer and process"""
+        self._shutdown.put(force)
+        self.join()
+        
+    def check_shutdown(self, shutdown):
+        """Internal"""
+        force = shutdown.get()
+        if (force):
+            self._instance.close()
+            self.finish_shutdown = True
+            try:
+                shutdown.get(block=False)
+            except Empty:
+                pass
+        else:
+            self.finish_shutdown = True
+            shutdown.get()
     def on_disconnect(self, instance):
         """Handler for streamer disconnection"""
-        pass
+        if (not self.finish_shutdown):
+            self.connect()
     
     def on_start(self, instance):
         """Handler for when a file starts playing on the streamer"""
-        # Update last played before updating now playing
-        updater.lp.update(id=updater.np.id, digest=updater.np.digest,
-                          title=updater.np.title, length=updater.np.length,
-                          lastplayed=None)
         # Update our now playing after last played
-        updater.np.update(*self._info_next)
+        manager.np.change(self._next_song)
     def on_finishing(self, instance):
         """Handler for when a file has been played for 90%"""
-        sid, meta, length = updater.queue.pop()
-        file = webcom.get_song(sid)[0]
-        instance.add_file(file, meta)
-        self._info_next = (sid, digest, meta)
+        song = manager.queue.pop()
+        instance.add_file(song.filename, song.metadata)
+        self._next_song = song
     def on_finish(self, instance):
         """Handler for when a file finishes playing completely"""
-        pass
+        if (self.finish_shutdown):
+            instance.close()
+            self._shutdown.put(True)

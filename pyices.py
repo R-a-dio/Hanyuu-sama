@@ -107,6 +107,7 @@ description - longer stream description
                 break
     def close(self):
         self.on_disconnect(self.audiofile._PCM)
+        self.join()
     def on_disconnect(self, PCMVirtual):
         self.audiofile.close()
         try:
@@ -217,8 +218,10 @@ class AudioFile(object):
         self._active = True
         self._file_queue = deque()
         self._handlers = {}
-        self._PCM = AudioPCMVirtual(instance, self._handlers, self._file_queue)
-        self._CON = converters[format](self._temp_filename, self._PCM)
+        self.converter_class = converters[format]
+        self._PCM = AudioPCMVirtual(instance, self._handlers,
+                                    self._file_queue, self.converter_class)
+        self._CON = self.converters_class(self._temp_filename, self._PCM)
         self._file = open(self._temp_filename, "rb")
         fd = self._file.fileno()
         fl = fcntl.fcntl(fd, fcntl.F_GETFL)
@@ -291,8 +294,8 @@ class AudioFile(object):
                 self._file.close()
             logging.debug("Removing FIFO")
             os.remove(self._temp_filename)
-            self._CON.join(timeout=0)
-            self._PCM.join(timeout=0)
+            self._CON.join(timeout=10)
+            self._PCM.join(timeout=10)
     def add_file(self, file):
         """Add a file to the queue for transcoding"""
         if (self._active):
@@ -328,10 +331,11 @@ class AudioPCMVirtual(Thread):
             The number of bits-per-sample in this audio stream as a
             positive integer.
     """
-    def __init__(self, instance, handlers, queue, sample_rate=44100, channels=2, channel_mask=None,
-                bits_per_sample=16):
+    def __init__(self, instance, handlers, queue, converter, sample_rate=44100,
+                 channels=2, channel_mask=None, bits_per_sample=16):
         Thread.__init__(self)
         self.instance = instance
+        self.converter_class = converter # FORCES STREAM FORMAT LOCK IN
         self.daemon = True
         self.sample_rate = sample_rate
         self._handlers = handlers
@@ -366,13 +370,22 @@ class AudioPCMVirtual(Thread):
             else:
                 # Try to open our new file
                 try:
-                    new_audiofile = audiotools.open(new_file)
-                except (IOError):
-                    logging.error("File cannot be opened at all ({file})"\
+                    new_audiofile = self.converter_class(filename=new_file)
+                except (audiotools.UnsupportedFile, IOError):
+                    # Not of same type, try generic open
+                    try:
+                        new_audiofile = audiotools.open(new_file)
+                    except (IOError):
+                            logging.error("File cannot be opened at all ({file})"\
                                 .format(file=new_file))
-                except (audiotools.UnsupportedFile):
-                    logging.error("Unsupported file used ({file})"\
+                    except (audiotools.UnsupportedFile):
+                        logging.error("Unsupported file used ({file})"\
                                 .format(file=new_file))
+                    else:
+                        # success we have a new file
+                        logging.debug("Opened audio file ({file})"\
+                                    .format(file=new_file))
+                        break
                 else:
                     # success we have a new file
                     logging.debug("Opened audio file ({file})"\

@@ -5,6 +5,7 @@ import time
 import config
 from random import randint
 from multiprocessing import RLock
+
 REGULAR = 0
 REQUEST = 1
 
@@ -163,12 +164,30 @@ class status(object):
     @property
     def current(self):
         return self.cached_status.get("Current Song", u"")
+    def g_requests_enabled(self):
+        with webcom.MySQLCursor() as cur:
+            cur.execute("SELECT * FROM radvars WHERE `name`='requesting';")
+            if (cur.rowcount > 0):
+                return bool(cur.fetchone()['value'])
+            else:
+                # We create our entry here because it doesn't exist
+                cur.execute("INSERT INTO radvars (name, value) VALUES \
+                            ('requesting', 0);")
+                return False
+    def s_requests_enabled(self, value):
+        from types import BooleanType
+        with webcom.MySQLCursor() as cur:
+            current = self.requests_enabled
+            if (isinstance(value, BooleanType)):
+                if (current != value):
+                    value = 1 if value else 0
+                    cur.execute("UPDATE `radvars` SET `value`=%s WHERE `name`\
+                                ='requesting';")
+    requests_enabled = property(g_requests_enabled, s_requests_enabled)
     @property
     def cached_status(self):
-        import streamstatus
         if (time.time() - self._timeout > 9):
-            self._status = streamstatus.get_status(config.icecast_server)
-            self._timeout = time.time()
+            return self.status[config.icecast_mount]
         return self._status[config.icecast_mount]
     @property
     def status(self):
@@ -703,7 +722,22 @@ class Song(object):
         return (u"<Song [%s, %d, %s] at %s>" % (self.metadata, self.id,
                                              self.digest, hex(id(self))))\
                                              .encode("utf-8")
-        
+    def __ne__(self, other):
+        if (not isinstance(other, Song)):
+            return False
+        elif (self.digest != other.digest):
+            return True
+        else:
+            return False
+    def __eq__(self, other):
+        if (not isinstance(other, Song)):
+            return False
+        elif (self.digest == other.digest):
+            return True
+        else:
+            return False
+    def __hash__(self):
+        return hash(self.digest)
 # declaration goes here
 status = status()
 np = np()
