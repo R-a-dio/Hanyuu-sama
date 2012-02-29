@@ -16,13 +16,18 @@ class Streamer(Process):
     with attributes which is a dictionary of ... attributes.
     """
     def __init__(self, attributes):
+        self._queue = manager.get_queue() # Get our queue before we start
         self._instance = None
         self.attributes = attributes
         self.connect()
         self._shutdown = Queue()
         self.finish_shutdown = False
         Thread(target=self.check_shutdown, args=(self._shutdown,)).start()
+        self.start()
         
+    def run(self):
+        # Tell the manager module to use the queue from earlier
+        manager.use_queue(self._queue)
     def connect(self, attributes):
         instance = pyices.instance(self.attributes)
         self._instance = instance

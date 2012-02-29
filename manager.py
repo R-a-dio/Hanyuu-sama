@@ -4,8 +4,69 @@ import mutagen
 import time
 import config
 from random import randint
-from multiprocessing import RLock
+from multiprocessing import RLock, Queue
 
+def use_queue(queue):
+    """Function to make the whole module use pipe magic to access the functions
+    in the main thread instead of in the process this is used from
+    
+    Current implementation only allows calling the
+    method WITHOUT return value nor exceptions"""
+    class proxy(object):
+        method_list = []
+        def __init__(self, queue):
+            object.__init__(self)
+            self._queue = queue
+        def __getattr__(self, key):
+            if (key in self.method_list):
+                return lambda *a, **k: self._queue.put((self.object_name, key,
+                                                        a, k))
+            else:
+                raise AttributeError()
+    class proxy_np(proxy):
+        method_list = ["change",
+                       "end",
+                       "remaining"]
+        object_name = "np"
+    global np
+    np = proxy_np(queue)
+    
+def read_queue(q):
+    """blocks on a queue.get, and launches any incoming requests into this
+    process and thread, exceptions are caught and ignored"""
+    while True:
+        print "Started thread"
+        call_request = q.get()
+        print call_request
+        if (call_request == None):
+            break
+        else:
+            try:
+                obj, key, args, kwargs = call_request
+                obj = globals()[obj]
+                try:
+                    getattr(obj, key)(*args, **kwargs)
+                except (TypeError):
+                    getattr(obj, key)
+            except:
+                pass
+processor_queue = None
+def get_queue():
+    """Returns a multiprocessing.Queue to send to other processes that require
+    access to the manager pieces that aren't synced wit hthe database
+    
+    You require to call manager.use_queue(queue) when the separate process
+    is started, you don't have to do this if you are accessing manager.lp,
+    manager.queue or manager.Song, those are all synced"""
+    global processor_queue
+    if (not processor_queue):
+        processor_queue = Queue()
+        # This spawns a thread to feed from the queue
+        from threading import Thread
+        thread = Thread(target=read_queue, args=(processor_queue,))
+        thread.daemon = 1
+        thread.start()
+    return processor_queue
 REGULAR = 0
 REQUEST = 1
 
