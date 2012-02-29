@@ -13,7 +13,7 @@ class FastCGIServer(Process):
     and it will be called when the process shuts down.
     
     DO NOTE that the handler is called in the separate process"""
-    def __init__(self, irc_proxy, problem_handler=lambda: None):
+    def __init__(self, problem_handler=lambda: None):
         self.handler = problem_handler
         self._shutdown = Queue()
         self.irc = irc_proxy
