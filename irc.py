@@ -1,8 +1,11 @@
 from threading import Thread
+from multiprocessing import Process
+from Queue import Empty
 import logging
 import config
 import re
 import irclib
+import manager
 
 # Handler constants
 # Channels
@@ -25,12 +28,28 @@ def start():
 def shutdown():
     session.close()
 
+def use_queue(queue):
+    global session
+    class proxy_session(manager.Proxy):
+        self.method_list = ["set_topic"]
+        def __init__(self, queue, methods):
+            manager.Proxy.__init__(self, queue)
+            self.method_list = self.method_list + methods
+    session = proxy_session(queue, list(session.exposed))
+    
+def get_queue():
+    global processor_queue
+    if (not processor_queue):
+        processor_queue = Queue()
+    return processor_queue
+
 class Session(object):
     def __init__(self):
         logging.info("Creating IRC Session")
         self.ready = False
         self.commands = None
         self._handlers = []
+        self._queue = None
         self.exposed = {}
         self.irc = irclib.IRC()
         self.load_handlers()
@@ -45,6 +64,19 @@ class Session(object):
         while (self._active):
             # Call the process once
             self.irc.process_once(timeout=1)
+            # We also check for new proxy calls from here
+            if (self._queue):
+                try:
+                    call_request = self._queue.get_nowait()
+                except (Empty):
+                    pass
+                else:
+                    # We do fancy things
+                    obj, key, args, kwargs = call_request
+                    try:
+                        self.exposed[key](*args, **kwargs)
+                    except:
+                        pass
     def connect(self):
         # We really only need one server
         if (self._active):
