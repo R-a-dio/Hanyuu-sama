@@ -1,11 +1,38 @@
 import logging
-import webcom
 import mutagen
 import time
 import config
 from random import randint
 from multiprocessing import RLock, Queue
+import MySQLdb
+import MySQLdb.cursors
 
+class MySQLCursor:
+    """Return a connected MySQLdb cursor object"""
+    def __init__(self, cursortype=MySQLdb.cursors.DictCursor, lock=None):
+        self.conn = MySQLdb.connect(host=config.dbhost,
+                                user=config.dbuser,
+                                passwd=config.dbpassword,
+                                db=config.dbtable,
+                                charset='utf8',
+                                use_unicode=True)
+        self.curtype = cursortype
+        self.lock = lock
+    def __enter__(self):
+        if (self.lock != None):
+            self.lock.acquire()
+        self.cur = self.conn.cursor(self.curtype)
+        self.cur.escape_string = MySQLdb.escape_string
+        return self.cur
+        
+    def __exit__(self, type, value, traceback):
+        self.cur.close()
+        self.conn.commit()
+        self.conn.close()
+        if (self.lock != None):
+            self.lock.release()
+        return
+    
 def use_queue(queue):
     """Function to make the whole module use pipe magic to access the functions
     in the main thread instead of in the process this is used from
@@ -93,7 +120,7 @@ class queue(object):
         else:
             return np.end()
     def append_request(self, song, ip="0.0.0.0"):
-        with webcom.MySQLCursor(lock=self._lock) as cur:
+        with MySQLCursor(lock=self._lock) as cur:
             timestamp = self.get_timestamp(cur, REQUEST)
             cur.execute("UPDATE `queue` SET time=from_unixtime(\
                             unix_timestamp(time) + %s) WHERE type=0;",
@@ -106,7 +133,7 @@ class queue(object):
                           song.metadata, song.length))
   
     def append(self, song):
-        with webcom.MySQLCursor(lock=self._lock) as cur:
+        with MySQLCursor(lock=self._lock) as cur:
             timestamp = self.get_timestamp(cur, REGULAR)
             cur.execute("INSERT INTO `queue` (trackid, time, type, meta, \
             length) VALUES (%s, from_unixtime(%s), %s, %s, %s);",
@@ -116,7 +143,7 @@ class queue(object):
         """queue should be an iterater containing
             Song objects
         """
-        with webcom.MySQLCursor(lock=self._lock) as cur:
+        with MySQLCursor(lock=self._lock) as cur:
             timestamp = self.get_timestamp(cur)
             for song in songlist:
                 if (song.afk):
@@ -143,7 +170,7 @@ class queue(object):
         the database"""
         if (amount > 100):
             amount = 100
-        with webcom.MySQLCursor(lock=self._lock) as cur:
+        with MySQLCursor(lock=self._lock) as cur:
             cur.execute("SELECT tracks.id AS trackid \
             FROM tracks WHERE `usable`=1 AND NOT EXISTS (SELECT 1 FROM queue \
             WHERE queue.trackid = tracks.id) ORDER BY `lastplayed` ASC, \
@@ -158,7 +185,7 @@ class queue(object):
         self.append_many(queuelist)
     def pop(self):
         try:
-            with webcom.MySQLCursor(lock=self._lock) as cur:
+            with MySQLCursor(lock=self._lock) as cur:
                 cur.execute("SELECT * FROM `queue` ORDER BY `time` ASC LIMIT 1;")
                 if (cur.rowcount > 0):
                     result = cur.fetchone()
@@ -173,17 +200,17 @@ class queue(object):
             if (self.length < 20):
                 self.append_random(20 - self.length)
     def clear(self):
-        with webcom.MySQLCursor(lock=self._lock) as cur:
+        with MySQLCursor(lock=self._lock) as cur:
             cur.execute("DELETE FROM `queue`;")
     @property
     def length(self):
         return len(self)
     def __len__(self):
-        with webcom.MySQLCursor(lock=self._lock) as cur:
+        with MySQLCursor(lock=self._lock) as cur:
             cur.execute("SELECT COUNT(*) as count FROM `queue`;")
             return int(cur.fetchone()['count'])
     def __iter__(self):
-        with webcom.MySQLCursor(lock=self._lock) as cur:
+        with MySQLCursor(lock=self._lock) as cur:
             cur.execute("SELECT * FROM `queue` ORDER BY `time` ASC LIMIT 5;")
             for row in cur:
                 yield Song(id=row['trackid'],
@@ -196,7 +223,7 @@ class lp(object):
     def iter(self, amount=5):
         if (not isinstance(amount, int)):
             pass
-        with webcom.MySQLCursor() as cur:
+        with MySQLCursor() as cur:
             cur.execute("SELECT esong.meta FROM eplay JOIN esong ON \
             esong.id = eplay.isong ORDER BY eplay.dt DESC LIMIT %s;",
             (amount,))
@@ -225,8 +252,23 @@ class status(object):
     @property
     def current(self):
         return self.cached_status.get("Current Song", u"")
+    def s_thread(self, url):
+        """thread setter, use status.thread = thread"""
+        with MySQLCursor() as cur:
+            cur.execute("INSERT INTO `radvars` (name, value) VALUES \
+            ('curthread', %(thread)s) ON DUPLICATE KEY UPDATE `radvars` SET \
+            `value`='%(thread)s' LIMIT 1;", {"thread": url})
+    def g_thread(self):
+        """thread getter, use status.thread"""
+        with MySQLCursor() as cur:
+            cur.execute("SELECT `value` FROM `radvars` WHERE \
+            `name`='curthread' LIMIT 1;")
+            if (cur.rowcount == 0):
+                return u""
+            return cur.fetchone()['value']
+    thread = property(g_thread, s_thread)
     def g_requests_enabled(self):
-        with webcom.MySQLCursor() as cur:
+        with MySQLCursor() as cur:
             cur.execute("SELECT * FROM radvars WHERE `name`='requesting';")
             if (cur.rowcount > 0):
                 return bool(cur.fetchone()['value'])
@@ -237,7 +279,7 @@ class status(object):
                 return False
     def s_requests_enabled(self, value):
         from types import BooleanType
-        with webcom.MySQLCursor() as cur:
+        with MySQLCursor() as cur:
             current = self.requests_enabled
             if (isinstance(value, BooleanType)):
                 if (current != value):
@@ -258,7 +300,7 @@ class status(object):
         return self._status
     def update(self):
         """Updates the database with current collected info"""
-        with webcom.MySQLCursor() as cur:
+        with MySQLCursor() as cur:
             cur.execute("INSERT INTO `streamstatus` (id, lastset, \
                 np, djid, listeners, start_time, end_time, \
                 isafkstream) VALUES (0, NOW(), %(np)s, %(djid)s, \
@@ -318,7 +360,7 @@ class dj(object):
         user = self.user
         if (user in self._cache):
             return self._cache[user]
-        with webcom.MySQLCursor() as cur:
+        with MySQLCursor() as cur:
             # we don't have a user
             if (not self.user):
                 cur.execute("SELECT `djid` FROM `streamstatus`")
@@ -345,7 +387,7 @@ class dj(object):
     def s_id(self, value):
         if (not isinstance(value, (int, long, float))):
             raise TypeError("Expected integer")
-        with webcom.MySQLCursor() as cur:
+        with MySQLCursor() as cur:
             cur.execute("SELECT `user` FROM `users` WHERE `djid`=%s \
             LIMIT 1;", (value,))
             if (cur.rowcount > 0):
@@ -369,7 +411,7 @@ class dj(object):
         from re import escape, search, IGNORECASE
         name = self.name
         if (name == None):
-            with webcom.MySQLCursor() as cur:
+            with MySQLCursor() as cur:
                 cur.execute("SELECT `djid` FROM `streamstatus`")
                 if (cur.rowcount == 0):
                     self.id = 18
@@ -441,7 +483,7 @@ class Song(object):
         for key, value in kwargs.iteritems():
             if (key in ["lp", "id", "length", "filename", "metadata"]):
                 setattr(self, "_" + key, value)
-                with webcom.MySQLCursor() as cur:
+                with MySQLCursor() as cur:
                     if (key == "lp"):
                         # change database entries for LP data
                         cur.execute("INSERT INTO eplay (`isong`, `dt`) \
@@ -504,7 +546,7 @@ class Song(object):
     def lp(self):
         """Returns the unixtime of when this song was last played, defaults
         to None"""
-        with webcom.MySQLCursor() as cur:
+        with MySQLCursor() as cur:
             query = "SELECT unix_timestamp(`dt`) AS ut FROM eplay,esong \
             WHERE eplay.isong = esong.id AND esong.hash = '{digest}' \
             ORDER BY `dt` DESC LIMIT 1;"
@@ -557,7 +599,7 @@ class Song(object):
                 nick is already in the favorites"""
                 if (nick in self):
                     return
-                with webcom.MySQLCursor() as cur:
+                with MySQLCursor() as cur:
                     cur.execute("SELECT * FROM enick WHERE nick=%s;",
                                 (nick,))
                     if (cur.rowcount == 0):
@@ -579,7 +621,7 @@ class Song(object):
                 """Same as 'append' but allows multiple nicknames to be added
                 by suppling a list of nicknames"""
                 original = list(self)
-                with webcom.MySQLCursor() as cur:
+                with MySQLCursor() as cur:
                     for nick in seq:
                         if (nick in original):
                             continue
@@ -605,7 +647,7 @@ class Song(object):
                 """Returns an iterator over the favorite list, sorted 
                 alphabetical. Use list(faves) to generate a list copy of the
                 nicknames"""
-                with webcom.MySQLCursor() as cur:
+                with MySQLCursor() as cur:
                     cur.execute("SELECT enick.nick FROM esong JOIN efave ON \
                     efave.isong = esong.id JOIN enick ON efave.inick = \
                     enick.id WHERE esong.hash = '{digest}' ORDER BY enick.nick\
@@ -615,7 +657,7 @@ class Song(object):
                         yield result['nick']
             def __reversed__(self):
                 """Just here for fucks, does the normal as you expect"""
-                with webcom.MySQLCursor() as cur:
+                with MySQLCursor() as cur:
                     cur.execute("SELECT enick.nick FROM esong JOIN efave ON \
                     efave.isong = esong.id JOIN enick ON efave.inick = \
                     enick.id WHERE esong.hash = '{digest}' ORDER BY enick.nick\
@@ -625,7 +667,7 @@ class Song(object):
                         yield result['nick']
             def __len__(self):
                 """len(faves) is efficient"""
-                with webcom.MySQLCursor() as cur:
+                with MySQLCursor() as cur:
                     cur.execute("SELECT count(*) AS favecount FROM efave \
                     WHERE isong={songid}".format(songid=self.song.songid))
                     return cur.fetchone()['favecount']
@@ -640,7 +682,7 @@ class Song(object):
                     # Nick delete
                     if (key in original):
                         # It is in there
-                        with webcom.MySQLCursor() as cur:
+                        with MySQLCursor() as cur:
                             cur.execute(
         "DELETE efave.* FROM efave LEFT JOIN enick ON enick.id = efave.inick WHERE \
         enick.nick=%s AND isong=%s;", (key, self.song.songid))
@@ -652,7 +694,7 @@ class Song(object):
                     except (IndexError):
                         raise IndexError("Fave index out of range")
                     else:
-                        with webcom.MySQLCursor() as cur:
+                        with MySQLCursor() as cur:
                             cur.execute(
                                         "DELETE efave.* FROM efave LEFt JOIN \
                                         enick ON enick.id = efave.inick WHERE \
@@ -661,7 +703,7 @@ class Song(object):
                 else:
                     raise TypeError("Fave key has to be 'string' or 'int'")
             def __contains__(self, key):
-                with webcom.MySQLCursor() as cur:
+                with MySQLCursor() as cur:
                     cur.execute("SELECT count(*) AS contains FROM efave JOIN\
                      enick ON enick.id = efave.inick WHERE enick.nick=%s \
                      AND efave.isong=%s;",
@@ -680,7 +722,7 @@ class Song(object):
     @property
     def playcount(self):
         """returns the playcount as long, defaults to 0L"""
-        with webcom.MySQLCursor() as cur:
+        with MySQLCursor() as cur:
             query = "SELECT count(*) AS playcount FROM eplay,esong WHERE \
             eplay.isong = esong.id AND esong.hash = '{digest}';"
             cur.execute(query.format(digest=self.digest))
@@ -704,7 +746,7 @@ class Song(object):
             return length
         if (song.filename == None):
             # try hash
-            with webcom.MySQLCursor() as cur:
+            with MySQLCursor() as cur:
                 cur.execute("SELECT len FROM `esong` WHERE `hash`=%s;",
                             (song.digest,))
                 if (cur.rowcount > 0):
@@ -715,7 +757,7 @@ class Song(object):
     def get_file(songid):
         """Retrieve song path and metadata from the track ID"""
         from os.path import join
-        with webcom.MySQLCursor() as cur:
+        with MySQLCursor() as cur:
             cur.execute("SELECT * FROM `tracks` WHERE `id`=%s LIMIT 1;" % (songid))
             if cur.rowcount == 1:
                 row = cur.fetchone()
@@ -729,7 +771,7 @@ class Song(object):
                 return (None, None)
     @staticmethod
     def get_songid(song):
-        with webcom.MySQLCursor() as cur:
+        with MySQLCursor() as cur:
             cur.execute("SELECT * FROM `esong` WHERE `hash`=%s LIMIT 1;",
                         (song.digest,))
             if (cur.rowcount == 1):
@@ -761,7 +803,7 @@ class Song(object):
             return re.sub(lambda x: replacements[x.group()], query)
         from os.path import join
         query_raw = query
-        with webcom.MySQLCursor() as cur:
+        with MySQLCursor() as cur:
             search = replace(query)
             temp = []
             search = search.split(" ")

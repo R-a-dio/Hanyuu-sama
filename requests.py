@@ -1,6 +1,5 @@
 import logging
 import config
-import webcom
 import time
 from multiprocessing import Process, Queue
 from threading import Thread
@@ -57,7 +56,7 @@ class FastCGIServer(Process):
                 trackid = int(splitdata[1])
                 canrequest_ip = False
                 canrequest_song = False
-                with webcom.MySQLCursor() as cur:
+                with manager.MySQLCursor() as cur:
                     # SQL magic
                     cur.execute("SELECT * FROM `requesttime` WHERE \
                     `ip`=%s LIMIT 1;", (environ["REMOTE_ADDR"],))

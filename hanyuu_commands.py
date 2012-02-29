@@ -323,3 +323,43 @@ def request_help(conn, nick, channel, text, hostmask):
         print "Error in request help function"
 request_help.handler = ("on_text", r'.*how.+request',
                         irc.ALL_NICKS, irc.MAIN_CHANNELS)
+
+def nick_request_song(songid, host=None):
+    """Gets data about the specified song, for the specified hostmask.
+    If the song didn't exist, it returns 1.
+    If the host needs to wait before requesting, it returns 2.
+    If there is no ongoing afk stream, it returns 3.
+    Else, it returns (artist, title).
+    """
+    # TODO:
+    # rewrite shit man
+    with manager.MySQLCursor() as cur:
+        can_request = True
+        if host:
+            host = mysql.escape_string(host)
+            cur.execute("SELECT UNIX_TIMESTAMP(time) as timestamp FROM `nickrequesttime` WHERE `host`='{host}' LIMIT 1;".format(host=host))
+            if cur.rowcount == 1:
+                row = cur.fetchone()
+                if int(time.time()) - int(row['timestamp']) < 1800:
+                    can_request = False
+        
+        can_afk = True
+        cur.execute("SELECT isafkstream FROM `streamstatus`;")
+        if cur.rowcount == 1:
+            row = cur.fetchone()
+            afk = row['isafkstream']
+            if not afk == 1:
+                can_afk = False
+        else:
+            can_afk = False
+        if (not can_request):
+            return 2
+        if (not can_afk):
+            return 3
+        cur.execute("SELECT * FROM `tracks` WHERE `id`={id};".format(id=songid))
+        if (cur.rowcount == 1):
+            row = cur.fetchone()
+            artist = row['artist']
+            title = row['track']
+            return (artist, title)
+        return 1
