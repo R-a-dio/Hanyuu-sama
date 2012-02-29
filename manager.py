@@ -198,16 +198,21 @@ class status(object):
     def update(self):
         """Updates the database with current collected info"""
         with webcom.MySQLCursor() as cur:
-            cur.execute(
-                        "UPDATE `streamstatus` SET `lastset`=NOW(), \
-                        `np`=%s, `djid`=%s, `listeners`=%s, \
-                        `start_time`=%s, `end_time`=%s, \
-                        `isafkstream`=%s WHERE `id`=0;",
-                        (np.metadata, dj.id, self.listeners,
-                         np._start, np.end(),
-                         1 if np.afk else 0)
-                        )
-class np(object):
+            cur.execute("INSERT INTO `streamstatus` (id, lastset, \
+                np, djid, listeners, start_time, end_time, \
+                isafkstream) VALUES (0, NOW(), %(np)s, %(djid)s, \
+                %(listener)s, %(start)s, %(end)s, %(afk)s) ON DUPLICATE KEY \
+                UPDATE `lastset`=NOW(), `np`=%(np)s, `djid`=%(djid)s, \
+                `listeners`=%(listener)s, `start_time`=%(start)s, \
+                `end_time`=%(end)s, `isafkstream`=%(afk)s;",
+                        {"np": np.metadata,
+                         "djid": dj.id,
+                         "listener": self.listeners,
+                         "start": np._start,
+                         "end": np.end(),
+                         "afk": 1 if np.afk else 0
+                         })
+class NP(object):
     _end = 0
     _start = int(time.time())
     def __init__(self):
@@ -256,6 +261,9 @@ class dj(object):
             # we don't have a user
             if (not self.user):
                 cur.execute("SELECT `djid` FROM `streamstatus`")
+                if (cur.rowcount == 0):
+                    self.id = 18
+                    return
                 djid = cur.fetchone()['djid']
                 cur.execute("SELECT `user` FROM `users` WHERE `djid`=%s \
                 LIMIT 1;", (djid,))
@@ -281,7 +289,7 @@ class dj(object):
             LIMIT 1;", (value,))
             if (cur.rowcount > 0):
                 user = cur.fetchone()['user']
-                self._cache[user] = djid
+                self._cache[user] = value
                 self._name = user
             else:
                 raise TypeError("Invalid ID, no such DJ")
@@ -302,6 +310,9 @@ class dj(object):
         if (name == None):
             with webcom.MySQLCursor() as cur:
                 cur.execute("SELECT `djid` FROM `streamstatus`")
+                if (cur.rowcount == 0):
+                    self.id = 18
+                    return None
                 djid = cur.fetchone()['djid']
                 cur.execute("SELECT `user` FROM `users` WHERE `djid`=%s \
                 LIMIT 1;", (djid,))
@@ -372,9 +383,9 @@ class Song(object):
                 with webcom.MySQLCursor() as cur:
                     if (key == "lp"):
                         # change database entries for LP data
-                        cur.execute("INSERT INTO eplay ('isong', 'dt') \
+                        cur.execute("INSERT INTO eplay (`isong`, `dt`) \
                         VALUES(%s, FROM_UNIXTIME(%s));",
-                        (self.songid, self.lp))
+                        (self.songid, int(value)))
                         if (self.afk):
                             cur.execute("UPDATE `tracks` SET \
                             `lastplayed`=FROM_UNIXTIME(%s) \
@@ -723,14 +734,14 @@ class Song(object):
                                              self.digest, hex(id(self))))\
                                              .encode("utf-8")
     def __ne__(self, other):
-        if (not isinstance(other, Song)):
+        if (not isinstance(other, (Song, NP))):
             return False
         elif (self.digest != other.digest):
             return True
         else:
             return False
     def __eq__(self, other):
-        if (not isinstance(other, Song)):
+        if (not isinstance(other, (Song, NP))):
             return False
         elif (self.digest == other.digest):
             return True
@@ -740,7 +751,7 @@ class Song(object):
         return hash(self.digest)
 # declaration goes here
 status = status()
-np = np()
+np = NP()
 dj = dj()
 queue = queue()
 lp = lp()

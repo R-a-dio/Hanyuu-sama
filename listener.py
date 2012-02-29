@@ -97,7 +97,6 @@ class Listener(async_chat):
             
             for part in incoming_string.split("';"):
                 try:
-                    print part.strip().split("='")
                     if (part.strip().split("='")[0].lower() == "streamtitle"):
                         metadata = "='".join(part.split("='")[1:])
                 except (IndexError):
