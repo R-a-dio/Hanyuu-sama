@@ -26,8 +26,7 @@ def parse_queue_file():
         
         if (djid != ''):
             remaining = int(firstline)
-            current_djid = webcom.get_djid()
-            if (current_djid == djid):
+            if (manager.dj.id == djid):
                 for line in file:
                     line = line.strip()
                     if line == "":
@@ -40,7 +39,6 @@ def parse_queue_file():
                     stime = int(line[:spacepos])
                     song = line[spacepos+1:]
                     
-                    song = webcom.fix_encoding(song)
                     queue.append(manager.Song(meta=song, length=stime))
             else:
                 logging.info("Queue discarded because djid does not match")
