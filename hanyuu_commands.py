@@ -296,6 +296,8 @@ def request(server, nick, channel, text, hostmask):
             message = u"You have to wait a bit longer before you can request again~"
         elif (response == 3): #not afk stream
             message = u"I'm not streaming right now!"
+        elif (response == 4): #song not ready
+            message = u"You have to wait a bit longer before requesting that song~"
     server.privmsg(channel, message)
 
 request.handler = ("on_text", r'[.!@]r(equest)?\b',
@@ -313,6 +315,7 @@ def nick_request_song(trackid, host=None):
     If the song didn't exist, it returns 1.
     If the host needs to wait before requesting, it returns 2.
     If there is no ongoing afk stream, it returns 3.
+    If the play delay on the song hasn't expired yet, it returns 4.
     Else, it returns (artist, title).
     """
     # TODO:
@@ -324,13 +327,15 @@ def nick_request_song(trackid, host=None):
         except (ValueError):
             return 1
         can_request = True
+        hostmask_id = None
         if host:
-            cur.execute("SELECT UNIX_TIMESTAMP(time) as timestamp \
+            cur.execute("SELECT id, UNIX_TIMESTAMP(time) as timestamp \
                 FROM `nickrequesttime` WHERE `host`=%s LIMIT 1;",
                 (host,))
             if cur.rowcount == 1:
                 row = cur.fetchone()
-                if int(time.time()) - int(row['timestamp']) < 1800:
+                hostmask_id = int(row['id'])
+                if int(time.time()) - int(row['timestamp']) < 3600:
                     can_request = False
         can_afk = True
         cur.execute("SELECT isafkstream FROM `streamstatus`;")
@@ -341,9 +346,24 @@ def nick_request_song(trackid, host=None):
                 can_afk = False
         else:
             can_afk = False
+        can_song = True
+        cur.execute("SELECT UNIX_TIMESTAMP(lastplayed) as lp, UNIX_TIMESTAMP(lastrequested) as lr from `tracks` WHERE `id`=%s", (trackid,))
+        if cur.rowcount == 1:
+            row = cur.fetchone()
+            song_lp = row['lp']
+            song_lr = row['lr']
+            if int(time.time()) - song_lp < 3600 * 8 or int(time.time()) - song_lr < 3600 * 8:
+                can_song = False
         if (not can_request):
             return 2
         elif (not can_afk):
             return 3
+        elif (not can_song):
+            return 4
         else:
+            if host:
+                if hostmask_id:
+                    cur.execute("UPDATE `nickrequesttime` SET `time`=NOW() WHERE `id`=%s LIMIT 1;", (hostmask_id,))
+                else:
+                    cur.execute("INSERT INTO `nickrequesttime` (host, time) VALUES (%s, NOW());", (host,))
             return song
