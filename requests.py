@@ -5,6 +5,7 @@ from multiprocessing import Process, Queue
 from threading import Thread
 from flup.server.fcgi import WSGIServer
 import manager
+import irc
 
 class FastCGIServer(Process):
     """Starts a fastcgi server that handles our requests,
@@ -15,12 +16,13 @@ class FastCGIServer(Process):
     def __init__(self, problem_handler=lambda: None):
         self.handler = problem_handler
         self._shutdown = Queue()
-        self.irc = irc_proxy
+        self._queue = irc.get_queue()
         self.daemon = 1
         self.start()
         Thread(target=self.check_shutdown, args=(self._shutdown,)).start()
     def run(self):
         """Internal"""
+        irc.use_queue(self._queue)
         try:
             self.server = WSGIServer(self.external_request,
                             bindAddress=config.fastcgi_socket,

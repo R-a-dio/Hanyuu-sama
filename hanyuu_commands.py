@@ -47,6 +47,7 @@ import logging
 import re
 import config
 import irc
+import manager
 
 irc_colours = {"c": u"\x03", "c1": u"\x0301", "c2": u"\x0302",
             "c3": u"\x0303", "c4": u"\x0304", "c5": u"\x0305",
@@ -55,276 +56,259 @@ irc_colours = {"c": u"\x03", "c1": u"\x0301", "c2": u"\x0302",
             "c12": u"\x0312", "c13": u"\x0313", "c14": u"\x0314",
             "c15": u"\x0315"}
 
-def np(conn, nick, channel, text, hostmask):
-    if (streamer.active()):
-        try:
-            message = u"Now playing:{c4} '{np}' {c}[{curtime}/{length}]({listeners}/{max_listener}), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
-                np=streamer.nowplaying(), curtime=streamer.get_duration(), length=streamer.get_length(), listeners=streamer.listeners, max_listener=config.listener_max,
-                faves=streamer.get_fave_count(), fs="" if (streamer.get_fave_count() == 1) else "s",
-                times=streamer.get_playcount(), ts="" if (streamer.get_playcount() == 1) else "s",
-                lp=streamer.get_lastplayed(),
-                **irc_colours)
-        except UnicodeDecodeError:
-            logging.exception("Error compiling np message")
-            message = u"We have an encoding problem, borked tags."
+def np(server, nick, channel, text, hostmask):
+    if (manager.status.online):
+        message = u"Now playing:{c4} '{np}' {c}[{curtime}/{length}]({listeners}/{max_listener}), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
+            np=manager.np.metadata, curtime=manager.np.positionf,
+            length=manager.np.lengthf, listeners=manager.status.listeners,
+            max_listener=config.listener_max, faves=manager.np.favecount,
+            fs="" if (manager.np.favecount == 1) else "s", 
+            times=manager.np.playcount,
+            ts="" if (manager.np.playcount == 1) else "s",
+            lp=manager.np.lpf,
+            **irc_colours)
     else:
         message = u"Stream is currently down."
-    try:
-        conn.privmsg(channel, message)
-    except:
-        logging.exception("Error sending np message to channel '{chan}'".format(chan=channel))
-        conn.privmsg(channel, u"Encoding errors go here")
+    server.privmsg(channel, message)
+    
 np.handler = ("on_text", r'[.!@]np$', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
-def lp(conn, nick, channel, text, hostmask):
-    lp = streamer.lastplayed()
-    try:
-        slice = lp[:5]
-        string = u"{c3}Last Played:{c} ".format(**irc_colours) + " {c3}|{c} ".format(**irc_colours).join(slice)
-    except (UnicodeDecodeError):
-        logging.exception("Error compiling lp message")
-        string = u"Derped on Unicode"
-    try:
-        conn.privmsg(channel, string)
-    except:
-        logging.exception("Error sending lp message to channel '{chan}'".format(chan=channel))
-        conn.privmsg(channel, u"Encoding errors go here")
+def lp(server, nick, channel, text, hostmask):
+    lastplayed = manager.lp.get()
+    if (len(lastplayed) > 0):
+        message = u"{c3}Last Played:{c} ".format(**irc_colours) + \
+            " {c3}|{c} ".format(**irc_colours).join(
+                                        [song.metadata for song in lastplayed])
+    else:
+        message = u"There is currently no last played data available"
+    server.privmsg(channel, message)
+    
 lp.handler = ("on_text", r'[.!@]lp$', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
-def queue(conn, nick, channel, text, hostmask):
-    string = u"No queue at the moment (lazy Wessie)"
-    queue = webcom.queue
-    try:
-        slice = queue[:5]
-        string = u"{c3}Queue:{c} ".format(**irc_colours) + " {c3}|{c} ".format(**irc_colours).join(slice)
-    except (UnicodeDecodeError):
-        logging.exception("Error compiling queue message")
-        string = u"Derped on Unicode"
-    try:
-        conn.privmsg(channel, string)
-    except:
-        logging.exception("Error sending queue message to channel '{chan}'".format(chan=channel))
-        conn.privmsg(channel, u"Encoding errors go here")
+def queue(server, nick, channel, text, hostmask):
+    queue = list(manager.queue)
+    if (len(queue) > 0):
+        message = u"{c3}Queue:{c} ".format(**irc_colours) + \
+            " {c3}|{c} ".format(**irc_colours)\
+            .join([song.metadata for song in queue])
+    else:
+        message = u"No queue at the moment"
+    server.privmsg(channel, message)
+
 queue.handler = ("on_text", r'[.!@]q(ueue)?$', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
-def dj(conn, nick, channel, text, hostmask):
+def dj(server, nick, channel, text, hostmask):
     tokens = text.split(' ')
     new_dj = " ".join(tokens[1:])
     if (new_dj != ''):
-        if (irc.hasaccess(conn, channel, nick)):
+        if (server.hasaccess(channel, nick)):
             if (new_dj):
                 if (new_dj == 'None'):
                     new_status = 'DOWN'
                 elif (new_dj):
                     new_status = 'UP'
-                topic = irc.topic(conn, channel)
-                logging.debug("Topic: {0}".format(topic))
+                topic = server.get_topic(channel)
                 regex = re.compile(r"((.*?r/)(.*)(/dio.*?))\|(.*?)\|(.*)")
                 result = regex.match(topic)
                 if (result != None):
                     result = list(result.groups())
                     result[1:5] = u'|{c7} Stream:{c4} {status} {c7}DJ:{c4} {dj} {c11} http://r-a-dio.com{c} |'.format(status=new_status, dj=new_dj, **irc_colours)
-                    irc.set_topic(conn, channel, u"".join(result))
-                    current_dj = new_dj
-                    new_dj = webcom.get_dj(new_dj)
-                    streamer.djid = webcom.get_djid(new_dj)
-                    webcom.send_queue(0, [])
-                    logging.debug(streamer.djid + " " + new_dj)
-                    webcom.send_nowplaying(djid=streamer.djid)
+                    server.topic(channel, u"".join(result))
+                    manager.dj.name = new_dj
                 else:
-                    conn.privmsg(channel, 'Topic is borked, repair first')
+                    server.privmsg(channel, "Topic is the wrong format, can't set new topic")
         else:
-            conn.notice(nick, "You don't have the necessary privileges to do this.")
+            server.notice(nick, "You don't have the necessary privileges to do this.")
     else:
-        conn.privmsg(channel, "Current DJ: {c3}{dj}".format(dj=current_dj, **irc_colours))
+        server.privmsg(channel, "Current DJ: {c3}{dj}"\
+                       .format(dj=manager.np.name, **irc_colours))
+        
 dj.handler = ("on_text", r'[.!@]dj.*', irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
-def favorite(conn, nick, channel, text, hostmask):
-    if (webcom.check_fave(nick, streamer.songid)):
-        response = u"You already have {c3}'{np}'{c} favorited".format(np=streamer.nowplaying(), **irc_colours)
+def favorite(server, nick, channel, text, hostmask):
+    if (nick in manager.np.faves):
+        message = u"You already have {c3}'{np}'{c} favourited"\
+            .format(np=manager.np.metadata, **irc_colours)
     else:
-        if (streamer.isafk()):
-            webcom.add_fave(nick, streamer.songid, streamer._accurate_songid) #first esong.id, then tracks.id
-        else:
-            webcom.add_fave(nick, streamer.songid)
-        response = u"Added {c3}'{np}'{c} to your favorites.".format(np=streamer.nowplaying(), **irc_colours)
-    conn.notice(nick, response)
+        manager.np.faves.append(nick)
+        message = u"Added {c3}'{np}'{c} to your favorites."\
+        .format(np=manager.np.metadata, **irc_colours)
+    server.notice(nick, message)
+    
 favorite.handler = ("on_text", r'[.!@]fave.*', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
-def unfavorite(conn, nick, channel, text, hostmask):
-    if (webcom.check_fave(nick, streamer.songid)):
-        webcom.del_fave(nick, streamer.songid)
-        response = u"{c3}'{np}'{c} is removed from your favorites.".format(np=streamer.nowplaying(), **irc_colours)
+def unfavorite(server, nick, channel, text, hostmask):
+    if (nick in manager.np.faves):
+        manager.np.faves.remove(nick)
+        message = u"{c3}'{np}'{c} is removed from your favorites."\
+            .format(np=manager.np.metadata, **irc_colours)
     else:
-        response = u"You don't have {c3}'{np}'{c} in your favorites.".format(np=streamer.nowplaying(), **irc_colours)
-    conn.notice(nick, response)
+        message = u"You don't have {c3}'{np}'{c} in your favorites."\
+            .format(np=manager.np.metadata, **irc_colours)
+    server.notice(nick, message)
+    
 unfavorite.handler = ("on_text", r'[.!@]unfave.*',
                        irc.ALL_NICKS, irc.ALL_CHANNELS)
 
-def set_curthread(conn, nick, channel, text, hostmask):
+def set_curthread(server, nick, channel, text, hostmask):
     tokens = text.split(' ')
     threadurl = " ".join(tokens[1:]).strip()
 
     if threadurl != "" or len(tokens) > 1:
-        if irc.hasaccess(conn, channel, nick):
-            webcom.send_curthread(threadurl)
+        if server.hasaccess(channel, nick):
+            manager.status.thread = threadurl
 
-    curthread = webcom.get_curthread()
-    response = u"Thread: {thread}".format(thread=curthread)
-    conn.privmsg(channel, response)
+    message = u"Thread: {thread}".format(thread=manager.status.thread)
+    server.privmsg(channel, message)
+    
 set_curthread.handler = ("on_text", r'[.!@]thread(\s.*)?',
                           irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
 
-def topic(conn, nick, channel, text, hostmask):
+def topic(server, nick, channel, text, hostmask):
     tokens = text.split(' ')
     param = u" ".join(tokens[1:]).strip()
-    param = shoutmain.fix_encoding(param)
     if param != u"" or len(tokens) > 1: #i have NO IDEA WHATSOEVER why this is like this. just c/p from above
-        if irc.hasaccess(conn, channel, nick):
-            topic = irc.topic(conn, channel)
+        if server.hasaccess(channel, nick):
+            topic = server.get_topic(channel)
             print(u"Topic: {0}".format(topic))
             regex = re.compile(ur"(.*?r/)(.*)(/dio.*?)(.*)")
             result = regex.match(topic)
             if (result != None):
                 result = list(result.groups())
                 result[1] = u"{param}{c7}".format(param=param, **irc_colours)
-                irc.set_topic(conn, channel, u"".join(result))
+                server.topic(channel, u"".join(result))
             else:
-                conn.privmsg(channel, 'Topic is borked, repair first')
+                server.privmsg(channel, "Topic is the wrong format, can't set new topic")
 
     else:
-        topic = irc.topic(conn, channel)
-        conn.privmsg(channel, u"Topic: {topic}".format(topic=topic))
+        topic = server.get_topic(channel)
+        server.privmsg(channel, u"Topic: {topic}".format(topic=topic))
+        
 topic.handler = ("on_text", r'[.!@]topic(\s.*)?',
                   irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
 
-def kill_afk(conn, nick, channel, text, hostmask):
-    if (irc.isop(conn, channel, nick)):
+# TODO:
+#     No way yet to kill the streamer, so this is TODO
+def kill_afk(server, nick, channel, text, hostmask):
+    if (server.isop(channel, nick)):
         try:
-            streamer.shut_afk_streamer(True)
+            #streamer.shut_afk_streamer(True)
             message = u"Forced AFK Streamer down,\
                         please connect in 15 seconds or less."
         except:
             message = u"Something went wrong, please punch Wessie."
             logging.exception("AFK kill failed")
-        conn.privmsg(channel, message)
+        server.privmsg(channel, message)
     else:
-        conn.notice(nick, u"You don't have high enough access to do this.")
+        server.notice(nick, u"You don't have high enough access to do this.")
+        
 kill_afk.handler = ("on_text", r'[.!@]kill',
                      irc.DEV_NICKS, irc.ALL_CHANNELS)
 
-def shut_afk(conn, nick, channel, text, hostmask):
-    if (irc.isop(conn, channel, nick)):
+# TODO:
+#    same as above
+def shut_afk(server, nick, channel, text, hostmask):
+    if (server.isop(conn, channel, nick)):
         try:
-            streamer.shut_afk_streamer(False)
+            #streamer.shut_afk_streamer(False)
             message = u'AFK Streamer will disconnect after current track, use ".kill" to force disconnect.'
         except:
             message = u"Something went wrong, please punch Wessie."
             logging.exception("AFK cleankill failed")
-        conn.privmsg(channel, message)
+        server.privmsg(channel, message)
     else:
-        conn.notice(nick, u"You don't have high enough access to do this.")
+        server.notice(nick, u"You don't have high enough access to do this.")
+        
 shut_afk.handler = ("on_text", r'[.!@]cleankill',
                      irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
 
-def announce(faves):
-    for fave in faves:
-        if (irc.inchannel(irc.server, "#r/a/dio", fave)):
-            irc.server.notice(fave, u"Fave: {0} is playing.".format(streamer.current))
-    if (len(faves) > 0):
+def announce(server):
+    for nick in manager.np.faves:
+        if (server.inchannel("#r/a/dio", nick)):
+            server.notice(nick, u"Fave: {0} is playing."\
+                          .format(manager.np.metadata))
         message = u"Now starting:{c4} '{np}' {c}[{curtime}/{length}]({listeners}/{max_listener}), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
-                np=streamer.nowplaying(), curtime=streamer.get_duration(), length=streamer.get_length(), listeners=streamer.listeners, max_listener=config.listener_max,
-                faves=streamer.get_fave_count(), fs="" if (streamer.get_fave_count() == 1) else "s",
-                times=streamer.get_playcount(), ts="" if (streamer.get_playcount() == 1) else "s",
-                lp=streamer.get_lastplayed(),
-                **irc_colours)
-        irc.server.privmsg("#r/a/dio", message)
+            np=manager.np.metadata, curtime=manager.np.positionf,
+            length=manager.np.lengthf, listeners=manager.status.listeners,
+            max_listener=config.listener_max, faves=manager.np.favecount,
+            fs="" if (manager.np.favecount == 1) else "s", 
+            times=manager.np.playcount,
+            ts="" if (manager.np.playcount == 1) else "s",
+            lp=manager.np.lpf,
+            **irc_colours)
+        server.privmsg("#r/a/dio", message)
+
 announce.exposed = True
 
-def request_announce(request):
-    try:
-        path, message = webcom.get_song(request)
-        message = u"Requested:{c3} '{request}'".format(request=message, **irc_colours)
-        irc.server.privmsg("#r/a/dio", message)
-    except:
-        logging.exception("I'm broken with all the requests")
+def request_announce(server, song):
+    message = u"Requested:{c3} '{song}'".format(song=song.metadata,
+                                                   **irc_colours)
+    server.privmsg("#r/a/dio", message)
+
 request_announce.exposed = True
 
-def search(conn, nick, channel, text, hostmask):
-    match = re.match(r"^(?P<mode>[.!@])s(earch)?\s(?:@(?P<nick>.*?)\s)?(?P<query>.*)", text, re.I|re.U)
-    mode, favenick, query = match.group('mode', 'nick', 'query')
-    result = []
-    result_msg = u"Hauu~ you broke something inside of me ~desu"
-    try:
-        if (query == None):
-            result_msg = u"Hauu~ you forgot to give me a query"
-        elif (favenick == None):
-            msgpart = "{c4}{metadata} {c3}({trackid}){c}"
-            for row in webcom.search_tracks(query):
-                if (row['artist'] != u''):
-                    meta = "{a} - {t}".format(a=row['artist'], t=row['track'])
-                else:
-                    meta = row['track']
-                trackid = row['id']
-                result.append(msgpart.format(metadata=meta, trackid=trackid, **irc_colours))
-            result_msg = " | ".join(result)
-        else:
-            pass
-    except:
-        logging.exception("IRC search failed")
-    if (mode == "@"):
-        conn.privmsg(channel, result_msg)
+def search(server, nick, channel, text, hostmask):
+    match = re.match(r"^(?P<mode>[.!@])s(earch)?\s(?P<query>.*)", text, re.I|re.U)
+    if (match):
+        mode, query = match.group('mode', 'query')
     else:
-        conn.notice(nick, result_msg)
+        message = u"Hauu~ you forgot a search query"
+        server.notice(nick, message)
+        return
+    message = [u"{c4}{metadata} {c3}({trackid}){c}"\
+               .format(meta=song.metadata, trackid=song.id, **irc_colours) for \
+               song in manager.Song.search(query)]
+    if (len(message) > 0):
+        message = u" | ".join(message)
+    else:
+        message = u"Your search returned no results"
+    if (mode == "@"):
+        server.privmsg(channel, message)
+    else:
+        server.notice(nick, message)
+        
 search.handler = ("on_text", r'[.!@]s(earch)?\b',
                    irc.ALL_NICKS, irc.ALL_CHANNELS)
 
-def request(conn, nick, channel, text, hostmask):
+def request(server, nick, channel, text, hostmask):
     #this should probably be fixed to remove the nick thing, but i can't into regex
-    match = re.match(r"^(?P<mode>[.!@])r(equest)?\s(?:@(?P<nick>.*?)\s)?(?P<query>.*)", text, re.I|re.U)
-    mode, favenick, query = match.group('mode', 'nick', 'query')
-    msg = u"Hauu~ you broke something inside of me ~desu"
+    match = re.match(r"^(?P<mode>[.!@])r(equest)?\s(?P<query>.*)", text, re.I|re.U)
+    if (match):
+        mode, query = match.group('mode', 'query')
+    else:
+        server.notice(nick, u"You forgot to give me an ID, do !search <query> first.")
+        return
     try:
-        if (query == None):
-            msg = u"Hauu~ You forgot to make a request"
-        elif (favenick == None):
-            try:
-                songid = int(query)
-                response = webcom.nick_request_song(songid, hostmask)
-                if (isinstance(response, tuple)):
-                    streamer.queue.add_request(songid)
-                    streamer.queue.send_queue(streamer.get_left())
-                    request_announce(songid)
-                    return
-                elif (response == 1): #wasn't song
-                    msg = u"I don't know of any song with that id..."
-                elif (response == 2): #too early
-                    msg = u"You have to wait a bit longer before you can request again~"
-                elif (response == 3): #not afk stream
-                    msg = u"I'm not streaming right now!"
-            except (ValueError):
-                msg = u"That's not a song id! Use .search first!"
-        else:
-            pass
-    except:
-        logging.exception("IRC request failed")
-    try:
-        conn.privmsg(channel, msg)
-    except:
-        logging.exception("IRC request send message failed")
+        trackid = int(query)
+    except (ValueError):
+        server.notice(nick, u"You need to give a number, try !search instead.")
+        return
+    else:
+        response = nick_request_song(trackid, hostmask)
+        if (isinstance(response, tuple)):
+            song = manager.Song(trackid)
+            manager.queue.append_request(song)
+            request_announce(server, song)
+            return
+        elif (response == 1): #wasn't song
+            message = u"I don't know of any song with that id..."
+        elif (response == 2): #too early
+            message = u"You have to wait a bit longer before you can request again~"
+        elif (response == 3): #not afk stream
+            message = u"I'm not streaming right now!"
+    server.privmsg(channel, message)
+
 request.handler = ("on_text", r'[.!@]r(equest)?\b',
                    irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
-def request_help(conn, nick, channel, text, hostmask):
-    try:
-        message = u"{nick}: http://r-a-dio.com/search {c5}Thank you for listening to r/a/dio!".format(nick=nick, **irc_colours)
-        irc.server.privmsg(channel, message)
-    except:
-        print "Error in request help function"
+def request_help(server, nick, channel, text, hostmask):
+    message = u"{nick}: http://r-a-dio.com/search {c5}Thank you for listening to r/a/dio!".format(nick=nick, **irc_colours)
+    server.privmsg(channel, message)
+    
 request_help.handler = ("on_text", r'.*how.+request',
                         irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
-def nick_request_song(songid, host=None):
+def nick_request_song(trackid, host=None):
     """Gets data about the specified song, for the specified hostmask.
     If the song didn't exist, it returns 1.
     If the host needs to wait before requesting, it returns 2.
@@ -333,16 +317,21 @@ def nick_request_song(songid, host=None):
     """
     # TODO:
     # rewrite shit man
+    import time
     with manager.MySQLCursor() as cur:
+        try:
+            song = manager.Song(trackid)
+        except (ValueError):
+            return 1
         can_request = True
         if host:
-            host = mysql.escape_string(host)
-            cur.execute("SELECT UNIX_TIMESTAMP(time) as timestamp FROM `nickrequesttime` WHERE `host`='{host}' LIMIT 1;".format(host=host))
+            cur.execute("SELECT UNIX_TIMESTAMP(time) as timestamp \
+                FROM `nickrequesttime` WHERE `host`=%s LIMIT 1;",
+                (host,))
             if cur.rowcount == 1:
                 row = cur.fetchone()
                 if int(time.time()) - int(row['timestamp']) < 1800:
                     can_request = False
-        
         can_afk = True
         cur.execute("SELECT isafkstream FROM `streamstatus`;")
         if cur.rowcount == 1:
@@ -354,12 +343,7 @@ def nick_request_song(songid, host=None):
             can_afk = False
         if (not can_request):
             return 2
-        if (not can_afk):
+        elif (not can_afk):
             return 3
-        cur.execute("SELECT * FROM `tracks` WHERE `id`={id};".format(id=songid))
-        if (cur.rowcount == 1):
-            row = cur.fetchone()
-            artist = row['artist']
-            title = row['track']
-            return (artist, title)
-        return 1
+        else:
+            return song

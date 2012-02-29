@@ -32,25 +32,37 @@ class MySQLCursor:
         if (self.lock != None):
             self.lock.release()
         return
+
+class Proxy(object):
+    """Generic proxy class, should be subclassed and then the
+    method_list and object_name should be overwritten
     
+    method_list is a list of strings of method names in the original object
+    to create a proxy of.
+    
+    object_name is a string the name of the specific object this is a proxy off
+    
+    Look at the proxy_np below to see an example
+    """
+    method_list = []
+    object_name = ""
+    def __init__(self, queue):
+        object.__init__(self)
+        self._queue = queue
+    def __getattr__(self, key):
+        if (key in self.method_list):
+            return lambda *a, **k: self._queue.put((self.object_name, key,
+                                                    a, k))
+        else:
+            raise AttributeError()
 def use_queue(queue):
     """Function to make the whole module use pipe magic to access the functions
     in the main thread instead of in the process this is used from
     
     Current implementation only allows calling the
     method WITHOUT return value nor exceptions"""
-    class proxy(object):
-        method_list = []
-        def __init__(self, queue):
-            object.__init__(self)
-            self._queue = queue
-        def __getattr__(self, key):
-            if (key in self.method_list):
-                return lambda *a, **k: self._queue.put((self.object_name, key,
-                                                        a, k))
-            else:
-                raise AttributeError()
-    class proxy_np(proxy):
+
+    class proxy_np(Proxy):
         method_list = ["change",
                        "end",
                        "remaining"]
@@ -80,7 +92,7 @@ def read_queue(q):
 processor_queue = None
 def get_queue():
     """Returns a multiprocessing.Queue to send to other processes that require
-    access to the manager pieces that aren't synced wit hthe database
+    access to the manager pieces that aren't synced with the database
     
     You require to call manager.use_queue(queue) when the separate process
     is started, you don't have to do this if you are accessing manager.lp,
@@ -342,6 +354,12 @@ class NP(object):
     def remaining(self, remaining):
         self.song.update(length=(time.time() + remaining) - self._start)
         self._end = time.time() + remaining
+    @property
+    def position(self):
+        return int(time.time() - self._start)
+    @property
+    def positionf(self):
+        return get_ms(self.position)
     def end(self):
         return self._end if self._end != 0 else int(time.time())
     def __getattr__(self, name):
@@ -463,6 +481,9 @@ class Song(object):
             raise TypeError("Require either 'id' or 'meta' argument")
         elif (self.id != 0L):
             temp_filename, temp_meta = self.get_file(self.id)
+            if (temp_filename == None) and (temp_meta == None):
+                # No track with that ID sir
+                raise ValueError("ID does not exist")
             if (meta == None):
                 meta = temp_meta
             if (filename == None):
