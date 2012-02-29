@@ -218,10 +218,11 @@ class AudioFile(object):
         self._active = True
         self._file_queue = deque()
         self._handlers = {}
+        self.reader_class = readers[format]
         self.converter_class = converters[format]
         self._PCM = AudioPCMVirtual(instance, self._handlers,
-                                    self._file_queue, self.converter_class)
-        self._CON = self.converters_class(self._temp_filename, self._PCM)
+                                    self._file_queue, self.reader_class)
+        self._CON = self.converter_class(self._temp_filename, self._PCM)
         self._file = open(self._temp_filename, "rb")
         fd = self._file.fileno()
         fl = fcntl.fcntl(fd, fcntl.F_GETFL)
@@ -331,11 +332,11 @@ class AudioPCMVirtual(Thread):
             The number of bits-per-sample in this audio stream as a
             positive integer.
     """
-    def __init__(self, instance, handlers, queue, converter, sample_rate=44100,
+    def __init__(self, instance, handlers, queue, reader, sample_rate=44100,
                  channels=2, channel_mask=None, bits_per_sample=16):
         Thread.__init__(self)
         self.instance = instance
-        self.converter_class = converter # FORCES STREAM FORMAT LOCK IN
+        self.reader_class = reader # FORCES STREAM FORMAT LOCK IN
         self.daemon = True
         self.sample_rate = sample_rate
         self._handlers = handlers
@@ -370,7 +371,7 @@ class AudioPCMVirtual(Thread):
             else:
                 # Try to open our new file
                 try:
-                    new_audiofile = self.converter_class(filename=new_file)
+                    new_audiofile = self.reader_class(filename=new_file)
                 except (audiotools.UnsupportedFile, IOError):
                     # Not of same type, try generic open
                     try:
@@ -505,3 +506,4 @@ class AudioFlacConverter(Thread):
 converters = {0: AudioVorbisConverter, 1: AudioMP3Converter,
                 'mp3': AudioMP3Converter, 'flac': AudioFlacConverter,
                 "vorbis": AudioVorbisConverter, "ogg": AudioVorbisConverter}
+readers = {0: audiotools.VorbisAudio, 1: audiotools.MP3Audio}

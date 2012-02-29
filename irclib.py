@@ -676,6 +676,7 @@ class ServerConnection(Connection):
                             self.sqlite.add_mode(chan, nick,
                                                  self.sqlite.nickmodes[pos])
                 if command == "mode":
+                    chan = target
                     if not is_channel(target):
                         command = "umode"
                     operator = arguments[0][0]
@@ -683,6 +684,7 @@ class ServerConnection(Connection):
                     targets = arguments[1:]
                     miter = titer = 0
                     while miter < len(modes):
+                        mode = modes[miter]
                         if mode in ['+', '-']: #FUCK IRC
                             operator = mode
                         if mode in self.sqlite.nickmodes:

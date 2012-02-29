@@ -8,7 +8,7 @@ from Queue import Empty
 
 def start():
     global streamer
-    streamer = Streamer(config.icecast_attributes)
+    streamer = Streamer(config.icecast_attributes())
     return streamer
 
 class Streamer(Process):
@@ -16,25 +16,46 @@ class Streamer(Process):
     with attributes which is a dictionary of ... attributes.
     """
     def __init__(self, attributes):
+        Process.__init__(self)
         self._queue = manager.get_queue() # Get our queue before we start
         self._instance = None
         self.attributes = attributes
-        self.connect()
         self._shutdown = Queue()
         self.finish_shutdown = False
-        Thread(target=self.check_shutdown, args=(self._shutdown,)).start()
+        #Thread(target=self.check_shutdown, args=(self._shutdown,)).start()
         self.start()
         
     def run(self):
         # Tell the manager module to use the queue from earlier
         manager.use_queue(self._queue)
-    def connect(self, attributes):
+        self.connect()
+        force = self._shutdown.get()
+        if (force):
+            self._instance.close()
+            self.finish_shutdown = True
+            try:
+                self._shutdown.get(block=False)
+            except Empty:
+                pass
+        else:
+            self.finish_shutdown = True
+            if (self._playing):
+                self._shutdown.get()
+                self._instance.close()
+    def connect(self):
+        self._playing = False
         instance = pyices.instance(self.attributes)
         self._instance = instance
         instance.add_handle("disconnect", self.on_disconnect)
         instance.add_handle("start", self.on_start)
         instance.add_handle("finishing", self.on_finishing)
         instance.add_handle("finish", self.on_finish)
+        song = manager.queue.pop()
+        if (song.id == 0L):
+            manager.queue.clear()
+            song = manager.queue.pop()
+        self._next_song = song
+        instance.add_file(song.filename, song.metadata)
         
     def shutdown(self, force=False):
         """Shuts down the AFK streamer and process"""
@@ -45,23 +66,31 @@ class Streamer(Process):
         """Internal"""
         force = shutdown.get()
         if (force):
-            self._instance.close()
+            self._instance.close() # Clean up
             self.finish_shutdown = True
             try:
-                shutdown.get(block=False)
+                shutdown.get(block=False) # Empty the queue if there is any
             except Empty:
                 pass
         else:
-            self.finish_shutdown = True
-            shutdown.get()
+            self.finish_shutdown = True # Ask to shutdown
+            shutdown.get() # Wait for the shutdown
+            self._instance.close() # Clean up after we get back
+            try:
+                shutdown.get(block=False) # Empty the queue if there is any
+            except Empty:
+                pass
+            
     def on_disconnect(self, instance):
         """Handler for streamer disconnection"""
+        self._playing = False
         if (not self.finish_shutdown):
             self.connect()
     
     def on_start(self, instance):
         """Handler for when a file starts playing on the streamer"""
         # Update our now playing after last played
+        self._playing = True
         manager.np.change(self._next_song)
     def on_finishing(self, instance):
         """Handler for when a file has been played for 90%"""
@@ -70,6 +99,6 @@ class Streamer(Process):
         self._next_song = song
     def on_finish(self, instance):
         """Handler for when a file finishes playing completely"""
+        self._playing = False
         if (self.finish_shutdown):
-            instance.close()
             self._shutdown.put(True)

@@ -10,7 +10,7 @@ import manager
 # Handler constants
 # Channels
 ALL_CHANNELS = 0
-MAIN_CHANNELS = ["#r/a/dio"]
+MAIN_CHANNELS = ["#r/a/dio", "#r/a/dio-dev"]
 # Nicks
 ALL_NICKS = 0 # All nicknames can trigger this
 ACCESS_NICKS = 1 # Nicks with halfop or higher can trigger this
@@ -50,11 +50,12 @@ class Session(object):
         self.commands = None
         self._handlers = []
         self._queue = None
+        self._active = True
         self.exposed = {}
         self.irc = irclib.IRC()
         self.load_handlers()
         self.irc.add_global_handler("all_events", self._dispatcher)
-        
+        self.connect()
         # initialize our process thread
         self.processor_thread = Thread(target=self.processor)
         self.processor_thread.daemon = 1
@@ -89,20 +90,21 @@ class Session(object):
     def close(self):
         self._active = False
         self.irc.disconnect_all("Leaving...")
+        self.processor_thread.join()
     def load_handlers(self, load=False):
         # load was ment to be reload, but that fucks up the reload command
         logging.debug("Loading IRC Handlers")
-        if (load) and (self.commands != None):
+        if (load):
             try:
-                commands = reload(self.commands)
+                self.commands = reload(self.commands)
             except (ImportError):
                 # Report this to caller
                 raise
         else:
-            commands = __import__("hanyuu_commands")
+            self.commands = __import__("hanyuu_commands")
         from types import FunctionType
-        for name in dir(commands):
-            func = getattr(commands, name)
+        for name in dir(self.commands):
+            func = getattr(self.commands, name)
             if (type(func) == FunctionType):
                 try:
                     handler = getattr(func, "handler")
@@ -127,6 +129,7 @@ class Session(object):
                                           )
                     logging.debug("Loaded IRC handler: {name}"\
                                   .format(name=name))
+                expose = False
                 try:
                     expose = getattr(func, "exposed")
                 except (AttributeError):
@@ -137,8 +140,10 @@ class Session(object):
                         if (hasattr(self, name)):
                             logging.debug("We can't assign you to something that already exists")
                         else:
+                            def create_func(self, func):
+                                return lambda *s, **k: func(self.server, *s, **k)
                             setattr(self, name,
-                                lambda self, *s, **k: func(eval("self.server"), *s, **k))
+                                create_func(self, func))
                             self.exposed[name] = func
     def reload_handlers(self):
         self._handlers = []
@@ -162,6 +167,10 @@ class Session(object):
                     sleep(0.2)
             return
     def _dispatcher(self, server, event):
+        logging.debug("%s: %s - %s: %s" % (event._eventtype,
+                                           event._source,
+                                           event._target,
+                                           event._arguments))
         etype = event.eventtype()
         try:
             if ('!' in event.source()):
@@ -263,6 +272,6 @@ class Session(object):
                     # Call our func here since the above filters will call
                     # 'continue' if the filter fails
                     try:
-                        handler[1](self, server, nick, channel, text, userhost)
+                        handler[1](server, nick, channel, text, userhost)
                     except:
                         logging.exception("IRC Handler exception")

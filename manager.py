@@ -108,6 +108,7 @@ def get_queue():
     return processor_queue
 REGULAR = 0
 REQUEST = 1
+POPPED = 2
 
 class EmptyQueue(Exception):
     pass
@@ -196,6 +197,9 @@ class queue(object):
                 n -= 1
         self.append_many(queuelist)
     def pop(self):
+        # TODO:
+        #     Adjust the estimated play time for old queues, i.e. update them
+        #     if necessary to current times
         try:
             with MySQLCursor(lock=self._lock) as cur:
                 cur.execute("SELECT * FROM `queue` ORDER BY `time` ASC LIMIT 1;")
@@ -226,7 +230,7 @@ class queue(object):
             cur.execute("SELECT * FROM `queue` ORDER BY `time` ASC LIMIT 5;")
             for row in cur:
                 yield Song(id=row['trackid'],
-                           meta=row['meta'].decode('utf-8'),
+                           meta=row['meta'],
                            length=row['length'])
 
 class lp(object):
@@ -268,8 +272,8 @@ class status(object):
         """thread setter, use status.thread = thread"""
         with MySQLCursor() as cur:
             cur.execute("INSERT INTO `radvars` (name, value) VALUES \
-            ('curthread', %(thread)s) ON DUPLICATE KEY UPDATE `radvars` SET \
-            `value`='%(thread)s' LIMIT 1;", {"thread": url})
+            ('curthread', %(thread)s) ON DUPLICATE KEY UPDATE \
+            `value`=%(thread)s;", {"thread": url})
     def g_thread(self):
         """thread getter, use status.thread"""
         with MySQLCursor() as cur:
@@ -881,7 +885,7 @@ queue = queue()
 lp = lp()
 # GENERAL TOOLS GO HERE
 
-def get_ms(self, seconds):
+def get_ms(seconds):
         m, s = divmod(seconds, 60)
         return u"%02d:%02d" % (m, s)
 def parse_lastplayed(seconds):

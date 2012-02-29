@@ -121,7 +121,7 @@ def dj(server, nick, channel, text, hostmask):
             server.notice(nick, "You don't have the necessary privileges to do this.")
     else:
         server.privmsg(channel, "Current DJ: {c3}{dj}"\
-                       .format(dj=manager.np.name, **irc_colours))
+                       .format(dj=manager.dj.name, **irc_colours))
         
 dj.handler = ("on_text", r'[.!@]dj.*', irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
@@ -255,7 +255,7 @@ def search(server, nick, channel, text, hostmask):
         message = u"Hauu~ you forgot a search query"
         server.notice(nick, message)
         return
-    message = [u"{c4}{metadata} {c3}({trackid}){c}"\
+    message = [u"{c4}{meta} {c3}({trackid}){c}"\
                .format(meta=song.metadata, trackid=song.id, **irc_colours) for \
                song in manager.Song.search(query)]
     if (len(message) > 0):
@@ -285,7 +285,7 @@ def request(server, nick, channel, text, hostmask):
         return
     else:
         response = nick_request_song(trackid, hostmask)
-        if (isinstance(response, tuple)):
+        if (isinstance(response, manager.Song)):
             song = manager.Song(trackid)
             manager.queue.append_request(song)
             request_announce(server, song)

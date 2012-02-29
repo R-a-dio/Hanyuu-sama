@@ -1,13 +1,4 @@
 # -*- coding: utf-8 -*-
-
-#audio_info = {streamer.shout.SHOUT_AI_BITRATE: config.icecast_bitrate,
-#                streamer.shout.SHOUT_AI_CHANNELS: config.icecast_channels}
-#stream_login = {'host': config.icecast_host,
-#            'port': config.icecast_port, 'password': config.icecast_pass, 'format': config.icecast_format,
-#            'protocol': config.icecast_protocol, 'name': config.meta_name,
-#            'url': config.meta_url, 'genre': config.meta_genre,
-#            'description': config.meta_desc,
-#            'audio_info': audio_info, 'mount': config.icecast_mount }
     
 import asyncore
 from asynchat import async_chat
