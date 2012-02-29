@@ -137,7 +137,8 @@ class Session(object):
                         if (hasattr(self, name)):
                             logging.debug("We can't assign you to something that already exists")
                         else:
-                            setattr(self, name, func)
+                            setattr(self, name,
+                                lambda self, *s, **k: func(eval("self.server", *s, **k)))
                             self.exposed[name] = func
     def reload_handlers(self):
         self._handlers = []
