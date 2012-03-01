@@ -6,27 +6,38 @@ from multiprocessing import Queue, Process
 from threading import Thread
 from Queue import Empty
 
-def start():
-    global streamer
-    streamer = Streamer(config.icecast_attributes())
+def start(state):
+    global streamer, queue
+    if (state):
+        queue = state
+    else:
+        queue = manager.get_queue()
+    streamer = Streamer(config.icecast_attributes(), queue)
     return streamer
 
+def get():
+    try:
+        return streamer
+    except (NameError):
+        return None
+    
 class Streamer(Process):
     """Streamer class that streams to a certain server and mountpoint specified
     with attributes which is a dictionary of ... attributes.
     """
-    def __init__(self, attributes):
+    def __init__(self, attributes, queue):
         Process.__init__(self)
-        self._queue = manager.get_queue() # Get our queue before we start
+        self._queue = queue # Get our queue before we start
         self._instance = None
         self.attributes = attributes
         self._shutdown = Queue()
         self.finish_shutdown = False
-        #Thread(target=self.check_shutdown, args=(self._shutdown,)).start()
         self.start()
         
     def run(self):
         # Tell the manager module to use the queue from earlier
+        import bootstrap
+        bootstrap.get_logger("AFKStreamer") # Set logger
         manager.use_queue(self._queue)
         self.connect()
         force = self._shutdown.get()
@@ -39,9 +50,13 @@ class Streamer(Process):
                 pass
         else:
             self.finish_shutdown = True
-            if (self._playing):
-                self._shutdown.get()
-                self._instance.close()
+            self._shutdown.get()
+            self._instance.close() # Clean up after we get back
+            try:
+                self._shutdown.get(block=False) # Empty the queue if there is any
+            except Empty:
+                pass
+            
     def connect(self):
         self._playing = False
         instance = pyices.instance(self.attributes)
@@ -61,25 +76,7 @@ class Streamer(Process):
         """Shuts down the AFK streamer and process"""
         self._shutdown.put(force)
         self.join()
-        
-    def check_shutdown(self, shutdown):
-        """Internal"""
-        force = shutdown.get()
-        if (force):
-            self._instance.close() # Clean up
-            self.finish_shutdown = True
-            try:
-                shutdown.get(block=False) # Empty the queue if there is any
-            except Empty:
-                pass
-        else:
-            self.finish_shutdown = True # Ask to shutdown
-            shutdown.get() # Wait for the shutdown
-            self._instance.close() # Clean up after we get back
-            try:
-                shutdown.get(block=False) # Empty the queue if there is any
-            except Empty:
-                pass
+        return self._queue
             
     def on_disconnect(self, instance):
         """Handler for streamer disconnection"""

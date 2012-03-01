@@ -20,13 +20,14 @@ VOICE_NICKS = 4 # Only voiced people can trigger this
 REGULAR_NICKS = 5 # Only regulars can trigger this
 DEV_NICKS = 6 # Only the nicknames defined in config.irc_devs can trigger this
 
-def start():
+def start(state):
     global session
     session = Session()
     return session
 
 def shutdown():
     session.close()
+    return None
 
 def use_queue(queue):
     global session

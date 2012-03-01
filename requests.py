@@ -7,21 +7,34 @@ from flup.server.fcgi import WSGIServer
 import manager
 import irc
 
+def start(state):
+    global fastcgi
+    if (state):
+        queue = state
+    else:
+        queue = irc.get_queue()
+    fastcgi = FastCGIServer(queue=queue)
+    return fastcgi
+
+def shutdown():
+    return fastcgi.shutdown()
 class FastCGIServer(Process):
     """Starts a fastcgi server that handles our requests,
     runs in a separate process, supply a problem_handler
     and it will be called when the process shuts down.
     
     DO NOTE that the handler is called in the separate process"""
-    def __init__(self, problem_handler=lambda: None):
+    def __init__(self, problem_handler=lambda: None, queue=None):
         self.handler = problem_handler
         self._shutdown = Queue()
-        self._queue = irc.get_queue()
+        self._queue = queue
         self.daemon = 1
         self.start()
         Thread(target=self.check_shutdown, args=(self._shutdown,)).start()
     def run(self):
         """Internal"""
+        import bootstrap
+        bootstrap.get_logger("Requests") # Setup logging
         irc.use_queue(self._queue)
         try:
             self.server = WSGIServer(self.external_request,
@@ -34,6 +47,7 @@ class FastCGIServer(Process):
         """Shuts down the fastcgi server and process"""
         self._shutdown.put(1)
         self.join()
+        return self._queue
     def check_shutdown(self, shutdown):
         """Internal"""
         shutdown.get()

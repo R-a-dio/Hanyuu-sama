@@ -7,6 +7,18 @@ from multiprocessing import RLock, Queue
 import MySQLdb
 import MySQLdb.cursors
 
+def start(state):
+    global processor_queue
+    if (state):
+        processor_queue = state
+    else:
+        processor_queue = None
+        
+def shutdown():
+    np._break_updater = True
+    np.updater.join()
+    return processor_queue
+
 class MySQLCursor:
     """Return a connected MySQLdb cursor object"""
     def __init__(self, cursortype=MySQLdb.cursors.DictCursor, lock=None):
@@ -337,11 +349,14 @@ class NP(object):
     def __init__(self):
         from threading import Thread
         self.song = Song(meta=u"", length=0.0)
+        self._break_updater = False
         self.updater = Thread(target=self.send)
         self.updater.daemon = 1
         self.updater.start()
     def send(self):
         while True:
+            if (self._break_updater):
+                break
             if (status.online):
                 status.update()
             time.sleep(10)
@@ -467,6 +482,7 @@ class dj(object):
 
 class Song(object):
     def __init__(self, id=None, meta=None, length=None, filename=None):
+        object.__init__(self)
         if (not isinstance(id, (int, long, type(None)))):
             raise TypeError("'id' incorrect type, expected int or long")
         if (not isinstance(meta, (basestring, type(None)))):
@@ -877,6 +893,10 @@ class Song(object):
             return False
     def __hash__(self):
         return hash(self.digest)
+    def __getstate__(self):
+        return (self.id, self.metadata, self.length, self.filename)
+    def __setstate__(self, state):
+        self.__init__(*state)
 # declaration goes here
 status = status()
 np = NP()

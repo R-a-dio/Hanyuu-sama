@@ -47,6 +47,7 @@ description - longer stream description
         self._meta_queue = []
         self._file_queue = []
         self._start_handler = False
+        self._closing = False
         self._handlers = {}
         self._shout = libshout.Shout()
         self.daemon = 1
@@ -106,6 +107,7 @@ description - longer stream description
                 logging.exception("Failed sending stream data")
                 break
     def close(self):
+        self._closing = True
         self.on_disconnect(self.audiofile._PCM)
         self.join()
     def on_disconnect(self, PCMVirtual):
@@ -126,7 +128,7 @@ description - longer stream description
         except (IndexError):
             self._metadata = u"No metadata available"
         self._send_metadata = True
-        if (not self.is_alive()):
+        if (not self.is_alive()) and (not self._closing):
             try:
                 self.start()
             except (RuntimeError):
@@ -392,7 +394,7 @@ class AudioPCMVirtual(Thread):
                     logging.debug("Opened audio file ({file})"\
                                 .format(file=new_file))
                     break
-        self.current_file = new_file
+        self.current_file = new_file if self._active else None
         return new_audiofile
     def open_file(self):
         logging.debug("Opening a file in AudioPCMVirtual({ident})"\

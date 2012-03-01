@@ -6,8 +6,9 @@ import socket
 import config
 from threading import Thread
 import manager
+import logging
 
-def start():
+def start(state):
     global listener, thread
     listener = Listener()
     thread = Thread(target=asyncore.loop)
@@ -15,6 +16,13 @@ def start():
     thread.start()
     return listener
 
+def reconnect():
+    global listener
+    logging.info("Recreating listener...")
+    old = listener
+    listener = Listener()
+    old.close_when_done()
+    
 class Listener(async_chat):
     READING_DATA = 0
     READING_META = 1
@@ -24,6 +32,7 @@ class Listener(async_chat):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((config.icecast_host, config.icecast_port))
         async_chat.__init__(self, sock=sock)
+        logging.info("Started listener")
         self.ibuffer = []
         self.obuffer = 'GET {mount} HTTP/1.1\r\nHOST: {host}\r\nUser-Agent: Hanyuu-sama\r\nIcy-MetaData: 1\r\n\r\n'.format(mount=config.icecast_mount, host=config.icecast_host)
         self.push(self.obuffer)
@@ -33,6 +42,8 @@ class Listener(async_chat):
     def shutdown(self):
         self.close_when_done()
         thread.join()
+        return None
+    
     def collect_incoming_data(self, data):
         self.ibuffer.append(data)
 
@@ -56,12 +67,18 @@ class Listener(async_chat):
             self.status = self.READING_METASIZE
             
         elif (self.status == self.READING_HEADERS):
+            logging.debug("Reading headers")
             self.reading_headers = False
             self.parse_headers("".join(self.ibuffer))
             self.ibuffer = []
             
             # Get the meta int value
-            self.metaint = int(self.headers["icy-metaint"])
+            try:
+                self.metaint = int(self.headers["icy-metaint"])
+            except (KeyError):
+                # Incorrect header, kill ourself after a small timeout
+                sleep(5)
+                reconnect()
             # set terminator to that int
             self.set_terminator(self.metaint)
             # Icecast always sends data after the headers, so go to that mode

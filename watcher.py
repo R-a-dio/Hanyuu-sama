@@ -1,13 +1,11 @@
 #!/usr/bin/python
-
-import pyinotify as pi
-import webcom
-import config
 import logging
+import pyinotify as pi
+import config
 import manager
 from os import path
 
-def start():
+def start(state):
     global notifier
     wm = pi.WatchManager()
     notifier = pi.ThreadedNotifier(wm, handler())
@@ -16,7 +14,8 @@ def start():
     
 def shutdown():
     notifier.stop()
-    
+    return None
+
 def parse_queue_file():
     queue = []
     remaining = 0
@@ -46,8 +45,15 @@ def parse_queue_file():
         manager.queue.clear()
         manager.np.remaining(remaining)
         manager.queue.append_many(queue)
+        try:
+            logging.info("Finished queue from {name}".format(name=manager.dj.name))
+        except:
+            logging.info("Finished queue update by Unknown")
             
 class handler(pi.ProcessEvent):
     def process_IN_MODIFY(self, event):
         if (event.name == 'queue.txt'):
-            parse_queue_file()
+            try:
+                parse_queue_file()
+            except:
+                logging.exception("Problem parsing the queue file")
