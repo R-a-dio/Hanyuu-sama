@@ -140,7 +140,7 @@ class FastCGIServer(Process):
                         `priority`=priority+4 WHERE `id`=%s;", (trackid,))
                         song = manager.Song(trackid)
                         try:
-                            self.irc.request_announce(song)
+                            irc.session.request_announce(song)
                         except:
                             logging.exception("Announcing request failure")
                         manager.queue.append_request(song)
