@@ -77,6 +77,11 @@ def use_queue(queue):
     class proxy_stream(Proxy):
         method_list = ["down", "up"]
         object_name = "stream"
+        UP = 10
+        DOWN = 12
+        LISTENER = 0
+        STATUS = 1
+        STREAMER = 2
     class proxy_np(Proxy):
         method_list = ["change",
                        "end",

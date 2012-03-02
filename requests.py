@@ -31,10 +31,10 @@ class FastCGIServer(Process):
         self._queue = queue
         self.daemon = 1
         self.start()
-        Thread(target=self.check_shutdown, args=(self._shutdown,)).start()
     def run(self):
         """Internal"""
         import bootstrap
+        Thread(target=self.check_shutdown, args=(self._shutdown,)).start()
         bootstrap.get_logger("Requests") # Setup logging
         irc.use_queue(self._queue)
         try:
