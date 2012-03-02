@@ -78,6 +78,7 @@ class Session(object):
                     pass
                 else:
                     # We do fancy things
+                    print call_request
                     obj, key, args, kwargs = call_request
                     try:
                         self.exposed[key](*args, **kwargs)
