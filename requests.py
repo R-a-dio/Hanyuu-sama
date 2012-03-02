@@ -143,7 +143,7 @@ class FastCGIServer(Process):
                             irc.session.request_announce(song)
                         except:
                             logging.exception("Announcing request failure")
-                        manager.queue.append_request(song)
+                        manager.queue.append_request(song, environ["REMOTE_ADDR"])
             else:
                 sitetext = "Invalid parameter."
         else:

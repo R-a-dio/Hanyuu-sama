@@ -383,6 +383,14 @@ class NP(object):
     def change(self, song):
         """Changes the current playing song to 'song' which should be an
         manager.Song object"""
+        if (self.song == song):
+            return
+        else:
+            import irc
+            try:
+                irc.session.announce()
+            except (AttributeError):
+                pass
         if (self.song.metadata != u""):
             self.song.update(lp=time.time())
             if (self.song.length == 0):
