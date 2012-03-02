@@ -82,7 +82,7 @@ class Session(object):
                     try:
                         self.exposed[key](*args, **kwargs)
                     except:
-                        pass
+                        logging.exception("Something broke in IRC")
     def connect(self):
         # We really only need one server
         if (self._active):
