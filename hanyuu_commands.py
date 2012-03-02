@@ -248,7 +248,7 @@ def announce(server):
             ts="" if (manager.np.playcount == 1) else "s",
             lp=manager.np.lpf,
             **irc_colours)
-        server.privmsg("#r/a/dio", message)
+    server.privmsg("#r/a/dio", message)
 
 announce.exposed = True
 
