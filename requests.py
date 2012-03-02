@@ -41,7 +41,7 @@ class FastCGIServer(Process):
             self.server = WSGIServer(self.external_request,
                             bindAddress=config.fastcgi_socket,
                             umask=0)
-            self.server.run()
+            self.server = self.server.run()
         finally:
             self.handler()
     def shutdown(self):
