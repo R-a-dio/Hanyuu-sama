@@ -218,6 +218,8 @@ class queue(object):
         # TODO:
         #     Adjust the estimated play time for old queues, i.e. update them
         #     if necessary to current times
+        if (len(self) == 0):
+            self.append_random(20)
         try:
             with MySQLCursor(lock=self._lock) as cur:
                 cur.execute("SELECT * FROM `queue` ORDER BY `time` ASC LIMIT 1;")
@@ -914,9 +916,13 @@ class stream(object):
     STATUS = 1
     STREAMER = 2
     handlers = {UP: [], DOWN: []}
+    historydown = []
+    historyup = []
     def down(self, reporter):
         """Called whenever a component thinks the stream is down, this can
         be a invalid call so it has to be checked where it came from"""
+        if (len(handlers) == 0):
+            historydown.append(reporter)
         for handler in self.handlers[self.DOWN]:
             try:
                 handler(reporter)
@@ -925,6 +931,8 @@ class stream(object):
     def up(self, reporter):
         """Called whenever a component thinks the stream is going up
         only called when the previous state was down"""
+        if (len(handlers) == 0):
+            historyup.append(reporter)
         for handler in self.handlers[self.UP]:
             try:
                 handler(reporter)
@@ -938,7 +946,10 @@ class stream(object):
         LISTENER, STATUS or STREAMER.        
         """
         self.handlers[state].append(handler)
-        
+        for report in self.historydown:
+            self.down(report)
+        for report in self.historyup:
+            self.up(report)
 # declaration goes here
 stream = stream()
 status = status()
