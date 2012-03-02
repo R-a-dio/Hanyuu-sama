@@ -168,11 +168,12 @@ class Session(object):
                     sleep(0.2)
             return
     def _dispatcher(self, server, event):
-        logging.debug("%s: %s - %s: %s" % (event._eventtype,
-                                           event._source,
-                                           event._target,
-                                           event._arguments))
         etype = event.eventtype()
+        if (etype != "all_raw_messages"):
+            logging.debug("%s: %s - %s: %s" % (event._eventtype,
+                                   event._source,
+                                   event._target,
+                                   event._arguments))
         try:
             if ('!' in event.source()):
                 nick = irclib.nm_to_n(event.source())

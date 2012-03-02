@@ -202,7 +202,10 @@ class IRC:
 
     def send_once(self):
         for c in self.connections:
-            delta = time.time() - c.last_time
+            try:
+                delta = time.time() - c.last_time
+            except (AttributeError):
+                continue
             c.last_time = time.time()
             c.send_time += delta
             if c.send_time >= 1.2:
@@ -246,7 +249,10 @@ class IRC:
             time.sleep(timeout)
         _current_time = time.time()
         for connection in self.connections:
-            _difference = _current_time - connection._last_ping
+            try:
+                _difference = _current_time - connection._last_ping
+            except (AttributeError):
+                continue
             if (_difference >= 240.0):
                 print("Good morning, client-side ping is here")
                 connection.reconnect("Ping timeout: 240 seconds")
@@ -341,7 +347,7 @@ class IRC:
         if self.fn_to_add_timeout:
             self.fn_to_add_timeout(delay)
 
-    def dcc(self, dcctype="chat"):
+    def dcc(self, dcctype="chat", dccinfo=(None, None)):
         """Creates and returns a DCCConnection object.
 
         Arguments:
@@ -351,7 +357,7 @@ class IRC:
                        incoming data will be split in newline-separated
                        chunks. If "raw", incoming data is not touched.
         """
-        c = DCCConnection(self, dcctype)
+        c = DCCConnection(self, dcctype, dccinfo)
         self.connections.append(c)
         return c
 
@@ -368,7 +374,7 @@ class IRC:
         if self.fn_to_remove_socket:
             self.fn_to_remove_socket(connection._get_socket())
 
-_rfc_1459_command_regexp = re.compile("^(:(?P<prefix>[^ ]+) +)?(?P<command>[^ ]+)( *(?P<argument> .+))?")
+_rfc_1459_command_regexp = re.compile("^(:(?P<prefix>[^ ]+) +)?(?P<command>[^ ]+)( *(?P<argument> .+))?", re.UNICODE)
 
 class Connection:
     """Base class for IRC connections.
@@ -553,7 +559,7 @@ class ServerConnection(Connection):
         self.previous_buffer = lines.pop()
 
         for line in lines:
-            line.decode(self.encoding, 'replace')
+            line = line.decode(self.encoding, 'replace')
             if DEBUG:
                 print "FROM SERVER:", line
 
@@ -1181,11 +1187,13 @@ class DCCConnection(Connection):
     DCCConnection objects are instantiated by calling the dcc
     method on an IRC object.
     """
-    def __init__(self, irclibobj, dcctype):
+    def __init__(self, irclibobj, dcctype, dccinfo=(None, None)):
         Connection.__init__(self, irclibobj)
         self.connected = 0
         self.passive = 0
         self.dcctype = dcctype
+        self.dccfile = dccinfo[0]
+        self.total = long(dccinfo[1])
         self.peeraddress = None
         self.peerport = None
 
@@ -1199,6 +1207,9 @@ class DCCConnection(Connection):
 
         Returns the DCCConnection object.
         """
+        if (self.dcctype == "send"):
+            self.fileobj = open(self.dccfile, "wb")
+            self.current = 0
         self.peeraddress = socket.gethostbyname(address)
         self.peerport = port
         self.socket = None
@@ -1297,6 +1308,17 @@ class DCCConnection(Connection):
                 self.disconnect()
                 return
             chunks = chunks[:-1]
+        elif self.dcctype == "send":
+            # We are going to sidestep the events a bit
+            size = len(new_data)
+            self.current += size
+            try:
+                self.fileobj.write(new_data)
+            except (AttributeError):
+                self.disconnect("Invalid file object")
+            except (IOError):
+                self.disconnect("Invalid file object")
+            chunks = ["send"]
         else:
             chunks = [new_data]
 
@@ -1484,7 +1506,7 @@ _low_level_mapping = {
     _LOW_LEVEL_QUOTE: _LOW_LEVEL_QUOTE
 }
 
-_low_level_regexp = re.compile(_LOW_LEVEL_QUOTE + "(.)")
+_low_level_regexp = re.compile(_LOW_LEVEL_QUOTE + "(.)", re.UNICODE)
 
 def mask_matches(nick, mask):
     """Check if a nick matches a mask.
