@@ -44,6 +44,7 @@ def get_queue():
         queue = processor_queue
     except (NameError):
         queue = Queue()
+        session._queue = queue
         processor_queue = queue
     return queue
 

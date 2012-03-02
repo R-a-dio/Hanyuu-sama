@@ -52,7 +52,7 @@ class FastCGIServer(Process):
     def check_shutdown(self, shutdown):
         """Internal"""
         shutdown.get()
-        self.server.shutdown()
+        self.server._threadPool.shutdown()
     def external_request(self, environ, start_response):
         if (manager.status.requests_enabled):
             def is_int(num):
