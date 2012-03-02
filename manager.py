@@ -921,8 +921,8 @@ class stream(object):
     def down(self, reporter):
         """Called whenever a component thinks the stream is down, this can
         be a invalid call so it has to be checked where it came from"""
-        if (len(handlers) == 0):
-            historydown.append(reporter)
+        if (len(self.handlers) == 0):
+            self.historydown.append(reporter)
         for handler in self.handlers[self.DOWN]:
             try:
                 handler(reporter)
@@ -931,8 +931,8 @@ class stream(object):
     def up(self, reporter):
         """Called whenever a component thinks the stream is going up
         only called when the previous state was down"""
-        if (len(handlers) == 0):
-            historyup.append(reporter)
+        if (len(self.handlers) == 0):
+            self.historyup.append(reporter)
         for handler in self.handlers[self.UP]:
             try:
                 handler(reporter)
