@@ -385,12 +385,6 @@ class NP(object):
         manager.Song object"""
         if (self.song == song):
             return
-        else:
-            import irc
-            try:
-                irc.session.announce()
-            except (AttributeError):
-                pass
         if (self.song.metadata != u""):
             self.song.update(lp=time.time())
             if (self.song.length == 0):
@@ -398,6 +392,11 @@ class NP(object):
         self.song = song
         self._start = int(time.time())
         self._end = int(time.time()) + self.song.length
+        import irc
+        try:
+            irc.session.announce()
+        except (AttributeError):
+            pass
     def remaining(self, remaining):
         self.song.update(length=(time.time() + remaining) - self._start)
         self._end = time.time() + remaining
@@ -781,9 +780,9 @@ class Song(object):
                         return True
                     return False
             def __repr__(self):
-                return u"Favorites of %s" % repr(self.song)
+                return (u"Favorites of %s" % repr(self.song)).encode('utf-8')
             def __str__(self):
-                return self.__repr__().encode('utf-8')
+                return self.__repr__()
         if (not self._faves):
             return Faves(self)
         return self._faves
