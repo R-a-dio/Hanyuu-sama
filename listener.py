@@ -119,6 +119,8 @@ class Listener(async_chat):
                         metadata = "='".join(part.split("='")[1:])
                 except (IndexError):
                     pass
+            if (metadata == "fallback"):
+                self.shutdown()
             new_song = manager.Song(meta=metadata)
 
             if (manager.np != new_song):
