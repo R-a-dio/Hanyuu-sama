@@ -25,6 +25,7 @@ class FastCGIServer(Process):
     
     DO NOTE that the handler is called in the separate process"""
     def __init__(self, problem_handler=lambda: None, queue=None):
+        Process.__init__(self)
         self.handler = problem_handler
         self._shutdown = Queue()
         self._queue = queue

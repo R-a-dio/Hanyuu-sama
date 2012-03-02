@@ -61,8 +61,8 @@ def main():
     bootstrap.load("manager")
     # We can now safely import manager here
     import manager
-    manager.stream.add_handle(manager.stream.UP, stream_up_handler)
-    manager.stream.add_handle(manager.stream.DOWN, stream_down_handler)
+    manager.stream.add_handler(manager.stream.UP, stream_up_handler)
+    manager.stream.add_handler(manager.stream.DOWN, stream_down_handler)
     # get IRC ready
     bootstrap.load("irc")
     import irc
