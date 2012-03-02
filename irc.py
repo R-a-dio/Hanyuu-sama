@@ -81,7 +81,7 @@ class Session(object):
                     print call_request
                     obj, key, args, kwargs = call_request
                     try:
-                        self.exposed[key](*args, **kwargs)
+                        self.exposed[key](self.server, *args, **kwargs)
                     except:
                         logging.exception("Something broke in IRC")
     def connect(self):
