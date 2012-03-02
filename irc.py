@@ -1,5 +1,5 @@
 from threading import Thread
-from multiprocessing import Process
+from multiprocessing import Queue
 from Queue import Empty
 import logging
 import config
@@ -32,7 +32,7 @@ def shutdown():
 def use_queue(queue):
     global session
     class proxy_session(manager.Proxy):
-        self.method_list = ["set_topic"]
+        method_list = ["set_topic"]
         def __init__(self, queue, methods):
             manager.Proxy.__init__(self, queue)
             self.method_list = self.method_list + methods
@@ -40,9 +40,12 @@ def use_queue(queue):
     
 def get_queue():
     global processor_queue
-    if (not processor_queue):
-        processor_queue = Queue()
-    return processor_queue
+    try:
+        queue = processor_queue
+    except (NameError):
+        queue = Queue()
+        processor_queue = queue
+    return queue
 
 class Session(object):
     def __init__(self):

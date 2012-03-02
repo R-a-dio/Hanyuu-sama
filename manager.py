@@ -67,20 +67,24 @@ class Proxy(object):
                                                     a, k))
         else:
             raise AttributeError()
+        
 def use_queue(queue):
     """Function to make the whole module use pipe magic to access the functions
     in the main thread instead of in the process this is used from
     
     Current implementation only allows calling the
     method WITHOUT return value nor exceptions"""
-
+    class proxy_stream(Proxy):
+        method_list = ["down", "up"]
+        object_name = "stream"
     class proxy_np(Proxy):
         method_list = ["change",
                        "end",
                        "remaining"]
         object_name = "np"
-    global np
+    global np, stream
     np = proxy_np(queue)
+    stream = proxy_stream(queue)
     
 def read_queue(q):
     """blocks on a queue.get, and launches any incoming requests into this
@@ -101,7 +105,9 @@ def read_queue(q):
                     getattr(obj, key)
             except:
                 pass
+            
 processor_queue = None
+
 def get_queue():
     """Returns a multiprocessing.Queue to send to other processes that require
     access to the manager pieces that aren't synced with the database
@@ -187,7 +193,7 @@ class queue(object):
                                 %s);",
                                 (int(timestamp), song.metadata, song.length)
                                 )
-                    timestamp += length
+                    timestamp += song.length
 
     def append_random(self, amount=10):
         """Appends random songs to the queue,
@@ -350,6 +356,7 @@ class NP(object):
         from threading import Thread
         self.song = Song(meta=u"", length=0.0)
         self._break_updater = False
+        self._last_status = False
         self.updater = Thread(target=self.send)
         self.updater.daemon = 1
         self.updater.start()
@@ -359,6 +366,12 @@ class NP(object):
                 break
             if (status.online):
                 status.update()
+                if (not self._last_status):
+                    self._last_status = True
+                    stream.up(stream.STATUS)
+            else:
+                stream.down(stream.STATUS)
+                self._last_status = False
             time.sleep(10)
     def change(self, song):
         """Changes the current playing song to 'song' which should be an
@@ -627,13 +640,13 @@ class Song(object):
                 self.__delitem__(key)
             def pop(self, index):
                 """Not implemented"""
-                raise NotImplemented("No popping allowed")
+                raise NotImplementedError("No popping allowed")
             def insert(self, index, value):
                 """Not implemented"""
-                raise NotImplemented("No inserting allowed, use append")
+                raise NotImplementedError("No inserting allowed, use append")
             def sort(self, cmp, key, reverse):
                 """Not implemented"""
-                raise NotImplemented("Sorting now allowed, use reverse(faves) or list(faves)")
+                raise NotImplementedError("Sorting now allowed, use reverse(faves) or list(faves)")
             def append(self, nick):
                 """Add a nickname to the favorites of this song, handles
                 creation of nicknames in the database. Does nothing if
@@ -716,7 +729,7 @@ class Song(object):
                 return list(self)[key]
             def __setitem__(self, key, value):
                 """Not implemented"""
-                raise NotImplemented("Can't set on <Faves> object")
+                raise NotImplementedError("Can't set on <Faves> object")
             def __delitem__(self, key):
                 original = list(self)
                 if (isinstance(key, basestring)):
@@ -838,9 +851,10 @@ class Song(object):
         Song objects. Defaults to 5 results, can be less"""
         from re import compile, escape, sub
         def replace(query):
+            replacements = {r"\\": "", r"(": "",
+                                         r")": "", r"*": ""}
             re = compile("|".join(escape(s) for s in \
-                                  {r"\\": "", r"(": "",
-                                         r")": "", r"*": ""}))
+                                  replacements))
             return re.sub(lambda x: replacements[x.group()], query)
         from os.path import join
         query_raw = query
@@ -853,11 +867,6 @@ class Song(object):
                 temp.append("+" + result)
             query = " ".join(temp)
             del temp
-            try:
-                query = query.encode("utf-8")
-                query_raw = query_raw.encode("utf-8")
-            except (UnicodeDecodeError):
-                return []
             cur.execute("SELECT * FROM `tracks` WHERE `usable`='1' AND MATCH \
             (tags, artist, track, album) AGAINST (%s IN BOOLEAN MODE) \
             ORDER BY `priority` DESC, MATCH (tags, artist, track, \
@@ -897,7 +906,41 @@ class Song(object):
         return (self.id, self.metadata, self.length, self.filename)
     def __setstate__(self, state):
         self.__init__(*state)
+        
+class stream(object):
+    UP = 10
+    DOWN = 12
+    LISTENER = 0
+    STATUS = 1
+    STREAMER = 2
+    handlers = {UP: [], DOWN: []}
+    def down(self, reporter):
+        """Called whenever a component thinks the stream is down, this can
+        be a invalid call so it has to be checked where it came from"""
+        for handler in self.handlers[self.DOWN]:
+            try:
+                handler(reporter)
+            except:
+                logging.exception("Problem in stream DOWN handler")
+    def up(self, reporter):
+        """Called whenever a component thinks the stream is going up
+        only called when the previous state was down"""
+        for handler in self.handlers[self.UP]:
+            try:
+                handler(reporter)
+            except:
+                logging.exception("Problem in stream UP handler")
+    def add_handler(self, state=DOWN, handler=lambda x: None):
+        """Adds a handler to be called when either 'down' or 'up' is called
+        state can either be UP or DOWN
+        
+        The handler is called with one argument, the reporter which is one of
+        LISTENER, STATUS or STREAMER.        
+        """
+        self.handlers[state].append(handler)
+        
 # declaration goes here
+stream = stream()
 status = status()
 np = NP()
 dj = dj()

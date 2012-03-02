@@ -71,6 +71,7 @@ class Streamer(Process):
             song = manager.queue.pop()
         self._next_song = song
         instance.add_file(song.filename, song.metadata)
+        manager.stream.up(manager.stream.STREAMER)
         
     def shutdown(self, force=False):
         """Shuts down the AFK streamer and process"""
@@ -80,6 +81,7 @@ class Streamer(Process):
             
     def on_disconnect(self, instance):
         """Handler for streamer disconnection"""
+        manager.stream.down(manager.stream.STREAMER)
         self._playing = False
         if (not self.finish_shutdown):
             self.connect()

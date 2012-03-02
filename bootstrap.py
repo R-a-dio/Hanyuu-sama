@@ -2,6 +2,7 @@ import config
 import os
 import logging
 
+logging.getLogger().setLevel(config.loglevel)
 def get_logger(name=None):
     """returns a process safe logger, best set to the global variable
     'logging' when used in a separate process"""
@@ -65,6 +66,9 @@ def stop(name, **kwargs):
             try:
                 callee = obj.shutdown
             except (AttributeError):
+                # Remove them since the module doesn't require cleanup
+                del _loaded_modules[name]
+                loaded_modules.remove(name)
                 return NOTSUPPORTED_ERR
         try:
             state = callee(**kwargs)
