@@ -901,11 +901,11 @@ class Song(object):
             if (limit):
                 cur.execute("SELECT len, meta FROM `esong` JOIN `efave` ON \
                 esong.id = efave.isong JOIN `enick` ON efave.inick = enick.id \
-                WHERE enick.nick = LOWER(%s) LIMIT %s;", (nick, limit))
+                WHERE LOWER(enick.nick) = LOWER(%s) LIMIT %s;", (nick, limit))
             else:
                 cur.execute("SELECT len, meta FROM `esong` JOIN `efave` ON \
                 esong.id = efave.isong JOIN `enick` ON efave.inick = enick.id \
-                WHERE enick.nick = LOWER(%s);", (nick,))
+                WHERE LOWER(enick.nick) = LOWER(%s);", (nick,))
             result = []
             for row in cur:
                 result.append(cls(
