@@ -44,6 +44,7 @@ class Controller(Thread):
     _state_save = {} # For saving states
     def __init__(self):
         Thread.__init__(self)
+        self._alive = Event() 
         self.start()
     def run(self):
         self._processor()
