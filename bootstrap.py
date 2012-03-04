@@ -2,7 +2,7 @@ import config
 import os
 import logging
 from threading import Thread, Event
-from Queue import Empty
+from Queue import Empty, Queue
 
 OKAY = 0
 UNKNOWN_ERR = 1
@@ -44,7 +44,8 @@ class Controller(Thread):
     _state_save = {} # For saving states
     def __init__(self):
         Thread.__init__(self)
-        self._alive = Event() 
+        self._alive = Event()
+        self._queue = Queue()
         self.start()
     def run(self):
         self._processor()
