@@ -19,9 +19,9 @@ def shutdown():
 def parse_queue_file():
     queue = []
     remaining = 0
-    with open(path.join(config.watcher_path, config.watcher_file)) as f:
-        djid = f.readline().strip()
-        firstline = f.readline().strip()
+    with open(path.join(config.watcher_path, config.watcher_file)) as file:
+        djid = file.readline().strip()
+        firstline = file.readline().strip()
         
         if (djid != ''):
             remaining = int(firstline)
