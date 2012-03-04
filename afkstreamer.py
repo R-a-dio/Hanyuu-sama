@@ -15,12 +15,6 @@ def start(state):
     streamer = Streamer(config.icecast_attributes(), queue)
     return streamer
 
-def get():
-    try:
-        return streamer
-    except (NameError):
-        return None
-    
 class Streamer(Process):
     """Streamer class that streams to a certain server and mountpoint specified
     with attributes which is a dictionary of ... attributes.
@@ -83,14 +77,13 @@ class Streamer(Process):
         """Handler for streamer disconnection"""
         manager.stream.down(manager.stream.STREAMER)
         self._playing = False
-        if (not self.finish_shutdown):
-            self.connect()
     
     def on_start(self, instance):
         """Handler for when a file starts playing on the streamer"""
         # Update our now playing after last played
         self._playing = True
         manager.np.change(self._next_song)
+        
     def on_finishing(self, instance):
         """Handler for when a file has been played for 90%"""
         song = manager.queue.pop()

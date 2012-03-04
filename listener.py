@@ -15,14 +15,6 @@ def start(state):
     thread.daemon = 1
     thread.start()
     return listener
-
-def reconnect():
-    global listener
-    logging.info("Recreating listener...")
-    old = listener
-    listener = Listener()
-    old.closing = False
-    old.close_when_done()
     
 class Listener(async_chat):
     READING_DATA = 0
@@ -39,10 +31,8 @@ class Listener(async_chat):
         self.push(self.obuffer)
         self.set_terminator('\r\n\r\n')
         self.status = self.READING_HEADERS
-        self.closing = False
         
     def shutdown(self):
-        self.closing = True
         self.close_when_done()
         thread.join()
         return None
@@ -52,8 +42,7 @@ class Listener(async_chat):
     
     def handle_close(self):
         self.close() # don't forget to close the original
-        if (self.closing):
-            manager.stream.down(manager.stream.LISTENER) # Tell the manager
+        manager.stream.down(manager.stream.LISTENER) # Tell the manager
         
     def parse_headers(self, headers):
         self.headers = {}
@@ -85,9 +74,7 @@ class Listener(async_chat):
                 self.metaint = int(self.headers["icy-metaint"])
             except (KeyError):
                 # Incorrect header, kill ourself after a small timeout
-                from time import sleep
-                sleep(5)
-                reconnect()
+                self.handle_close()
             # set terminator to that int
             self.set_terminator(self.metaint)
             # Icecast always sends data after the headers, so go to that mode

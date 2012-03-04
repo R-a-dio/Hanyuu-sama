@@ -6,6 +6,7 @@ from random import randint
 from multiprocessing import RLock, Queue
 import MySQLdb
 import MySQLdb.cursors
+from threading import Timer
 
 def start(state):
     global processor_queue
@@ -240,6 +241,10 @@ class queue(object):
         finally:
             if (self.length < 20):
                 self.append_random(20 - self.length)
+    def check_times(self):
+        correct_time = np.end()
+        with MySQLCursor(self._lock) as cur:
+            pass
     def clear(self):
         with MySQLCursor(lock=self._lock) as cur:
             cur.execute("DELETE FROM `queue`;")
@@ -363,7 +368,6 @@ class NP(object):
         from threading import Thread
         self.song = Song(meta=u"", length=0.0)
         self._break_updater = False
-        self._last_status = False
         self.updater = Thread(target=self.send)
         self.updater.daemon = 1
         self.updater.start()
@@ -373,12 +377,9 @@ class NP(object):
                 break
             if (status.online):
                 status.update()
-                if (not self._last_status):
-                    self._last_status = True
-                    stream.up(stream.STATUS)
+                stream.up(stream.STATUS)
             else:
                 stream.down(stream.STATUS)
-                self._last_status = False
             time.sleep(10)
     def change(self, song):
         """Changes the current playing song to 'song' which should be an
@@ -894,6 +895,23 @@ class Song(object):
                                 else row['artist'] + u' - ' + row['track'],
                             filename=join(config.music_directory, row['path'])))
         return result
+    @classmethod
+    def nick(cls, nick, limit=5):
+        with MySQLCursor() as cur:
+            if (limit):
+                cur.execute("SELECT len, meta FROM `esong` JOIN `efave` ON \
+                esong.id = efave.isong JOIN `enick` ON efave.inick = enick.id \
+                WHERE enick.nick = LOWER(%s) LIMIT %s;", (nick, limit))
+            else:
+                cur.execute("SELECT len, meta FROM `esong` JOIN `efave` ON \
+                esong.id = efave.isong JOIN `enick` ON efave.inick = enick.id \
+                WHERE enick.nick = LOWER(%s);", (nick,))
+            result = []
+            for row in cur:
+                result.append(cls(
+                              meta=row['meta'],
+                              length=row['len']))
+            return result
     def __str__(self):
         return self.__repr__()
     def __repr__(self):
@@ -922,46 +940,75 @@ class Song(object):
         self.__init__(*state)
         
 class stream(object):
-    UP = 10
-    DOWN = 12
+    UP = True
+    DOWN = False
+    
     LISTENER = 0
     STATUS = 1
     STREAMER = 2
-    handlers = {UP: [], DOWN: []}
-    historydown = []
-    historyup = []
-    def down(self, reporter):
+    
+    streamer = listener = passing = False
+    def shutdown(self, force=False):
+        import bootstrap
+        self.passing = True
+        bootstrap.stop("afkstreamer", force=force)
+    def down(self, reporter, status=None):
         """Called whenever a component thinks the stream is down, this can
         be a invalid call so it has to be checked where it came from"""
-        if (len(self.handlers) == 0):
-            self.historydown.append(reporter)
-        for handler in self.handlers[self.DOWN]:
-            try:
-                handler(reporter)
-            except:
-                logging.exception("Problem in stream DOWN handler")
-    def up(self, reporter):
+        import bootstrap
+        if (reporter == self.STATUS):
+            # Very reliable
+            if (not self.passing):
+                try:
+                    bootstrap.reload("afkstreamer")
+                except:
+                    pass
+            else:
+                def load_streamer():
+                    bootstrap.reload("afkstreamer")
+                    self.timer = False
+                    self.passing = False
+                self.timer = Timer(15.0, load_streamer)
+                self.timer.start()
+            if (self.listener):
+                # Stream down? whyi s listener on
+                try:
+                    bootstrap.stop("listener")
+                except:
+                    pass
+        elif (reporter == self.STREAMER):
+            self.streamer = False
+            bootstrap.stop("afkstreamer")
+        elif (reporter == self.LISTENER):
+            self.listener = False
+            if (not self.streamer):
+                bootstrap.reload("listener")
+            else:
+                bootstrap.stop("listener")
+    def up(self, reporter, status=None):
         """Called whenever a component thinks the stream is going up
         only called when the previous state was down"""
-        if (len(self.handlers) == 0):
-            self.historyup.append(reporter)
-        for handler in self.handlers[self.UP]:
-            try:
-                handler(reporter)
-            except:
-                logging.exception("Problem in stream UP handler")
-    def add_handler(self, state=DOWN, handler=lambda x: None):
-        """Adds a handler to be called when either 'down' or 'up' is called
-        state can either be UP or DOWN
-        
-        The handler is called with one argument, the reporter which is one of
-        LISTENER, STATUS or STREAMER.        
-        """
-        self.handlers[state].append(handler)
-        for report in self.historydown:
-            self.down(report)
-        for report in self.historyup:
-            self.up(report)
+        import bootstrap
+        if (self.timer):
+            self.timer.cancel()
+            self.timer = False
+            self.passing = False
+        if (reporter == self.STATUS):
+            if (not self.streamer) and (not self.listener):
+                try:
+                    bootstrap.reload("listener")
+                except:
+                    pass
+        elif (reporter == self.STREAMER):
+            self.streamer = True
+            if (self.listener):
+                # Listener is on again
+                bootstrap.stop("listener")
+        elif (reporter == self.LISTENER):
+            self.listener = True
+            if (self.streamer):
+                # Why is the listener on
+                bootstrap.stop("listener")
 # declaration goes here
 stream = stream()
 status = status()

@@ -153,6 +153,12 @@ class Session(object):
                             self.exposed[name] = func
     def reload_handlers(self):
         self._handlers = []
+        for name in self.exposed:
+            try:
+                delattr(self, name)
+            except (AttributeError):
+                pass
+        self.exposed = {}
         self.load_handlers(load=True)
     def set_topic(self, channel, topic):
         self.server.topic(channel, topic)

@@ -259,6 +259,39 @@ def request_announce(server, song):
 
 request_announce.exposed = True
 
+def lucky(server, nick, channel, text, hostmask):
+    match = re.match(r"^(?P<mode>[.!@])lucky\s(?P<query>.*)", text, re.I|re.U)
+    if (match):
+        mode, query = match.group("mode", "query")
+    else:
+        message = u"Hauu~ you didn't have a search query!"
+        server.notice(nick, message)
+        return
+    result = manager.Song.search(query, limit=20)
+    message = None
+    for song in result:
+        value = nick_request_song(song.id, hostmask)
+        if (value == 2):
+            message = u"You have to wait a bit longer before you can request again~"
+            break
+        elif (value == 3):
+            message = u"I'm not streaming right now!"
+            break
+        elif (value == 4):
+            continue
+        elif (isinstance(value, manager.Song)):
+            manager.queue.append_request(song)
+            request_announce(server, song)
+            return
+    if (message == None):
+        message = u"Your query did not have any results"
+    if (mode == "@"):
+        server.privmsg(channel, message)
+    else:
+        server.notice(nick, message)
+        
+lucky.handler = ("on_text", r'[.!@]lucky\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
+
 def search(server, nick, channel, text, hostmask):
     match = re.match(r"^(?P<mode>[.!@])s(earch)?\s(?P<query>.*)", text, re.I|re.U)
     if (match):
