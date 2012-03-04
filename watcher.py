@@ -25,6 +25,10 @@ def parse_queue_file():
         
         if (djid != ''):
             remaining = int(firstline)
+            try:
+                djid = int(djid)
+            except ValueError:
+                djid = None
             if (manager.dj.id == djid):
                 for line in file:
                     line = line.strip()
