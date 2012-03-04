@@ -1,7 +1,7 @@
 import config
 import os
 import logging
-from threading import Thread, Event
+from threading import Thread, Event, RLock
 from Queue import Empty, Queue
 
 OKAY = 0
@@ -46,6 +46,7 @@ class Controller(Thread):
         Thread.__init__(self)
         self._alive = Event()
         self._queue = Queue()
+        self._lock = RLock()
         self.start()
     def run(self):
         self._processor()
