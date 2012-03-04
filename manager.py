@@ -6,19 +6,23 @@ from random import randint
 from multiprocessing import RLock, Queue
 import MySQLdb
 import MySQLdb.cursors
-from threading import Timer
+from threading import Event, Thread, Timer
 
 def start(state):
     global processor_queue
     if (state):
-        processor_queue = state
+        processor_queue = state[0]
+        np.change(state[1])
     else:
         processor_queue = None
-        
+    np._event = Event()
+    np.updater = Thread(target=np.send, args=(np._event,))
+    np.updater.daemon = 1
+    np.updater.start()
 def shutdown():
-    np._break_updater = True
+    np._event.set()
     np.updater.join()
-    return processor_queue
+    return (processor_queue, np.song)
 
 class MySQLCursor:
     """Return a connected MySQLdb cursor object"""
@@ -365,16 +369,9 @@ class NP(object):
     _end = 0
     _start = int(time.time())
     def __init__(self):
-        from threading import Thread
         self.song = Song(meta=u"", length=0.0)
-        self._break_updater = False
-        self.updater = Thread(target=self.send)
-        self.updater.daemon = 1
-        self.updater.start()
-    def send(self):
-        while True:
-            if (self._break_updater):
-                break
+    def send(self, event):
+        while not event.is_set():
             if (status.online):
                 status.update()
                 stream.up(stream.STATUS)

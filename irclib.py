@@ -655,7 +655,7 @@ class ServerConnection(Connection):
                 elif command == "topic":
                     self.sqlite.topic(target, arguments[0])
                 elif command == "currenttopic":
-                    self.sqlite.topic(target, " ".join(arguments[1:]))
+                    self.sqlite.topic(arguments[0], " ".join(arguments[1:]))
                 elif command == "notopic":
                     self.sqlite.topic(target, "")
                 elif command == "featurelist":
@@ -787,7 +787,7 @@ class ServerConnection(Connection):
     
     def inchannel(self, channel, nick):
         """Check if nick is in channel"""
-        self.sqlite.in_chan(channel, nick)
+        return self.sqlite.in_chan(channel, nick)
         
     def info(self, server=""):
         """Send an INFO command."""
