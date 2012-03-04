@@ -21,6 +21,7 @@ class Streamer(Process):
     """
     def __init__(self, attributes, queue):
         Process.__init__(self)
+        self.name = "AFK Streamer"
         self._queue = queue # Get our queue before we start
         self._instance = None
         self.attributes = attributes
@@ -32,6 +33,7 @@ class Streamer(Process):
         # Tell the manager module to use the queue from earlier
         import bootstrap
         bootstrap.get_logger("AFKStreamer") # Set logger
+        logging.info("PROCESS: Started AFK Streamer")
         manager.use_queue(self._queue)
         self.connect()
         force = self._shutdown.get()
@@ -50,7 +52,8 @@ class Streamer(Process):
                 self._shutdown.get(block=False) # Empty the queue if there is any
             except Empty:
                 pass
-            
+        logging.info("PROCESS: Stopped AFK Streamer")
+        
     def connect(self):
         self._playing = False
         instance = pyices.instance(self.attributes)

@@ -51,6 +51,7 @@ description - longer stream description
         self._handlers = {}
         self._shout = libshout.Shout()
         self.daemon = 1
+        self.name = "Streamer Instance"
         self.attributes.update(attributes)
         for key, value in self.attributes.iteritems():
             if (key not in ["metadata"]):
@@ -65,7 +66,7 @@ description - longer stream description
     def run(self):
         """Internal method"""
         try:
-            logging.info("Opening connection to stream server")
+            logging.debug("Opening connection to stream server")
             self._shout.open()
         except (libshout.ShoutException):
             logging.exception("Could not connect to stream server")
@@ -97,7 +98,7 @@ description - longer stream description
             buffer = self.audiofile.read(4096)
             if (len(buffer) == 0):
                 self._call("disconnect")
-                logging.info("Stream buffer empty, breaking loop")
+                logging.debug("Stream buffer empty, breaking loop")
                 break
             try:
                 self._shout.send(buffer)
@@ -340,6 +341,7 @@ class AudioPCMVirtual(Thread):
         self.instance = instance
         self.reader_class = reader # FORCES STREAM FORMAT LOCK IN
         self.daemon = True
+        self.name = "PCM Virtual Instance"
         self.sample_rate = sample_rate
         self._handlers = handlers
         self.channels = channels
@@ -472,6 +474,7 @@ class AudioConverter(Thread):
     def __init__(self, filename, PCM):
         Thread.__init__(self)
         self.daemon = True
+        self.name = "Audio Converter Instance"
         self.filename = filename
         self.PCM = PCM
         self.start()

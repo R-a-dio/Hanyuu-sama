@@ -44,12 +44,15 @@ class Controller(Thread):
     _state_save = {} # For saving states
     def __init__(self):
         Thread.__init__(self)
+        self.name = "Bootstrap Controller"
         self._alive = Event()
         self._queue = Queue()
         self._lock = RLock()
+        logging.info("THREADING: Starting Bootstrap Controller")
         self.start()
     def run(self):
         self._processor()
+        logging.info("THREADING: Stopping Bootstrap Controller")
     def load(self, name, **kwargs):
         """Load a module"""
         try:
@@ -141,7 +144,9 @@ class Controller(Thread):
             return OKAY
     def _stop_all(self):
         """Internal method"""
-        for name in self._loaded_modules:
+        from copy import copy
+        loaded_copy = copy(self._loaded_modules)
+        for name in loaded_copy:
             kwargs = {}
             if (name == "afkstreamer"):
                 kwargs = {"force": True}
@@ -161,6 +166,7 @@ class Controller(Thread):
             module = reload(module)
         value = self._load(name)
         return value
-
+    def count(self):
+        return len(self._loaded_modules)
 # Return values for various functions
 

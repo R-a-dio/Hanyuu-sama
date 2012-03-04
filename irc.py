@@ -63,10 +63,12 @@ class Session(object):
         self.connect()
         # initialize our process thread
         self.processor_thread = Thread(target=self.processor)
+        self.processor.name = "IRC Processor"
         self.processor_thread.daemon = 1
         self.processor_thread.start()
     def processor(self):
         # Our shiny thread that processes the socket
+        logging.info("THREADING: Started IRC processor")
         while (self._active):
             # Call the process once
             self.irc.process_once(timeout=1)
@@ -78,12 +80,12 @@ class Session(object):
                     pass
                 else:
                     # We do fancy things
-                    print call_request
                     obj, key, args, kwargs = call_request
                     try:
                         self.exposed[key](self.server, *args, **kwargs)
                     except:
                         logging.exception("Something broke in IRC")
+        logging.info("THREADING: Stopped IRC processor")
     def connect(self):
         # We really only need one server
         if (self._active):

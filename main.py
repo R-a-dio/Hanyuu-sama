@@ -8,9 +8,16 @@ def main():
     bootstrap.controller.load("manager")
     # We can now safely import manager here
     # get IRC ready
+
+    bootstrap.controller.load("irc")
+    import time
+    time.sleep(1)
+    import irc
+    while (not hasattr(irc, "session")):
+        time.sleep(0.1)
+    irc.session.wait(timeout=30)
     bootstrap.controller.load("requests")
     bootstrap.controller.load("watcher")
-    bootstrap.controller.load("irc")
     
 if __name__ == "__main__":
     main()

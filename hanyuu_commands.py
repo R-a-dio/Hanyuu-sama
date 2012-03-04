@@ -315,6 +315,23 @@ def search(server, nick, channel, text, hostmask):
 search.handler = ("on_text", r'[.!@]s(earch)?\b',
                    irc.ALL_NICKS, irc.ALL_CHANNELS)
 
+def stats(server, nick, channel, text, hostmask):
+    from threading import active_count
+    from multiprocessing import active_children
+    import bootstrap
+    try:
+        database = manager.MySQLCursor.counter
+        processes = len(active_children()) + 1
+        threads = active_count()
+        active = bootstrap.controller.count()
+        message = u"Client status: %(threads)d threads running, %(processes)d processes running, %(database)d database connections made with a total of %(active)d modules loaded." % locals()
+    except:
+        message = u"Status retrieving raised an exception"
+    server.privmsg(channel, message)
+    
+stats.handler = ("on_text", r'[.!@]stats\b',
+                  irc.ALL_NICKS, irc.ALL_CHANNELS)
+
 def request(server, nick, channel, text, hostmask):
     #this should probably be fixed to remove the nick thing, but i can't into regex
     match = re.match(r"^(?P<mode>[.!@])r(equest)?\s(?P<query>.*)", text, re.I|re.U)

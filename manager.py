@@ -17,6 +17,7 @@ def start(state):
         processor_queue = None
     np._event = Event()
     np.updater = Thread(target=np.send, args=(np._event,))
+    np.updater.name = "Now Playing updater"
     np.updater.daemon = 1
     np.updater.start()
 def shutdown():
@@ -26,7 +27,9 @@ def shutdown():
 
 class MySQLCursor:
     """Return a connected MySQLdb cursor object"""
+    counter = 0
     def __init__(self, cursortype=MySQLdb.cursors.DictCursor, lock=None):
+        self.counter += 1
         self.conn = MySQLdb.connect(host=config.dbhost,
                                 user=config.dbuser,
                                 passwd=config.dbpassword,
@@ -99,10 +102,9 @@ def use_queue(queue):
 def read_queue(q):
     """blocks on a queue.get, and launches any incoming requests into this
     process and thread, exceptions are caught and ignored"""
+    logging.info("THREADING: Started manager proxy")
     while True:
-        print "Started thread"
         call_request = q.get()
-        print call_request
         if (call_request == None):
             break
         else:
@@ -115,7 +117,7 @@ def read_queue(q):
                     getattr(obj, key)
             except:
                 pass
-            
+    logging.info("THREADING: Stopped manager proxy")
 processor_queue = None
 
 def get_queue():
@@ -131,6 +133,7 @@ def get_queue():
         # This spawns a thread to feed from the queue
         from threading import Thread
         thread = Thread(target=read_queue, args=(processor_queue,))
+        thread.name = "Manager Proxy"
         thread.daemon = 1
         thread.start()
     return processor_queue
@@ -157,9 +160,11 @@ class queue(object):
                         .format(type=type))
         if (cur.rowcount > 0):
             result = cur.fetchone()
-            return result['timestamp'] + int(result['length'])
+            result = result['timestamp'] + int(result['length'])
         else:
-            return np.end()
+            result = np.end()
+        return result if result != None else time.time()
+    
     def append_request(self, song, ip="0.0.0.0"):
         with MySQLCursor(lock=self._lock) as cur:
             timestamp = self.get_timestamp(cur, REQUEST)
@@ -181,7 +186,7 @@ class queue(object):
                         (song.id, int(timestamp), REGULAR,
                           song.metadata, song.length))
     def append_many(self, songlist):
-        """queue should be an iterater containing
+        """queue should be an iterator containing
             Song objects
         """
         with MySQLCursor(lock=self._lock) as cur:
@@ -347,8 +352,8 @@ class status(object):
     @property
     def cached_status(self):
         if (time.time() - self._timeout > 9):
-            return self.status[config.icecast_mount]
-        return self._status[config.icecast_mount]
+            return self.status.get(config.icecast_mount, {})
+        return self._status.get(config.icecast_mount, {})
     @property
     def status(self):
         import streamstatus
@@ -378,6 +383,7 @@ class NP(object):
     def __init__(self):
         self.song = Song(meta=u"", length=0.0)
     def send(self, event):
+        logging.info("THREADING: Starting now playing updater")
         while not event.is_set():
             if (status.online):
                 status.update()
@@ -385,9 +391,14 @@ class NP(object):
             else:
                 stream.down(stream.STATUS)
             time.sleep(10)
+        logging.info("THREADING: Stopping now playing updater")
     def change(self, song):
         """Changes the current playing song to 'song' which should be an
         manager.Song object"""
+        if (song.afk):
+            status.requests_enabled = True
+        else:
+            status.requests_enabled = False
         if (self.song == song):
             return
         if (self.song.metadata != u""):
@@ -555,6 +566,8 @@ class Song(object):
             return
         for key, value in kwargs.iteritems():
             if (key in ["lp", "id", "length", "filename", "metadata"]):
+                if (key == "metadata"):
+                    value = self.fix_encoding(value)
                 setattr(self, "_" + key, value)
                 with MySQLCursor() as cur:
                     if (key == "lp"):
@@ -859,11 +872,11 @@ class Song(object):
     def fix_encoding(metadata):
         try:
             try:
-                return unicode(metadata, 'utf-8', 'strict')
+                return unicode(metadata, 'utf-8', 'strict').strip()
             except (UnicodeDecodeError):
-                return unicode(metadata, 'shiftjis', 'replace')
+                return unicode(metadata, 'shiftjis', 'replace').strip()
         except (TypeError):
-            return metadata
+            return metadata.strip()
     @classmethod
     def search(cls, query, limit=5):
         """Searches the 'tracks' table in the database, returns a list of
@@ -985,10 +998,8 @@ class stream(object):
             bootstrap.controller.stop("afkstreamer")
         elif (reporter == self.LISTENER):
             self.listener = False
-            if (not self.streamer):
-                bootstrap.controller.reload("listener")
-            else:
-                bootstrap.controller.stop("listener")
+            bootstrap.controller.stop("listener")
+            
     def up(self, reporter, status=None):
         """Called whenever a component thinks the stream is going up
         only called when the previous state was down"""

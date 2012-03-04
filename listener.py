@@ -11,7 +11,12 @@ import logging
 def start(state):
     global listener, thread
     listener = Listener()
-    thread = Thread(target=asyncore.loop)
+    def wrapper():
+        logging.info("THREADING: Started listener")
+        asyncore.loop()
+        logging.info("THREADING: Stopped listener")
+    thread = Thread(target=wrapper)
+    thread.name = "Listener"
     thread.daemon = 1
     thread.start()
     return listener
@@ -25,7 +30,6 @@ class Listener(async_chat):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((config.icecast_host, config.icecast_port))
         async_chat.__init__(self, sock=sock)
-        logging.info("Started listener")
         self.ibuffer = []
         self.obuffer = 'GET {mount} HTTP/1.1\r\nHOST: {host}\r\nUser-Agent: Hanyuu-sama\r\nIcy-MetaData: 1\r\n\r\n'.format(mount=config.icecast_mount, host=config.icecast_host)
         self.push(self.obuffer)
@@ -107,7 +111,7 @@ class Listener(async_chat):
                 except (IndexError):
                     pass
             if (metadata == "fallback"):
-                self.shutdown()
+                self.handle_close()
             new_song = manager.Song(meta=metadata)
 
             if (manager.np != new_song):
