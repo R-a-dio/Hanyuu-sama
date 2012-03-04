@@ -197,7 +197,7 @@ def kill_afk(server, nick, channel, text, hostmask):
             global killing_stream
             if (not killing_stream):
                 killing_stream = True
-                #bootstrap.stop("afkstreamer", force=True)
+                manager.stream.shutdown(force=True)
             message = u"Forced AFK Streamer down,\
                         please connect in 15 seconds or less."
         except:
@@ -220,9 +220,9 @@ def shut_afk(server, nick, channel, text, hostmask):
             global killing_stream
             if (not killing_stream):
                 killing_stream = True
-                #thread = Thread(target=bootstrap.stop, args=("afkstreamer",))
-                #thread.daemon = 1
-                #thread.start()
+                thread = Thread(target=manager.stream.shutdown)
+                thread.daemon = 1
+                thread.start()
             message = u'AFK Streamer will disconnect after current track, use ".kill" to force disconnect.'
         except:
             message = u"Something went wrong, please punch Wessie."
