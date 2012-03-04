@@ -10,6 +10,14 @@ START_ERR = 2
 STOP_ERR = 3
 NOTSUPPORTED_ERR = 4
 
+def start():
+    global controller
+    controller = Controller()
+    
+def stop():
+    controller.stop_all()
+    return
+
 logging.getLogger().setLevel(config.loglevel)
 def get_logger(name=None):
     """returns a process safe logger, best set to the global variable
@@ -34,6 +42,11 @@ class Controller(Thread):
     methods"""
     _loaded_modules = {} # Loaded mods
     _state_save = {} # For saving states
+    def __init__(self):
+        Thread.__init__(self)
+        self.start()
+    def run(self):
+        self._processor()
     def load(self, name, **kwargs):
         """Load a module"""
         try:

@@ -248,7 +248,14 @@ class queue(object):
     def check_times(self):
         correct_time = np.end()
         with MySQLCursor(self._lock) as cur:
-            pass
+            cur.execute("SELECT unix_timestamp(time) AS time FROM \
+                `queue` ORDER BY `time` ASC LIMIT 1;")
+            for row in cur:
+                current_time = row['time']
+            difference = correct_time - current_time
+            if (5 > difference > -5):
+                cur.execute("UPDATE `queue` SET `time`=from_unixtime(\
+                    unix_timestamp(time) + %s);", (difference,))
     def clear(self):
         with MySQLCursor(lock=self._lock) as cur:
             cur.execute("DELETE FROM `queue`;")
@@ -948,7 +955,7 @@ class stream(object):
     def shutdown(self, force=False):
         import bootstrap
         self.passing = True
-        bootstrap.stop("afkstreamer", force=force)
+        bootstrap.controller.stop("afkstreamer", force=force)
     def down(self, reporter, status=None):
         """Called whenever a component thinks the stream is down, this can
         be a invalid call so it has to be checked where it came from"""
@@ -957,12 +964,12 @@ class stream(object):
             # Very reliable
             if (not self.passing):
                 try:
-                    bootstrap.reload("afkstreamer")
+                    bootstrap.controller.reload("afkstreamer")
                 except:
                     pass
             else:
                 def load_streamer():
-                    bootstrap.reload("afkstreamer")
+                    bootstrap.controller.reload("afkstreamer")
                     self.timer = False
                     self.passing = False
                 self.timer = Timer(15.0, load_streamer)
@@ -970,18 +977,18 @@ class stream(object):
             if (self.listener):
                 # Stream down? whyi s listener on
                 try:
-                    bootstrap.stop("listener")
+                    bootstrap.controller.stop("listener")
                 except:
                     pass
         elif (reporter == self.STREAMER):
             self.streamer = False
-            bootstrap.stop("afkstreamer")
+            bootstrap.controller.stop("afkstreamer")
         elif (reporter == self.LISTENER):
             self.listener = False
             if (not self.streamer):
-                bootstrap.reload("listener")
+                bootstrap.controller.reload("listener")
             else:
-                bootstrap.stop("listener")
+                bootstrap.controller.stop("listener")
     def up(self, reporter, status=None):
         """Called whenever a component thinks the stream is going up
         only called when the previous state was down"""
@@ -993,19 +1000,19 @@ class stream(object):
         if (reporter == self.STATUS):
             if (not self.streamer) and (not self.listener):
                 try:
-                    bootstrap.reload("listener")
+                    bootstrap.controller.reload("listener")
                 except:
                     pass
         elif (reporter == self.STREAMER):
             self.streamer = True
             if (self.listener):
                 # Listener is on again
-                bootstrap.stop("listener")
+                bootstrap.controller.stop("listener")
         elif (reporter == self.LISTENER):
             self.listener = True
             if (self.streamer):
                 # Why is the listener on
-                bootstrap.stop("listener")
+                bootstrap.controller.stop("listener")
 # declaration goes here
 stream = stream()
 status = status()
