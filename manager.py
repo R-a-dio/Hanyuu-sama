@@ -947,7 +947,7 @@ class stream(object):
     STATUS = 1
     STREAMER = 2
     
-    streamer = listener = passing = False
+    streamer = listener = passing = timer = False
     def shutdown(self, force=False):
         import bootstrap
         self.passing = True
