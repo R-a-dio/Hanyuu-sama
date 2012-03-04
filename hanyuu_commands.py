@@ -239,7 +239,7 @@ def announce(server):
         if (server.inchannel("#r/a/dio", nick)):
             server.notice(nick, u"Fave: {0} is playing."\
                           .format(manager.np.metadata))
-        message = u"Now starting:{c4} '{np}' {c}[{curtime}/{length}]({listeners}/{max_listener}), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
+    message = u"Now starting:{c4} '{np}' {c}[{curtime}/{length}]({listeners}/{max_listener}), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
             np=manager.np.metadata, curtime=manager.np.positionf,
             length=manager.np.lengthf, listeners=manager.status.listeners,
             max_listener=config.listener_max, faves=manager.np.favecount,
