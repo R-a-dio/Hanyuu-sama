@@ -235,11 +235,12 @@ shut_afk.handler = ("on_text", r'[.!@]cleankill',
                      irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
 
 def announce(server):
+    message = None
     for nick in manager.np.faves:
         if (server.inchannel("#r/a/dio", nick)):
             server.notice(nick, u"Fave: {0} is playing."\
                           .format(manager.np.metadata))
-    message = u"Now starting:{c4} '{np}' {c}[{curtime}/{length}]({listeners}/{max_listener}), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
+        message = u"Now starting:{c4} '{np}' {c}[{curtime}/{length}]({listeners}/{max_listener}), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
             np=manager.np.metadata, curtime=manager.np.positionf,
             length=manager.np.lengthf, listeners=manager.status.listeners,
             max_listener=config.listener_max, faves=manager.np.favecount,
@@ -248,7 +249,8 @@ def announce(server):
             ts="" if (manager.np.playcount == 1) else "s",
             lp=manager.np.lpf,
             **irc_colours)
-    server.privmsg("#r/a/dio", message)
+    if (message != None):
+        server.privmsg("#r/a/dio", message)
 
 announce.exposed = True
 
@@ -316,15 +318,11 @@ search.handler = ("on_text", r'[.!@]s(earch)?\b',
                    irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def stats(server, nick, channel, text, hostmask):
-    from threading import active_count
-    from multiprocessing import active_children
     import bootstrap
     try:
-        database = manager.MySQLCursor.counter
-        processes = len(active_children()) + 1
-        threads = active_count()
-        active = bootstrap.controller.count()
-        message = u"Client status: %(threads)d threads running, %(processes)d processes running, %(database)d database connections made with a total of %(active)d modules loaded." % locals()
+        threads, tnames, processes, pnames, active = bootstrap.controller.stats()
+        message = (u"Client status: %(threads)d threads running, %(processes)d "
+                u"processes running, with a total of %(active)d modules loaded.") % locals()
     except:
         message = u"Status retrieving raised an exception"
     server.privmsg(channel, message)

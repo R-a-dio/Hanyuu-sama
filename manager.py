@@ -252,7 +252,7 @@ class queue(object):
                 self.append_random(20 - self.length)
     def check_times(self):
         correct_time = np.end()
-        with MySQLCursor(self._lock) as cur:
+        with MySQLCursor(lock=self._lock) as cur:
             cur.execute("SELECT unix_timestamp(time) AS time FROM \
                 `queue` ORDER BY `time` ASC LIMIT 1;")
             for row in cur:
@@ -347,7 +347,7 @@ class status(object):
                 if (current != value):
                     value = 1 if value else 0
                     cur.execute("UPDATE `radvars` SET `value`=%s WHERE `name`\
-                                ='requesting';")
+                                ='requesting';", (value,))
     requests_enabled = property(g_requests_enabled, s_requests_enabled)
     @property
     def cached_status(self):

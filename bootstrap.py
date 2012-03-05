@@ -10,14 +10,6 @@ START_ERR = 2
 STOP_ERR = 3
 NOTSUPPORTED_ERR = 4
 
-def start():
-    global controller
-    controller = Controller()
-    
-def stop():
-    controller.stop_all()
-    return
-
 logging.getLogger().setLevel(config.loglevel)
 def get_logger(name=None):
     """returns a process safe logger, best set to the global variable
@@ -81,7 +73,6 @@ class Controller(Thread):
         except:
             logging.exception("Don't do this you ass")
             
-            
     def _processor(self):
         while not self._alive.is_set():
             try:
@@ -90,14 +81,18 @@ class Controller(Thread):
                 pass
             else:
                 with self._lock:
-                    if (id == 0): # load
-                        self._load(name, **kwargs)
-                    elif (id == 1): # stop
-                        self._stop(name, **kwargs)
-                    elif (id == 2): # stop_all
-                        self._stop_all()
-                    else: # reload
-                        self._reload(name, **kwargs)
+                    try:
+                        if (id == 0): # load
+                            self._load(name, **kwargs)
+                        elif (id == 1): # stop
+                            self._stop(name, **kwargs)
+                        elif (id == 2): # stop_all
+                            self._stop_all()
+                        else: # reload
+                            self._reload(name, **kwargs)
+                    except:
+                        logging.exception("Controller engaged an exception")
+                        
     def _load(self, name, **kwargs):
         """Internal method"""
         try:
@@ -138,7 +133,10 @@ class Controller(Thread):
                 return STOP_ERR
             else:
                 self._state_save[name] = state
-                del self._loaded_modules[name]
+                try:
+                    del self._loaded_modules[name]
+                except (KeyError):
+                    pass
                 return OKAY
         else:
             return OKAY
@@ -168,5 +166,45 @@ class Controller(Thread):
         return value
     def count(self):
         return len(self._loaded_modules)
+    def get(self, name):
+        return self._loaded_modules.get(name, [None])[0]
+    def shutdown(self):
+        self.stop_all()
+        self._alive.set()
+        self.join()
+    def stats(self):
+        """Returns information about all things running currently,
+        
+        returns a tuple that contains the following:
+            The amount of threads running
+            The names of the threads running
+            The amount of processes running
+            The names of the processes running
+            The amount of modules loaded
+        """
+        import threading, multiprocessing
+        try:
+            tnames = [thread.name for thread in threading.enumerate()]
+            threads = threading.active_count()
+            modules = len(self._loaded_modules)
+            processes = len(multiprocessing.active_children())
+            pnames = [process.name for process in multiprocessing.active_children()]
+        except (AttributeError):
+            tnames = []
+            threads = 0
+            modules = 0
+            processes = 0
+            pnames = []
+        locations = ["afkstreamer", "requests"]
+        for loc in locations:
+            if (loc in self._loaded_modules):
+                try:
+                    result = self._loaded_modules[loc][0].stats()
+                except (IndexError, AttributeError):
+                    result = ([], 0)
+                else:
+                    tnames = tnames + result[0]
+                    threads = threads + result[1]
+        return (threads, tnames, processes, pnames, modules)
 # Return values for various functions
 

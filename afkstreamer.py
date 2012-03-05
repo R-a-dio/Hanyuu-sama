@@ -2,8 +2,8 @@ import pyices
 import logging
 import config
 import manager
-from multiprocessing import Queue, Process
-from threading import Thread
+from multiprocessing import Queue, Process, Pipe
+from threading import Thread, active_count
 from Queue import Empty
 
 def start(state):
@@ -25,10 +25,18 @@ class Streamer(Process):
         self._queue = queue # Get our queue before we start
         self._instance = None
         self.attributes = attributes
+        
+        self._i_status, self._o_status = Queue(), Queue()
+        
         self._shutdown = Queue()
         self.finish_shutdown = False
         self.start()
-        
+    
+    def stats(self):
+        """Returns information about the process"""
+        self._i_status.put(True)
+        return self._o_status.get(timeout=15)
+    
     def run(self):
         # Tell the manager module to use the queue from earlier
         import bootstrap
@@ -36,7 +44,26 @@ class Streamer(Process):
         logging.info("PROCESS: Started AFK Streamer")
         manager.use_queue(self._queue)
         self.connect()
-        force = self._shutdown.get()
+        force = None
+        while (force is None):
+            try:
+                force = self._shutdown.get(timeout=0.5)
+            except (Empty):
+                pass
+            try:
+                self._i_status.get(block=False)
+            except (Empty):
+                pass
+            else:
+                import threading
+                try:
+                    threads = threading.active_count()
+                    names = [thread.name for thread in threading.enumerate()]
+                except:
+                    threads = 0
+                    names = []
+                finally:
+                    self._o_status.put((names, threads))
         if (force):
             self._instance.close()
             self.finish_shutdown = True

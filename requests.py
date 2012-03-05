@@ -3,6 +3,7 @@ import config
 import time
 from multiprocessing import Process, Queue
 from threading import Thread
+from Queue import Empty
 from flup.server.fcgi import WSGIServer
 import manager
 import irc
@@ -18,6 +19,7 @@ def start(state):
 
 def shutdown():
     return fastcgi.shutdown()
+
 class FastCGIServer(Process):
     """Starts a fastcgi server that handles our requests,
     runs in a separate process, supply a problem_handler
@@ -29,9 +31,17 @@ class FastCGIServer(Process):
         self.handler = problem_handler
         self._shutdown = Queue()
         self._queue = queue
+        
+        self._i_status, self._o_status = Queue(), Queue()
+        
         self.name = "Request FastCGI Server"
         self.daemon = 1
         self.start()
+        
+    def stats(self):
+        self._i_status.put(True)
+        return self._o_status.get(timeout=15)
+    
     def run(self):
         """Internal"""
         import bootstrap
@@ -45,21 +55,40 @@ class FastCGIServer(Process):
             self.server = WSGIServer(self.external_request,
                             bindAddress=config.fastcgi_socket,
                             umask=0)
-            self.server = self.server.run()
+            self.server.run()
         finally:
             self.handler()
         logging.info("PROCESS: Stopped FastCGI")
         
     def shutdown(self):
         """Shuts down the fastcgi server and process"""
-        self._shutdown.put(1)
+        self._shutdown.put(True)
         self.join()
         return self._queue
     def check_shutdown(self, shutdown):
         """Internal"""
         logging.info("THREADING: Started FastCGI shutdown thread")
-        shutdown.get()
-        self.server.shutdown()
+        shut = False
+        while not shut:
+            try:
+                shut = shutdown.get(timeout=0.5)
+            except (Empty):
+                pass
+            try:
+                self._i_status.get(block=False)
+            except (Empty):
+                pass
+            else:
+                import threading
+                try:
+                    threads = threading.active_count()
+                    names = [thread.name for thread in threading.enumerate()]
+                except:
+                    threads = 0
+                    names = []
+                finally:
+                    self._o_status.put((names, threads))
+        self.server._exit()
         logging.info("THREADING: Stopped FastCGI shutdown thread")
     def external_request(self, environ, start_response):
         if (manager.status.requests_enabled):

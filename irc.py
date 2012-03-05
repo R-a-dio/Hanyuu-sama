@@ -63,7 +63,7 @@ class Session(object):
         self.connect()
         # initialize our process thread
         self.processor_thread = Thread(target=self.processor)
-        self.processor.name = "IRC Processor"
+        self.processor_thread.name = "IRC Processor"
         self.processor_thread.daemon = 1
         self.processor_thread.start()
     def processor(self):

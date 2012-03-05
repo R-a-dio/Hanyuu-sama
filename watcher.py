@@ -9,6 +9,7 @@ def start(state):
     global notifier
     wm = pi.WatchManager()
     notifier = pi.ThreadedNotifier(wm, handler())
+    notifier.name = "Queue Watcher"
     notifier.start()
     wdd = wm.add_watch(config.watcher_path, pi.IN_MODIFY)
     
