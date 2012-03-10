@@ -81,13 +81,13 @@ class FastCGIServer(Process):
             else:
                 import threading
                 try:
-                    threads = threading.active_count()
-                    names = [thread.name for thread in threading.enumerate()]
+                    threadcount = threading.active_count()
+                    threads = threading.enumerate()
                 except:
-                    threads = 0
-                    names = []
+                    threadcount = 0
+                    threads = []
                 finally:
-                    self._o_status.put((names, threads))
+                    self._o_status.put((threads, threadcount))
         self.server._exit()
         logging.info("THREADING: Stopped FastCGI shutdown thread")
     def external_request(self, environ, start_response):

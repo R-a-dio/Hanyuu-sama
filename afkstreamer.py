@@ -57,13 +57,13 @@ class Streamer(Process):
             else:
                 import threading
                 try:
-                    threads = threading.active_count()
-                    names = [thread.name for thread in threading.enumerate()]
+                    threadcount = threading.active_count()
+                    threads = threading.enumerate()
                 except:
-                    threads = 0
-                    names = []
+                    threadcount = 0
+                    threads = []
                 finally:
-                    self._o_status.put((names, threads))
+                    self._o_status.put((threads, threadcount))
         if (force):
             self._instance.close()
             self.finish_shutdown = True

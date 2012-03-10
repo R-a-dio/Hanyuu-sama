@@ -187,15 +187,18 @@ class Controller(Thread):
             The amount of modules loaded
         """
         import threading, multiprocessing
+        def uniqify(seq):
+            keys = {}
+            for e in seq:
+                keys[e] = 1
+            return keys.keys()
         try:
-            tnames = [thread.name for thread in threading.enumerate()]
-            threads = threading.active_count()
+            threads = threading.enumerate()
             modules = len(self._loaded_modules)
             processes = len(multiprocessing.active_children())
             pnames = [process.name for process in multiprocessing.active_children()]
         except (AttributeError):
-            tnames = []
-            threads = 0
+            threads = []
             modules = 0
             processes = 0
             pnames = []
@@ -205,10 +208,11 @@ class Controller(Thread):
                 try:
                     result = self._loaded_modules[loc][0].stats()
                 except (IndexError, AttributeError):
-                    result = ([], 0)
+                    result = ([], 0) # why bother? it's not used anyway
                 else:
-                    tnames = tnames + result[0]
-                    threads = threads + result[1]
-        return (threads, tnames, processes, pnames, modules)
+                    threads = threads + result[0]
+        threads = uniqify(threads)
+        threads = [thread.name for thread in threads]
+        return (len(threads), threads, processes, pnames, modules)
 # Return values for various functions
 
