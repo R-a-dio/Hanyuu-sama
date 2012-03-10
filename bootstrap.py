@@ -10,6 +10,8 @@ START_ERR = 2
 STOP_ERR = 3
 NOTSUPPORTED_ERR = 4
 
+controller = None
+
 logging.getLogger().setLevel(config.loglevel)
 def get_logger(name=None):
     """returns a process safe logger, best set to the global variable
@@ -35,12 +37,14 @@ class Controller(Thread):
     _loaded_modules = {} # Loaded mods
     _state_save = {} # For saving states
     def __init__(self):
+        global controller
         Thread.__init__(self)
         self.name = "Bootstrap Controller"
         self._alive = Event()
         self._queue = Queue()
         self._lock = RLock()
         logging.info("THREADING: Starting Bootstrap Controller")
+        controller = self
         self.start()
     def run(self):
         self._processor()
