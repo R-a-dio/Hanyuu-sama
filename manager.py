@@ -7,6 +7,7 @@ from multiprocessing import RLock, Queue
 import MySQLdb
 import MySQLdb.cursors
 from threading import Event, Thread, Timer
+import sys
 
 def start(state):
     global processor_queue
@@ -20,6 +21,7 @@ def start(state):
     np.updater.name = "Now Playing updater"
     np.updater.daemon = 1
     np.updater.start()
+    return sys.modules['manager']
 def shutdown():
     np._event.set()
     np.updater.join()

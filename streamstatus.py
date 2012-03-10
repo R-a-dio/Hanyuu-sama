@@ -7,6 +7,32 @@ def get_status(icecast_server):
     try:
         result = urllib2.urlopen(urllib2.Request(icecast_server,
                                             headers={'User-Agent': 'Mozilla'}))
+    except HTTPError as e:
+        if e.code == 403: #assume it's a full server
+            logging.warning("Can't connect to status page; listener count reached")
+            f_fallback = MultiDict.OrderedMultiDict()
+            f_fallback['Stream Title'] = 'Fallback at R/a/dio'
+            f_fallback['Stream Description'] = 'Sorry we are currently down'
+            f_fallback['Content Type'] = 'audio/mpeg'
+            f_fallback['Mount started'] = 'Thu, 08 Mar 2012 00:20:07 +0100'
+            f_fallback['Bitrate'] = '192'
+            f_fallback['Current Listeners'] = '0'
+            f_fallback['Peak Listeners'] = '200'
+            f_fallback['Stream Genre'] = 'ZTS'
+            f_fallback['Stream URL'] = 'http://r-a-dio.com'
+            f_fallback['Current Song'] = 'fallback'
+            f_main = MultiDict.OrderedMultiDict()
+            f_main['Stream Title'] = 'r/a/dio'
+            f_main['Stream Description'] = 'listener maxed, placeholder'
+            f_main['Content Type'] = 'audio/mpeg'
+            f_main['Mount started'] = 'Thu, 08 Mar 2012 00:20:07 +0100'
+            f_main['Bitrate'] = '192'
+            f_main['Current Listeners'] = '500'
+            f_main['Peak Listeners'] = '500'
+            f_main['Stream Genre'] = 'Weeaboo'
+            f_main['Stream URL'] = 'http://r-a-dio.com'
+            f_main['Current Song'] = 'Unknown'
+            return {'/fallback.mp3': f_fallback, '/main.mp3': f_main}
     except:
         # catching all why????
         logging.exception("Can't connect to status page")
