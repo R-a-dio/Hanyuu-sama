@@ -193,7 +193,7 @@ class Controller(Thread):
                 keys[e] = 1
             return keys.keys()
         try:
-            threads = threading.enumerate()
+            threads = [(thread.name, hex(id(thread))) for thread in threading.enumerate()]
             modules = len(self._loaded_modules)
             processes = len(multiprocessing.active_children())
             pnames = [process.name for process in multiprocessing.active_children()]
@@ -208,11 +208,10 @@ class Controller(Thread):
                 try:
                     result = self._loaded_modules[loc][0].stats()
                 except (IndexError, AttributeError):
-                    result = ([], 0) # why bother? it's not used anyway
+                    result = ([], 0)
                 else:
                     threads = threads + result[0]
         threads = uniqify(threads)
-        threads = [thread.name for thread in threads]
         return (len(threads), threads, processes, pnames, modules)
 # Return values for various functions
 
