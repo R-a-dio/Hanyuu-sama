@@ -2,6 +2,7 @@ import urllib2
 import HTMLParser
 import MultiDict
 import logging
+import config
 
 def get_status(icecast_server):
     try:
@@ -42,7 +43,37 @@ def get_status(icecast_server):
             parser.feed(line)
         parser.close()
         return parser.result
+
+def get_listeners(icecast_host):
+    import socket
+    http_addr = 'http://'+icecast_host+':'+str(config.icecast_port)
+    
+    cur_addr = socket.gethostbyname(icecast_host)
+    rad_addr = socket.gethostbyname("r-a-dio.com")
+    root_addr = socket.gethostbyname("shoutcast1.rootnode.net")
+    
+    if (cur_addr == rad_addr):
+        auth = config.radio_admin_auth
+    elif (cur_addr == root_addr):
+        auth = config.rootnode_admin_auth
+    else:
+        raise ValueError("no known icecast host was specified")
+    
+    mounts = get_status(http_addr).keys()
+    listeners = {}
+    for mount in mounts:
+        result = urllib2.urlopen(urllib2.Request(http_addr+'/admin/listclients.xsl?mount='+mount,
+                                                headers={'User-Agent': 'Mozilla',
+                                                'Authorization': 'Basic ' + auth,
+                                                'Referer': http_addr+'/admin/'}))
         
+        parser = ListenersParser()
+        for line in result:
+            parser.feed(line)
+        parser.close()
+        listeners[mount] = parser.result
+    return listeners
+
 class StatusParser(HTMLParser.HTMLParser):
     def __init__(self):
         HTMLParser.HTMLParser.__init__(self)
@@ -77,7 +108,40 @@ class StatusParser(HTMLParser.HTMLParser):
                 self.result[self._current_mount][self._type] = data
             else:
                 self._type = data[:-1]
-            
+
+class ListenersParser(HTMLParser.HTMLParser):
+    def __init__(self):
+        HTMLParser.HTMLParser.__init__(self)
+        self.result = []
+        self._values = {}
+        self._td = None
+        self._tablefound = False
+    def handle_starttag(self, tag, attrs):
+        attrs = MultiDict.OrderedMultiDict(attrs)
+        if (tag == "table" and "bordercolor" in attrs and attrs['bordercolor'] == "#C0C0C0"):
+            self._tablefound = True
+        elif (tag == "td"):
+            self._td = Tag(attrs)            
+    def handle_endtag(self, tag):
+        if tag == "td" and self._td:
+            self._td = None
+        elif tag == "table" and self._tablefound:
+            self._tablefound = False
+    def handle_data(self, data):
+        if self._tablefound and self._td:
+            if "align" in self._td.attr and "center" in self._td.getall("align"):
+                l = len(self._values)
+                if (l==0): # it's ip
+                    self._values['ip'] = str(data)
+                elif (l==1): # it's time
+                    self._values['time'] = int(data)
+                elif (l==2): # it's player
+                    self._values['player'] = str(data)
+                elif (l==3): # it's kick
+                    self.result.append(self._values)
+                    self._values = {}
+
+
 class Tag(object):
     attr = MultiDict.OrderedMultiDict()
     def __init__(self, attrs):
