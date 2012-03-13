@@ -107,6 +107,8 @@ class Controller(Thread):
             state = self._state_save.get(name, None)
             try:
                 item = mod.start(state)
+                if (item == None): # if the module didn't provide a startup object,
+                    item = mod     # supply the module itself
             except:
                 # Something went derpiedoo, put it into the log instead of re-raising
                 logging.exception("{name} failed to start".format(name=name))
