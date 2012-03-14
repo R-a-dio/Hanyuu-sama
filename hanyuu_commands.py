@@ -280,6 +280,7 @@ def lucky(server, nick, channel, text, hostmask):
             message = u"I'm not streaming right now!"
             break
         elif (value == 4):
+            message = u"You have to wait a bit longer before requesting that song~"
             continue
         elif (isinstance(value, manager.Song)):
             manager.queue.append_request(song)
