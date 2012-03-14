@@ -578,7 +578,7 @@ class Song(object):
                         if (self.afk):
                             cur.execute("UPDATE `tracks` SET \
                             `lastplayed`=FROM_UNIXTIME(%s) \
-                            WHERE `id`=%s LIMIT 1;", (self.lp, self.id))
+                            WHERE `id`=%s LIMIT 1;", (self._lp, self.id))
                     elif (key == "length"):
                         # change database entries for length data
                         cur.execute("UPDATE `esong` SET `len`=%s WHERE \
