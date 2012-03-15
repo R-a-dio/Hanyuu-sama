@@ -121,6 +121,7 @@ class Streamer(Process):
         self._next_song = song
     def on_finish(self, instance):
         """Handler for when a file finishes playing completely"""
+        manager.queue.clear_pops()
         self._playing = False
         if (self.finish_shutdown):
             self._shutdown.put(True)

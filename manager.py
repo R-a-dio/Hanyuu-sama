@@ -233,6 +233,7 @@ class queue(object):
         # TODO:
         #     Adjust the estimated play time for old queues, i.e. update them
         #     if necessary to current times
+        #     Vin - this TODO should probably be moved to clear_pops instead
         if (len(self) == 0):
             self.append_random(20)
         try:
@@ -240,8 +241,7 @@ class queue(object):
                 cur.execute("SELECT * FROM `queue` ORDER BY `time` ASC LIMIT 1;")
                 if (cur.rowcount > 0):
                     result = cur.fetchone()
-                    cur.execute("DELETE FROM `queue` WHERE id={id};"\
-                                .format(id=result['id']))
+                    cur.execute("UPDATE `queue` SET `type`=2 WHERE id=%s;", (result['id'],))
                     return Song(id=result['trackid'],
                                 meta=result['meta'],
                                 length=result['length'])
@@ -250,6 +250,9 @@ class queue(object):
         finally:
             if (self.length < 20):
                 self.append_random(20 - self.length)
+    def clear_pops(self):
+        with MySQLCursor(lock=self._lock) as cur:
+            cur.execute("DELETE FROM `queue` WHERE `type`=2;")
     def check_times(self):
         correct_time = np.end()
         with MySQLCursor(lock=self._lock) as cur:
