@@ -162,7 +162,7 @@ def set_curthread(server, nick, channel, text, hostmask):
     server.privmsg(channel, message)
     
 set_curthread.handler = ("on_text", r'[.!@]thread(\s.*)?',
-                          irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
+                          irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def topic(server, nick, channel, text, hostmask):
     tokens = text.split(' ')
@@ -185,7 +185,7 @@ def topic(server, nick, channel, text, hostmask):
         server.privmsg(channel, u"Topic: {topic}".format(topic=topic))
         
 topic.handler = ("on_text", r'[.!@]topic(\s.*)?',
-                  irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
+                  irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 # TODO:
 #     No way yet to kill the streamer, so this is TODO
