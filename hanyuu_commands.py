@@ -261,6 +261,35 @@ def request_announce(server, song):
 
 request_announce.exposed = True
 
+def random(server, nick, channel, text, hostmask):
+    match = re.match(r"^(?P<mode>[.!@])random\b(?P<query>.*)", text, re.I|re.U)
+    if (match):
+        mode, query = match.group("mode", "query")
+    else:
+        return
+    while True:
+        song = manager.Song.random()
+        value = nick_request_song(song.id, hostmask)
+        if (value == 2):
+            message = u"You have to wait a bit longer before you can request again~"
+            break
+        elif (value == 3):
+            message = u"I'm not streaming right now!"
+            break
+        elif (value == 4):
+            message = u"You have to wait a bit longer before requesting that song~"
+            continue
+        elif (isinstance(value, manager.Song)):
+            manager.queue.append_request(song)
+            request_announce(server, song)
+            return
+    if (mode == "@"):
+        server.privmsg(channel, message)
+    else:
+        server.notice(nick, message)
+        
+random.handler = ("on_text", r'[.!@]random\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
+
 def lucky(server, nick, channel, text, hostmask):
     match = re.match(r"^(?P<mode>[.!@])lucky\s(?P<query>.*)", text, re.I|re.U)
     if (match):

@@ -932,6 +932,17 @@ class Song(object):
                               meta=row['meta'],
                               length=row['len']))
             return result
+    @classmethod
+    def random(cls):
+        from os.path import join
+        with MySQLCursor() as cur:
+            cur.execute("SELECT * FROM `tracks` WHERE `usable`='1' \
+                    ORDER BY RAND() LIMIT 0,1;")
+            for row in cur:
+                return cls(id=row['id'],
+                           meta=row['track'] if row['artist'] == u'' \
+                                else row['artist'] + u' - ' + row['track'],
+                            filename=join(config.music_directory, row['path']))
     def __str__(self):
         return self.__repr__()
     def __repr__(self):
