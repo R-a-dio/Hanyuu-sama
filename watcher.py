@@ -45,7 +45,7 @@ def parse_queue_file():
                     
                     queue.append(manager.Song(meta=song, length=stime))
             else:
-                logging.info("Queue discarded because djid does not match")
+                logging.info("Queue discarded because djid {id} does not match".format(id=djid))
     if (len(queue) > 0):
         manager.queue.clear()
         manager.np.remaining(remaining)
