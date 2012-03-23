@@ -152,22 +152,22 @@ class EmptyQueue(Exception):
 class queue(object):
     _lock = RLock()
     @staticmethod
-    def get_timestamp(cur, type=REGULAR):
-        if (type == REGULAR):
-            cur.execute("SELECT unix_timestamp(time) AS timestamp, length FROM `queue` ORDER BY `time` DESC LIMIT 1;")
-        elif (type == REQUEST):
-            cur.execute("SELECT unix_timestamp(time) AS timestamp, length FROM `queue` WHERE type={type} ORDER BY `time` DESC LIMIT 1;"\
-                        .format(type=type))
-        if (cur.rowcount > 0):
-            result = cur.fetchone()
-            result = result['timestamp'] + int(result['length'])
-        else:
-            result = np.end()
-        return result if result != None else time.time()
+    def get_timestamp(type=REGULAR):
+        with MySQLCursor() as cur:
+            if (type == REGULAR):
+                cur.execute("SELECT unix_timestamp(time) AS timestamp, length FROM `queue` ORDER BY `time` DESC LIMIT 1;", (type,))
+            elif (type == REQUEST):
+                cur.execute("SELECT unix_timestamp(time) AS timestamp, length FROM `queue` WHERE (type=1 OR type=2) ORDER BY `time` DESC LIMIT 1;", (type,))
+            if (cur.rowcount > 0):
+                result = cur.fetchone()
+                result = result['timestamp'] + int(result['length'])
+            else:
+                result = np.end()
+            return result if result != None else time.time()
     
     def append_request(self, song, ip="0.0.0.0"):
         with MySQLCursor(lock=self._lock) as cur:
-            timestamp = self.get_timestamp(cur, REQUEST)
+            timestamp = self.get_timestamp(REQUEST)
             cur.execute("UPDATE `queue` SET time=from_unixtime(\
                             unix_timestamp(time) + %s) WHERE type=0;",
                             (song.length,))
@@ -177,10 +177,11 @@ class queue(object):
             type, meta, length) VALUES (%s, from_unixtime(%s), %s, %s, %s, %s);",
                         (song.id, int(timestamp), ip, REQUEST,
                           song.metadata, song.length))
-  
+        self.check_times()
+    
     def append(self, song):
         with MySQLCursor(lock=self._lock) as cur:
-            timestamp = self.get_timestamp(cur, REGULAR)
+            timestamp = self.get_timestamp(REGULAR)
             cur.execute("INSERT INTO `queue` (trackid, time, type, meta, \
             length) VALUES (%s, from_unixtime(%s), %s, %s, %s);",
                         (song.id, int(timestamp), REGULAR,
@@ -190,7 +191,7 @@ class queue(object):
             Song objects
         """
         with MySQLCursor(lock=self._lock) as cur:
-            timestamp = self.get_timestamp(cur)
+            timestamp = self.get_timestamp(REGULAR)
             for song in songlist:
                 if (song.afk):
                     cur.execute(
@@ -234,6 +235,7 @@ class queue(object):
         #     Adjust the estimated play time for old queues, i.e. update them
         #     if necessary to current times
         #     Vin - this TODO should probably be moved to clear_pops instead
+        #     Vin again - Checking times shouldn't be needed after a pop...
         if (len(self) == 0):
             self.append_random(20)
         try:
@@ -256,14 +258,15 @@ class queue(object):
     def check_times(self):
         correct_time = np.end()
         with MySQLCursor(lock=self._lock) as cur:
-            cur.execute("SELECT unix_timestamp(time) AS time FROM \
+            cur.execute("SELECT id, length, unix_timestamp(time) AS time FROM \
                 `queue` ORDER BY `time` ASC LIMIT 1;")
-            for row in cur:
-                current_time = row['time']
-            difference = correct_time - current_time
-            if (5 > difference > -5):
-                cur.execute("UPDATE `queue` SET `time`=from_unixtime(\
-                    unix_timestamp(time) + %s);", (difference,))
+            with MySQLCursor() as cur2:
+                for row in cur:
+                    id_ = row['id']
+                    length = row['length']
+                    cur2.execute("UPDATE `queue` SET `time`=from_unixtime\
+                    (%s) WHERE id=%s;", (correct_time, id_))
+                    correct_time += length
     def clear(self):
         with MySQLCursor(lock=self._lock) as cur:
             cur.execute("DELETE FROM `queue`;")
