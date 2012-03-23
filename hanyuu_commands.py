@@ -403,6 +403,8 @@ request_help.handler = ("on_text", r'.*how.+request',
 
 def markov_store(server, nick, channel, text, hostmask):
     try:
+        if (nick == "godzilla"):
+            return
         if type(text) == unicode:
             text = text.encode('utf-8') # do i really need to do this? i'm so confused by the unicode in mysql
         if len(text.strip()) > 0:
