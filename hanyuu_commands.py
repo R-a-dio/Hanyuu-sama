@@ -48,6 +48,7 @@ import re
 import config
 import irc
 import manager
+import markov
 
 irc_colours = {"c": u"\x03", "c1": u"\x0301", "c2": u"\x0302",
             "c3": u"\x0303", "c4": u"\x0304", "c5": u"\x0305",
@@ -399,6 +400,25 @@ def request_help(server, nick, channel, text, hostmask):
     
 request_help.handler = ("on_text", r'.*how.+request',
                         irc.ALL_NICKS, irc.MAIN_CHANNELS)
+
+def markov_store(server, nick, channel, text, hostmask):
+    try:
+        if type(text) == unicode:
+            text = text.encode('utf-8') # do i really need to do this? i'm so confused by the unicode in mysql
+        if len(text.strip()) > 0:
+            markov.add_sentence(text)
+    except:
+        logging.exception("Markov store failure")
+    
+markov_store.handler = ("on_text", r'.*', irc.ALL_NICKS, irc.MAIN_CHANNELS)
+
+def markov_say(server, nick, channel, text, hostmask):
+    try:
+        server.privmsg(channel, markov.make_sentence())
+    except:
+        server.privmsg(channel, u'Something went wrong.')
+    
+markov_say.handler = ("on_text", r'[.!]say', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def nick_request_song(trackid, host=None):
     """Gets data about the specified song, for the specified hostmask.
