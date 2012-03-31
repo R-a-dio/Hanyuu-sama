@@ -412,7 +412,7 @@ def markov_store(server, nick, channel, text, hostmask):
     except:
         logging.exception("Markov store failure")
     
-markov_store.handler = ("on_text", r'.*', irc.ALL_NICKS, ['#r/a/dio'])
+#markov_store.handler = ("on_text", r'.*', irc.ALL_NICKS, ['#r/a/dio'])
 
 def markov_say(server, nick, channel, text, hostmask):
     try:
