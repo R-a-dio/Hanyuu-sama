@@ -3,31 +3,14 @@ import mutagen
 import time
 import config
 from random import randint
-from multiprocessing import RLock, Queue
+from multiprocessing import RLock
 import MySQLdb
 import MySQLdb.cursors
-from threading import Event, Thread, Timer
-from multiprocessing.managers import BaseManager, AutoProxy, IteratorProxy, MakeProxyType
+from threading import Event, Thread
+from multiprocessing.managers import RemoteError
 import bootstrap
 
 bootstrap.logging_setup()
-
-def _start(state):
-    global processor_queue
-    if (state):
-        processor_queue = state[0]
-        np.change(state[1])
-    else:
-        processor_queue = None
-    np._event = Event()
-    np.updater = Thread(target=np.send, args=(np._event,))
-    np.updater.name = "Now Playing updater"
-    np.updater.daemon = 1
-    np.updater.start()
-def shutdown():
-    np._event.set()
-    np.updater.join()
-    return (processor_queue, np.song)
 
 class MySQLCursor:
     """Return a connected MySQLdb cursor object"""
@@ -57,90 +40,6 @@ class MySQLCursor:
             self.lock.release()
         return
 
-class Proxy(object):
-    """Generic proxy class, should be subclassed and then the
-    method_list and object_name should be overwritten
-    
-    method_list is a list of strings of method names in the original object
-    to create a proxy of.
-    
-    object_name is a string the name of the specific object this is a proxy off
-    
-    Look at the proxy_np below to see an example
-    """
-    method_list = []
-    object_name = ""
-    def __init__(self, queue):
-        object.__init__(self)
-        self._queue = queue
-    def __getattr__(self, key):
-        if (key in self.method_list):
-            return lambda *a, **k: self._queue.put((self.object_name, key,
-                                                    a, k))
-        else:
-            raise AttributeError()
-        
-def use_queue(queue):
-    """Function to make the whole module use pipe magic to access the functions
-    in the main thread instead of in the process this is used from
-    
-    Current implementation only allows calling the
-    method WITHOUT return value nor exceptions"""
-    class proxy_stream(Proxy):
-        method_list = ["down", "up"]
-        object_name = "stream"
-        UP = True
-        DOWN = False
-        LISTENER = 0
-        STATUS = 1
-        STREAMER = 2
-    class proxy_np(Proxy):
-        method_list = ["change",
-                       "end",
-                       "remaining"]
-        object_name = "np"
-    global np, stream
-    np = proxy_np(queue)
-    stream = proxy_stream(queue)
-    
-def read_queue(q):
-    """blocks on a queue.get, and launches any incoming requests into this
-    process and thread, exceptions are caught and ignored"""
-    logging.info("THREADING: Started manager proxy")
-    while True:
-        call_request = q.get()
-        if (call_request == None):
-            break
-        else:
-            try:
-                obj, key, args, kwargs = call_request
-                obj = globals()[obj]
-                try:
-                    getattr(obj, key)(*args, **kwargs)
-                except (TypeError):
-                    getattr(obj, key)
-            except:
-                pass
-    logging.info("THREADING: Stopped manager proxy")
-processor_queue = None
-
-def get_queue():
-    """Returns a multiprocessing.Queue to send to other processes that require
-    access to the manager pieces that aren't synced with the database
-    
-    You require to call manager.use_queue(queue) when the separate process
-    is started, you don't have to do this if you are accessing manager.lp,
-    manager.queue or manager.Song, those are all synced"""
-    global processor_queue
-    if (not processor_queue):
-        processor_queue = Queue()
-        # This spawns a thread to feed from the queue
-        from threading import Thread
-        thread = Thread(target=read_queue, args=(processor_queue,))
-        thread.name = "Manager Proxy"
-        thread.daemon = 1
-        thread.start()
-    return processor_queue
 REGULAR = 0
 REQUEST = 1
 POPPED = 2
@@ -305,6 +204,7 @@ class LP(object):
         return self.iter()
 
 class Status(object):
+    __metaclass__ = bootstrap.Singleton
     _timeout = time.time() - 60
     @property
     def listeners(self):
@@ -374,73 +274,36 @@ class Status(object):
         """Updates the database with current collected info"""
         with MySQLCursor() as cur:
             cur.execute("INSERT INTO `streamstatus` (id, lastset, \
-                np, djid, listeners, start_time, end_time, \
-                isafkstream) VALUES (0, NOW(), %(np)s, %(djid)s, \
-                %(listener)s, %(start)s, %(end)s, %(afk)s) ON DUPLICATE KEY \
-                UPDATE `lastset`=NOW(), `np`=%(np)s, `djid`=%(djid)s, \
-                `listeners`=%(listener)s, `start_time`=%(start)s, \
-                `end_time`=%(end)s, `isafkstream`=%(afk)s;",
-                        {"np": np.metadata,
-                         "djid": dj.id,
+                djid, listeners \
+                ) VALUES (0, NOW(),%(djid)s, \
+                %(listener)s) ON DUPLICATE KEY \
+                UPDATE `lastset`=NOW(), `djid`=%(djid)s, \
+                `listeners`=%(listener)s;",
+                        {"djid": dj.id,
                          "listener": self.listeners,
-                         "start": np._start,
-                         "end": np.end(),
-                         "afk": 1 if np.afk else 0
                          })
-class NP(object):
-    _end = 0
-    _start = int(time.time())
-    def __init__(self):
-        self.song = Song(meta=u"", length=0.0)
-    def send(self, event):
-        logging.info("THREADING: Starting now playing updater")
-        while not event.is_set():
-            if (status.online):
-                status.update()
-                stream.up(stream.STATUS)
-            else:
-                stream.down(stream.STATUS)
-            time.sleep(10)
-        logging.info("THREADING: Stopping now playing updater")
-    def change(self, song):
-        """Changes the current playing song to 'song' which should be an
-        manager.Song object"""
-        if (song.afk):
-            status.requests_enabled = True
-        else:
-            status.requests_enabled = False
-        if (self.song == song):
-            return
-        if (self.song.metadata != u""):
-            self.song.update(lp=time.time())
-            if (self.song.length == 0):
-                self.song.update(length=(time.time() - self._start))
-        self.song = song
-        self._start = int(time.time())
-        self._end = int(time.time()) + self.song.length
-        import irc
-        try:
-            irc.session.announce()
-        except (AttributeError):
-            pass
-    def remaining(self, remaining):
-        self.song.update(length=(time.time() + remaining) - self._start)
-        self._end = time.time() + remaining
-    @property
-    def position(self):
-        return int(time.time() - self._start)
-    @property
-    def positionf(self):
-        return get_ms(self.position)
-    def end(self):
-        return self._end if self._end != 0 else int(time.time())
-    def __getattr__(self, name):
-        return getattr(self.song, name)
-    def __repr__(self):
-        return "<Playing " + repr(self.song)[1:]
-    def __str__(self):
-        return self.__repr__()
+def start_updater():
+    global updater_event, updater_thread
+    updater_event = Event()
+    updater_thread = Thread(name="Streamstatus Updater",
+                            target=updater,
+                            args=(updater_event,))
+    updater_thread.daemon = 1
+    updater_thread.start()
+    
+def updater(event):
+    logging.info("THREADING: Starting now playing updater")
+    status = Status()
+    while not event.is_set():
+        if (status.online):
+            status.update()
+        time.sleep(10)
+    logging.info("THREADING: Stopping now playing updater")
 
+def stop_updater():
+    updater_event.set()
+    updater_thread.join(11)
+    
 class DJError(Exception):
     pass
 class DJ(object):
@@ -977,82 +840,84 @@ class Song(object):
     def __setstate__(self, state):
         self.__init__(*state)
         
-class Stream(object):
-    UP = True
-    DOWN = False
-    
-    LISTENER = 0
-    STATUS = 1
-    STREAMER = 2
-    
-    streamer = listener = passing = timer = False
-    def shutdown(self, force=False):
-        import bootstrap
-        self.passing = True
-        bootstrap.controller.stop("afkstreamer", force=force)
-    def down(self, reporter, status=None):
-        """Called whenever a component thinks the stream is down, this can
-        be a invalid call so it has to be checked where it came from"""
-        import bootstrap
-        if (reporter == self.STATUS):
-            # Very reliable
-            if (not self.passing):
-                try:
-                    bootstrap.controller.reload("afkstreamer")
-                except:
-                    pass
+class NP(Song):
+    def __init__(self):
+        with MySQLCursor() as cur:
+            cur.execute("SELECT * FROM `streamstatus` LIMIT 1;")
+            for row in cur:
+                Song.__init__(self, id=row['trackid'], meta=row['np'])
+                self._end = row["end_time"]
+                self._start = row["start_time"]
+                break
             else:
-                def load_streamer():
-                    bootstrap.controller.reload("afkstreamer")
-                    self.timer = False
-                    self.passing = False
-                self.timer = Timer(15.0, load_streamer)
-                self.timer.start()
-            if (self.listener):
-                # Stream down? whyi s listener on
-                try:
-                    bootstrap.controller.stop("listener")
-                except:
-                    pass
-        elif (reporter == self.STREAMER):
-            self.streamer = False
-            bootstrap.controller.stop("afkstreamer")
-        elif (reporter == self.LISTENER):
-            self.listener = False
-            bootstrap.controller.stop("listener")
-            
-    def up(self, reporter, status=None):
-        """Called whenever a component thinks the stream is going up
-        only called when the previous state was down"""
-        import bootstrap
-        if (self.timer):
-            self.timer.cancel()
-            self.timer = False
-            self.passing = False
-        if (reporter == self.STATUS):
-            if (not self.streamer) and (not self.listener):
-                try:
-                    bootstrap.controller.reload("listener")
-                except:
-                    pass
-        elif (reporter == self.STREAMER):
-            self.streamer = True
-            if (self.listener):
-                # Listener is on again
-                bootstrap.controller.stop("listener")
-        elif (reporter == self.LISTENER):
-            self.listener = True
-            if (self.streamer):
-                # Why is the listener on
-                bootstrap.controller.stop("listener")
-# declaration goes here
-"""
-stream = stream()
-status = status()
-np = NP()
-dj = dj()
-queue = queue()
-lp = lp()"""
+                Song.__init__(self, u"", length=0.0)
+                self._end = 0
+                self._start = int(time.time())
+    def s_start(self, value):
+        self._start = value
+        with MySQLCursor() as cur:
+            cur.execute("UPDATE `streamstatus` SET `start`=%s", (value,))
+    start = property(lambda self: self._start, s_start)
+    def s_end(self, value):
+        self._end = value
+        with MySQLCursor() as cur:
+            cur.execute("UPDATE `streamstatus` SET `end`=%s", (value,))
+    end = property(lambda self: self._end, s_end)
+    def remaining(self, remaining):
+        self.update(length=(time.time() + remaining) - self.start)
+        self.end = time.time() + remaining
+    @property
+    def position(self):
+        return int(time.time() - self.start)
+    @property
+    def positionf(self):
+        return get_ms(self.position)
+    @classmethod
+    def change(cls, song):
+        """Changes the current playing song to 'song' which should be an
+        manager.Song object"""
+        current = cls()
+        # old stuff
+        if (song.afk):
+            status.requests_enabled = True
+        else:
+            status.requests_enabled = False
+        if (current == song):
+            return
+        if (current.metadata != u""):
+            current.update(lp=time.time())
+            if (current.length == 0):
+                current.update(length=(time.time() - current._start))
+                
+        # New stuff
+        current.start = int(time.time())
+        current.end = int(time.time()) + song.length
+        with MySQLCursor() as cur:
+            cur.execute("INSERT INTO `streamstatus` (id, lastset, \
+                            np, djid, listeners, start_time, end_time, \
+                            isafkstream) VALUES (0, NOW(), %(np)s, %(djid)s, \
+                            %(listener)s, %(start)s, %(end)s, %(afk)s) ON DUPLICATE KEY \
+                            UPDATE `lastset`=NOW(), `np`=%(np)s, `djid`=%(djid)s, \
+                            `listeners`=%(listener)s, `start_time`=%(start)s, \
+                            `end_time`=%(end)s, `isafkstream`=%(afk)s;",
+                                    {"np": song.metadata,
+                                     "djid": dj.id,
+                                     "listener": Status().listeners,
+                                     "start": current._start,
+                                     "end": current._end,
+                                     "afk": 1 if song.afk else 0
+                                     })
+
+        import irc
+        try:
+            irc.connect().announce()
+        except (AttributeError, RemoteError):
+            pass
+    def __repr__(self):
+        return "<Playing " + Song.__repr__(self)[1:]
+    def __str__(self):
+        return self.__repr__()
+    
 # GENERAL TOOLS GO HERE
 
 def get_ms(seconds):
@@ -1078,79 +943,3 @@ def parse_lastplayed(seconds):
         return result.strip()
     else:
         return u'Never before'
-
-class InfoManager(BaseManager):
-    pass
-
-class Info(object):
-    __metaclass__ = bootstrap.Singleton
-    def __init__(self):
-        object.__init__(self)
-        self._np = NP()
-        self._lp = LP()
-        self._queue = Queue
-        self._dj = DJ()
-        self._stream = Stream()
-        self._status = Status()
-    def np(self):
-        return self._np
-    def queue(self):
-        return self._queue
-    def stream(self):
-        return self._stream
-    def status(self):
-        return self._status
-    def lp(self):
-        return self._lp
-    def dj(self):
-        return self._dj
-
-QueueProxy = MakeProxyType("QueueProxy", ('append_request',
-                'append', 'append_many', 'append_random', 'pop',
-                'clear_pops', 'check_times', 'length', '__len__',
-                '__iter__', '__getattr__'))
-
-InfoManager.register("info", Info,
-                     method_to_typeid={
-                                       "np": "generic",
-                                       "queue": "iter",
-                                       "status": "generic",
-                                       "lp": "queue",
-                                       "dj": "generic",
-                                       "stream": "generic",
-                                       })
-InfoManager.register("generic")
-InfoManager.register("queue", proxytype=QueueProxy,
-                     method_to_typeid={
-                                       "__iter__": "iter",
-                                       })
-InfoManager.register("iter", IteratorProxy)
-InfoManager.register("stats", bootstrap.stats)
-
-def start():
-    m = Info()
-    manager = InfoManager(address=config.manager_info, authkey=config.authkey)
-    server = manager.get_server()
-    server.serve_forever()
-    
-def launch_server():
-    manager = InfoManager(address=config.manager_info, authkey=config.authkey)
-    manager.start()
-    global _unrelated_
-    _unrelated_ = manager.info()
-    return manager
-
-def connect():
-    global manager, np, queue, status, lp, dj, stream
-    manager = InfoManager(address=config.manager_info, authkey=config.authkey)
-    manager.connect()
-    info = manager.info()
-    np = info.np()
-    queue = info.queue()
-    status = info.status()
-    lp = info.lp()
-    dj = info.dj()
-    stream = info.stream()
-    
-if __name__ == "__main__":
-    start()
