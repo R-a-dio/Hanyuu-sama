@@ -1,90 +1,33 @@
 import pyices
 import logging
 import config
-import manager
-from multiprocessing import Queue, Process, Pipe
-from threading import Thread, active_count
-from Queue import Empty
+import bootstrap
+from manager import manager
+from multiprocessing.managers import BaseManager
 
-def start(state):
-    global streamer, queue
-    if (state):
-        queue = state
-    else:
-        queue = manager.get_queue()
-    streamer = Streamer(config.icecast_attributes(), queue)
-    return streamer
-
-class Streamer(Process):
+    
+class Streamer(object):
     """Streamer class that streams to a certain server and mountpoint specified
     with attributes which is a dictionary of ... attributes.
     """
-    def __init__(self, attributes, queue):
-        Process.__init__(self)
+    __metaclass__ = bootstrap.Singleton
+    def __init__(self, attributes):
+        object.__init__(self)
         self.name = "AFK Streamer"
-        self._queue = queue # Get our queue before we start
-        self._instance = None
+        self.instance = None
         self.attributes = attributes
         
-        self._i_status, self._o_status = Queue(), Queue()
-        
-        self._shutdown = Queue()
         self.finish_shutdown = False
-        self.start()
-    
-    def stats(self):
-        """Returns information about the process"""
-        self._i_status.put(True)
-        return self._o_status.get(timeout=15)
-    
-    def run(self):
-        # Tell the manager module to use the queue from earlier
-        import bootstrap
-        bootstrap.get_logger("AFKStreamer") # Set logger
         logging.info("PROCESS: Started AFK Streamer")
-        manager.use_queue(self._queue)
         self.connect()
-        force = None
-        while (force is None):
-            try:
-                force = self._shutdown.get(timeout=0.5)
-            except (Empty):
-                pass
-            try:
-                self._i_status.get(block=False)
-            except (Empty):
-                pass
-            else:
-                import threading
-                try:
-                    threads = threading.active_count()
-                    names = [(thread.name, hex(id(thread))) for thread in threading.enumerate()]
-                except:
-                    threads = 0
-                    names = []
-                finally:
-                    self._o_status.put((names, threads))
-        if (force):
-            self._instance.close()
-            self.finish_shutdown = True
-            try:
-                self._shutdown.get(block=False)
-            except Empty:
-                pass
-        else:
-            self.finish_shutdown = True
-            self._shutdown.get()
-            self._instance.close() # Clean up after we get back
-            try:
-                self._shutdown.get(block=False) # Empty the queue if there is any
-            except Empty:
-                pass
-        logging.info("PROCESS: Stopped AFK Streamer")
+        
+    def __del__(self):
+        self.shutdown(force=True)
         
     def connect(self):
         self._playing = False
         instance = pyices.instance(self.attributes)
-        self._instance = instance
+        self.instance = instance
         instance.add_handle("disconnect", self.on_disconnect)
         instance.add_handle("start", self.on_start)
         instance.add_handle("finishing", self.on_finishing)
@@ -99,13 +42,14 @@ class Streamer(Process):
         
     def shutdown(self, force=False):
         """Shuts down the AFK streamer and process"""
-        self._shutdown.put(force)
-        self.join()
-        return self._queue
-            
+        if force:
+            self.instance.close()
+        else:
+            self.finish_shutdown = True
+        logging.info("PROCESS: Stopped AFK Streamer")
+        
     def on_disconnect(self, instance):
         """Handler for streamer disconnection"""
-        manager.stream.down(manager.stream.STREAMER)
         self._playing = False
     
     def on_start(self, instance):
@@ -119,9 +63,16 @@ class Streamer(Process):
         song = manager.queue.pop()
         instance.add_file(song.filename, song.metadata)
         self._next_song = song
+        
     def on_finish(self, instance):
         """Handler for when a file finishes playing completely"""
         manager.queue.clear_pops()
         self._playing = False
         if (self.finish_shutdown):
-            self._shutdown.put(True)
+            self.shutdown(force=True)
+            
+class StreamerManager(BaseManager):
+    pass
+
+StreamerManager.register("stats", bootstrap.stats)
+StreamerManager.register("streamer", Streamer)

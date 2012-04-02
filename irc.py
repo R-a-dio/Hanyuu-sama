@@ -1,11 +1,10 @@
 from threading import Thread
-from multiprocessing import Queue
-from Queue import Empty
 import logging
 import config
 import re
 import irclib
-import manager
+from multiprocessing.managers import BaseManager
+import bootstrap
 
 # Handler constants
 # Channels
@@ -20,85 +19,57 @@ VOICE_NICKS = 4 # Only voiced people can trigger this
 REGULAR_NICKS = 5 # Only regulars can trigger this
 DEV_NICKS = 6 # Only the nicknames defined in config.irc_devs can trigger this
 
-def start(state):
-    global session
-    session = Session()
-    return session
-
-def shutdown():
-    session.close()
-    return None
-
-def use_queue(queue):
-    global session
-    class proxy_session(manager.Proxy):
-        method_list = ["set_topic"]
-        def __init__(self, queue, methods):
-            manager.Proxy.__init__(self, queue)
-            self.method_list = self.method_list + methods
-    session = proxy_session(queue, list(session.exposed))
-    
-def get_queue():
-    global processor_queue
-    try:
-        queue = processor_queue
-    except (NameError):
-        queue = Queue()
-        session._queue = queue
-        processor_queue = queue
-    return queue
-
 class Session(object):
+    __metaclass__ = bootstrap.Singleton
     def __init__(self):
         logging.info("Creating IRC Session")
         self.ready = False
         self.commands = None
         self._handlers = []
-        self._queue = None
         self._active = True
         self.exposed = {}
-        self.irc = irclib.IRC()
+        self._irc = irclib.IRC()
         self.load_handlers()
-        self.irc.add_global_handler("all_events", self._dispatcher)
+        self._irc.add_global_handler("all_events", self._dispatcher)
         self.connect()
         # initialize our process thread
         self.processor_thread = Thread(target=self.processor)
         self.processor_thread.name = "IRC Processor"
         self.processor_thread.daemon = 1
         self.processor_thread.start()
+    def server(self):
+        return self._server
+    def irc(self):
+        return self._irc
     def processor(self):
         # Our shiny thread that processes the socket
         logging.info("THREADING: Started IRC processor")
         while (self._active):
             # Call the process once
-            self.irc.process_once(timeout=1)
+            self._irc.process_once(timeout=1)
             # We also check for new proxy calls from here
-            if (self._queue):
-                try:
-                    call_request = self._queue.get_nowait()
-                except (Empty):
-                    pass
-                else:
-                    # We do fancy things
-                    obj, key, args, kwargs = call_request
-                    try:
-                        self.exposed[key](self.server, *args, **kwargs)
-                    except:
-                        logging.exception("Something broke in IRC")
         logging.info("THREADING: Stopped IRC processor")
     def connect(self):
         # We really only need one server
         if (self._active):
-            self.server = self.irc.server()
-            self.server.connect(config.irc_server,
+            self._server = self._irc.server()
+            self._server.connect(config.irc_server,
                                 config.irc_port,
                                 config.irc_name)
         else:
             raise AssertionError("Can't connect closed Session")
-    def close(self):
+        
+    def connected(self):
+        return self._server.is_connected()
+    
+    def disconnect(self):
+        self._irc.disconnect_all("Disconnected on command")
+        
+    def shutdown(self):
         self._active = False
-        self.irc.disconnect_all("Leaving...")
+        self._irc.disconnect_all("Leaving...")
         self.processor_thread.join()
+        
     def load_handlers(self, load=False):
         # load was ment to be reload, but that fucks up the reload command
         logging.debug("Loading IRC Handlers")
@@ -149,7 +120,7 @@ class Session(object):
                             logging.debug("We can't assign you to something that already exists")
                         else:
                             def create_func(self, func):
-                                return lambda *s, **k: func(self.server, *s, **k)
+                                return lambda *s, **k: func(self._server, *s, **k)
                             setattr(self, name,
                                 create_func(self, func))
                             self.exposed[name] = func
@@ -163,7 +134,7 @@ class Session(object):
         self.exposed = {}
         self.load_handlers(load=True)
     def set_topic(self, channel, topic):
-        self.server.topic(channel, topic)
+        self._server.topic(channel, topic)
     def wait(self, timeout=None):
         if (self.ready):
             return
@@ -220,12 +191,11 @@ class Session(object):
                 else:
                     logging.info("IRC Password configuration incorrect")
             if (hasattr(config, "irc_channels")):
-                try:
-                    channels = ", ".join(config.irc_channels)
-                except (TypeError):
-                    logging.info("IRC Channel configuration incorrect")
-                else:
-                    server.join(channels)
+                for channel in config.irc_channels:
+                    try:
+                        server.join(channel)
+                    except:
+                        logging.info("IRC Channel configuration incorrect")
             self.ready = True
         elif (etype == "pubmsg"):
             # TEXT OH SO MUCH TEXT
@@ -290,3 +260,35 @@ class Session(object):
                         handler[1](server, nick, channel, text, userhost)
                     except:
                         logging.exception("IRC Handler exception")
+                        
+class IRCManager(BaseManager):
+    pass
+
+IRCManager.register("stats", bootstrap.stats)
+IRCManager.register("session", Session,
+                    method_to_typeid={"server": "generic",
+                                      "irc": "generic"})
+IRCManager.register("generic")
+
+def connect():
+    global manager, session
+    manager = IRCManager(address=config.manager_irc, authkey=config.authkey)
+    manager.connect()
+    session = manager.session()
+    return session
+
+def start():
+    s = Session()
+    manager = IRCManager(address=config.manager_irc, authkey=config.authkey)
+    server = manager.get_server()
+    server.serve_forever()
+    
+def launch_server():
+    manager = IRCManager(address=config.manager_irc, authkey=config.authkey)
+    manager.start()
+    global _unrelated_
+    _unrelated_ = manager.session()
+    return manager
+
+if __name__ == "__main__":
+    start()

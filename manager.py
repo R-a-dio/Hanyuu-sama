@@ -7,8 +7,12 @@ from multiprocessing import RLock, Queue
 import MySQLdb
 import MySQLdb.cursors
 from threading import Event, Thread, Timer
+from multiprocessing.managers import BaseManager, AutoProxy, IteratorProxy, MakeProxyType
+import bootstrap
 
-def start(state):
+bootstrap.logging_setup()
+
+def _start(state):
     global processor_queue
     if (state):
         processor_queue = state[0]
@@ -149,7 +153,7 @@ class EmptyQueue(Exception):
 # Check string encoding ? seems to be non-unicode string returned
 # Fix encoding on all metadata
 # Make regular queue go empty when requests get entered
-class queue(object):
+class Queue(object):
     _lock = RLock()
     @staticmethod
     def get_timestamp(type=REGULAR):
@@ -285,7 +289,7 @@ class queue(object):
                            meta=row['meta'],
                            length=row['length'])
 
-class lp(object):
+class LP(object):
     def get(self, amount=5):
         return list(self.iter(amount))
     def iter(self, amount=5):
@@ -300,7 +304,7 @@ class lp(object):
     def __iter__(self):
         return self.iter()
 
-class status(object):
+class Status(object):
     _timeout = time.time() - 60
     @property
     def listeners(self):
@@ -439,7 +443,7 @@ class NP(object):
 
 class DJError(Exception):
     pass
-class dj(object):
+class DJ(object):
     _name = None
     _cache = {}
     def g_id(self):
@@ -973,7 +977,7 @@ class Song(object):
     def __setstate__(self, state):
         self.__init__(*state)
         
-class stream(object):
+class Stream(object):
     UP = True
     DOWN = False
     
@@ -1042,12 +1046,13 @@ class stream(object):
                 # Why is the listener on
                 bootstrap.controller.stop("listener")
 # declaration goes here
+"""
 stream = stream()
 status = status()
 np = NP()
 dj = dj()
 queue = queue()
-lp = lp()
+lp = lp()"""
 # GENERAL TOOLS GO HERE
 
 def get_ms(seconds):
@@ -1073,3 +1078,79 @@ def parse_lastplayed(seconds):
         return result.strip()
     else:
         return u'Never before'
+
+class InfoManager(BaseManager):
+    pass
+
+class Info(object):
+    __metaclass__ = bootstrap.Singleton
+    def __init__(self):
+        object.__init__(self)
+        self._np = NP()
+        self._lp = LP()
+        self._queue = Queue
+        self._dj = DJ()
+        self._stream = Stream()
+        self._status = Status()
+    def np(self):
+        return self._np
+    def queue(self):
+        return self._queue
+    def stream(self):
+        return self._stream
+    def status(self):
+        return self._status
+    def lp(self):
+        return self._lp
+    def dj(self):
+        return self._dj
+
+QueueProxy = MakeProxyType("QueueProxy", ('append_request',
+                'append', 'append_many', 'append_random', 'pop',
+                'clear_pops', 'check_times', 'length', '__len__',
+                '__iter__', '__getattr__'))
+
+InfoManager.register("info", Info,
+                     method_to_typeid={
+                                       "np": "generic",
+                                       "queue": "iter",
+                                       "status": "generic",
+                                       "lp": "queue",
+                                       "dj": "generic",
+                                       "stream": "generic",
+                                       })
+InfoManager.register("generic")
+InfoManager.register("queue", proxytype=QueueProxy,
+                     method_to_typeid={
+                                       "__iter__": "iter",
+                                       })
+InfoManager.register("iter", IteratorProxy)
+InfoManager.register("stats", bootstrap.stats)
+
+def start():
+    m = Info()
+    manager = InfoManager(address=config.manager_info, authkey=config.authkey)
+    server = manager.get_server()
+    server.serve_forever()
+    
+def launch_server():
+    manager = InfoManager(address=config.manager_info, authkey=config.authkey)
+    manager.start()
+    global _unrelated_
+    _unrelated_ = manager.info()
+    return manager
+
+def connect():
+    global manager, np, queue, status, lp, dj, stream
+    manager = InfoManager(address=config.manager_info, authkey=config.authkey)
+    manager.connect()
+    info = manager.info()
+    np = info.np()
+    queue = info.queue()
+    status = info.status()
+    lp = info.lp()
+    dj = info.dj()
+    stream = info.stream()
+    
+if __name__ == "__main__":
+    start()
