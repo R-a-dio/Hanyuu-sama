@@ -30,7 +30,7 @@ def parse_queue_file():
                 djid = int(djid)
             except ValueError:
                 djid = None
-            if (manager.dj.id == djid):
+            if (manager.DJ().id == djid):
                 for line in file:
                     line = line.strip()
                     if line == "":
@@ -47,11 +47,12 @@ def parse_queue_file():
             else:
                 logging.info("Queue discarded because djid {id} does not match".format(id=djid))
     if (len(queue) > 0):
-        manager.queue.clear()
-        manager.np.remaining(remaining)
-        manager.queue.append_many(queue)
+        _queue = manager.Queue()
+        _queue.clear()
+        manager.NP().remaining(remaining)
+        _queue.append_many(queue)
         try:
-            logging.info("Finished queue from {name}".format(name=manager.dj.name))
+            logging.info("Finished queue from {name}".format(name=manager.DJ().name))
         except:
             logging.info("Finished queue update by Unknown")
             

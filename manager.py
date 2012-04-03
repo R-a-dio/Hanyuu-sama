@@ -6,7 +6,7 @@ from random import randint
 from multiprocessing import RLock
 import MySQLdb
 import MySQLdb.cursors
-from threading import Event, Thread
+from threading import Event, Thread, current_thread
 from multiprocessing.managers import RemoteError
 import bootstrap
 
@@ -15,27 +15,31 @@ bootstrap.logging_setup()
 class MySQLCursor:
     """Return a connected MySQLdb cursor object"""
     counter = 0
+    cache = {}
     def __init__(self, cursortype=MySQLdb.cursors.DictCursor, lock=None):
-        self.counter += 1
-        self.conn = MySQLdb.connect(host=config.dbhost,
+        threadid = current_thread().ident
+        if (self.cache[threadid]):
+            self.conn = self.cache[threadid]
+            self.conn.ping(reconnect=True)
+        else:
+            self.conn = MySQLdb.connect(host=config.dbhost,
                                 user=config.dbuser,
                                 passwd=config.dbpassword,
                                 db=config.dbtable,
                                 charset='utf8',
                                 use_unicode=True)
+            self.cache[threadid] = self.conn
         self.curtype = cursortype
         self.lock = lock
     def __enter__(self):
         if (self.lock != None):
             self.lock.acquire()
         self.cur = self.conn.cursor(self.curtype)
-        self.cur.escape_string = MySQLdb.escape_string
         return self.cur
         
     def __exit__(self, type, value, traceback):
         self.cur.close()
         self.conn.commit()
-        self.conn.close()
         if (self.lock != None):
             self.lock.release()
         return
@@ -53,6 +57,7 @@ class EmptyQueue(Exception):
 # Fix encoding on all metadata
 # Make regular queue go empty when requests get entered
 class Queue(object):
+    __metaclass__ = bootstrap.Singleton
     _lock = RLock()
     @staticmethod
     def get_timestamp(type=REGULAR):
@@ -65,7 +70,7 @@ class Queue(object):
                 result = cur.fetchone()
                 result = result['timestamp'] + int(result['length'])
             else:
-                result = np.end()
+                result = NP().end()
             return result if result != None else time.time()
     
     def append_request(self, song, ip="0.0.0.0"):
@@ -146,7 +151,8 @@ class Queue(object):
                 cur.execute("SELECT * FROM `queue` ORDER BY `time` ASC LIMIT 1;")
                 if (cur.rowcount > 0):
                     result = cur.fetchone()
-                    cur.execute("UPDATE `queue` SET `type`=2 WHERE id=%s;", (result['id'],))
+                    cur.execute("UPDATE `queue` SET `type`=2 WHERE id=%s;",
+                                (result['id'],))
                     return Song(id=result['trackid'],
                                 meta=result['meta'],
                                 length=result['length'])
@@ -159,7 +165,7 @@ class Queue(object):
         with MySQLCursor(lock=self._lock) as cur:
             cur.execute("DELETE FROM `queue` WHERE `type`=2;")
     def check_times(self):
-        correct_time = np.end()
+        correct_time = NP().end()
         with MySQLCursor(lock=self._lock) as cur:
             cur.execute("SELECT id, length, unix_timestamp(time) AS time FROM \
                 `queue` ORDER BY `time` ASC LIMIT 1;")
@@ -206,6 +212,7 @@ class LP(object):
 class Status(object):
     __metaclass__ = bootstrap.Singleton
     _timeout = time.time() - 60
+    _handlers = []
     @property
     def listeners(self):
         return int(self.cached_status.get('Current Listeners', 0))
@@ -268,8 +275,15 @@ class Status(object):
     def status(self):
         import streamstatus
         self._status = streamstatus.get_status(config.icecast_server)
+        for handle in self._handlers:
+            try:
+                handle(self._status)
+            except:
+                logging.exception("Status handler failed")
         self._timeout = time.time()
         return self._status
+    def add_handler(self, handle):
+        self._handlers.append(handle)
     def update(self):
         """Updates the database with current collected info"""
         with MySQLCursor() as cur:

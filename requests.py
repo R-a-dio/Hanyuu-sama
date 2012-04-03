@@ -1,56 +1,35 @@
 import logging
 import config
 import time
-from multiprocessing import Process, Queue
 from threading import Thread
-from Queue import Empty
 from flup.server.fcgi import WSGIServer
 import manager
 import irc
+from multiprocessing.managers import BaseManager
+import bootstrap
 
-def start(state):
-    global fastcgi
-    if (state):
-        queue = state
-    else:
-        queue = irc.get_queue()
-    fastcgi = FastCGIServer(queue=queue)
-    return fastcgi
-
-def shutdown():
-    return fastcgi.shutdown()
-
-class FastCGIServer(Process):
+class FastCGIServer(Thread):
     """Starts a fastcgi server that handles our requests,
     runs in a separate process, supply a problem_handler
     and it will be called when the process shuts down.
     
     DO NOTE that the handler is called in the separate process"""
+    __metaclass__ = bootstrap.Singleton
     def __init__(self, problem_handler=lambda: None, queue=None):
-        Process.__init__(self)
+        Thread.__init__(self)
+        bootstrap.logging_setup()
         self.handler = problem_handler
-        self._shutdown = Queue()
-        self._queue = queue
-        
-        self._i_status, self._o_status = Queue(), Queue()
+        # Setup manager classes we need
+        self.queue = manager.Queue()
+        self.status = manager.Status()
         
         self.name = "Request FastCGI Server"
         self.daemon = 1
         self.start()
-        
-    def stats(self):
-        self._i_status.put(True)
-        return self._o_status.get(timeout=15)
     
     def run(self):
         """Internal"""
-        import bootstrap
-        thread = Thread(target=self.check_shutdown, args=(self._shutdown,))
-        thread.name = "FastCGI Shutdown"
-        thread.start()
-        bootstrap.get_logger("Requests") # Setup logging
-        logging.info("PROCESS: Started FastCGI")
-        irc.use_queue(self._queue)
+        logging.info("Started FastCGI")
         try:
             self.server = WSGIServer(self.external_request,
                             bindAddress=config.fastcgi_socket,
@@ -58,40 +37,13 @@ class FastCGIServer(Process):
             self.server.run()
         finally:
             self.handler()
-        logging.info("PROCESS: Stopped FastCGI")
-        
+        logging.info("Stopped FastCGI")
+    
     def shutdown(self):
-        """Shuts down the fastcgi server and process"""
-        self._shutdown.put(True)
-        self.join()
-        return self._queue
-    def check_shutdown(self, shutdown):
-        """Internal"""
-        logging.info("THREADING: Started FastCGI shutdown thread")
-        shut = False
-        while not shut:
-            try:
-                shut = shutdown.get(timeout=0.5)
-            except (Empty):
-                pass
-            try:
-                self._i_status.get(block=False)
-            except (Empty):
-                pass
-            else:
-                import threading
-                try:
-                    threads = threading.active_count()
-                    names = [(thread.name, hex(id(thread))) for thread in threading.enumerate()]
-                except:
-                    threads = 0
-                    names = []
-                finally:
-                    self._o_status.put((names, threads))
         self.server._exit()
-        logging.info("THREADING: Stopped FastCGI shutdown thread")
+    
     def external_request(self, environ, start_response):
-        if (manager.status.requests_enabled):
+        if (self.status.requests_enabled):
             def is_int(num):
                 try:
                     int(num)
@@ -177,10 +129,10 @@ class FastCGIServer(Process):
                         `priority`=priority+4 WHERE `id`=%s;", (trackid,))
                         song = manager.Song(trackid)
                         try:
-                            irc.session.request_announce(song)
+                            irc.connect().request_announce(song)
                         except:
                             logging.exception("Announcing request failure")
-                        manager.queue.append_request(song, environ["REMOTE_ADDR"])
+                        self.queue.append_request(song, environ["REMOTE_ADDR"])
             else:
                 sitetext = "Invalid parameter."
         else:
@@ -197,3 +149,35 @@ class FastCGIServer(Process):
         yield '<center><h3>You will be redirected shortly.</h3></center>'
         yield '</body>'
         yield '</html>'
+        
+class FastcgiManager(BaseManager):
+    pass
+
+FastcgiManager.register("stats", bootstrap.stats)
+FastcgiManager.register("fastcgi", FastCGIServer)
+
+def connect():
+    global manager, server
+    manager = FastcgiManager(address=config.manager_fastcgi,
+                             authkey=config.authkey)
+    manager.connect()
+    server = manager.fastcgi()
+    return server
+
+def start():
+    s = FastCGIServer()
+    manager = FastcgiManager(address=config.manager_fastcgi,
+                             authkey=config.authkey)
+    server = manager.get_server()
+    server.serve_forever()
+    
+def launch_server():
+    manager = FastcgiManager(address=config.manager_fastcgi,
+                         authkey=config.authkey)
+    manager.start()
+    global _related_
+    _unrelated_ = manager.fastcgi()
+    return manager
+
+if __name__ == "__main__":
+    start()

@@ -8,7 +8,7 @@ from threading import Thread
 import manager
 import logging
 
-def start(state):
+def start():
     global listener, thread
     listener = Listener()
     def wrapper():
@@ -20,6 +20,10 @@ def start(state):
     thread.daemon = 1
     thread.start()
     return listener
+    
+def shutdown():
+    listener.clone_when_done()
+    thread.join()
     
 class Listener(async_chat):
     READING_DATA = 0
@@ -35,6 +39,7 @@ class Listener(async_chat):
         self.push(self.obuffer)
         self.set_terminator('\r\n\r\n')
         self.status = self.READING_HEADERS
+        self.active = True
         
     def shutdown(self):
         self.close_when_done()
@@ -45,8 +50,8 @@ class Listener(async_chat):
         self.ibuffer.append(data)
     
     def handle_close(self):
+        self.active = False
         self.close() # don't forget to close the original
-        manager.stream.down(manager.stream.LISTENER) # Tell the manager
         
     def parse_headers(self, headers):
         self.headers = {}
@@ -82,7 +87,6 @@ class Listener(async_chat):
             # set terminator to that int
             self.set_terminator(self.metaint)
             # Icecast always sends data after the headers, so go to that mode
-            manager.stream.up(manager.stream.LISTENER)
             self.status = self.READING_DATA
             
         elif (self.status == self.READING_METASIZE):
@@ -113,9 +117,9 @@ class Listener(async_chat):
             if (metadata == "fallback"):
                 self.handle_close()
             new_song = manager.Song(meta=metadata)
-
-            if (manager.np != new_song):
-                manager.np.change(new_song)
+            np = manager.NP()
+            if (np != new_song):
+                np.change(new_song)
             
             # flush buffer
             self.ibuffer = []

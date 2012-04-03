@@ -3,6 +3,7 @@ import HTMLParser
 import MultiDict
 import logging
 import config
+from urllib2 import HTTPError
 
 def get_status(icecast_server):
     try:

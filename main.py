@@ -1,43 +1,103 @@
-def main():
-    import bootstrap
-    controller = bootstrap.Controller()
-    # First the manager to start up the status thread and other functionality
-    controller.load("manager")
-    # We can now safely import manager here
-    # get IRC ready
+import manager as m
+import irc
+import watcher
+import requests
+import afkstreamer
+import time
+import listener
+from multiprocessing.managers import BaseManager
+import bootstrap
+import config
 
-    controller.load("irc")
-    import time
-    time.sleep(1)
-    import irc
-    while (not hasattr(irc, "session")):
-        time.sleep(0.1)
-    irc.session.wait(timeout=30)
-    controller.load("requests")
-    controller.load("watcher")
+class Switch(object):
+    def __init__(self, initial, timeout=15):
+        object.__init__(self)
+        self.state = initial
+        self.timeout = time.time() + timeout
+    def __nonzero__(self):
+        return False if self.timeout <= time.time() else self.state
+    def __bool__(self):
+        return False if self.timeout <= time.time() else self.state
     
-    # Get ready to make our interpreter
-    import code
-    try:
-        say = lambda text: controller.get("irc").server.privmsg("#r/a/dio", text)
-    except (AttributeError):
-        say = lambda text: "IRC Failed to initialize"
-    int_local = {"controller": controller,
-              "irc": controller.get("irc"),
-              "manager": controller.get("manager"),
-              'say': say,
-              'stats': controller.stats,
-              'shutdown': controller.shutdown
-              }
-    code.InteractiveConsole(int_local)\
-        .interact("Welcome to the Hanyuu console"
-                  " , the following variables are"
-                  " defined for your convenience:"
-                  "\n\n\t'irc': the irc.Session object"
-                  "\n\t'manager': the manager module"
-                  "\n\t'controller': the bootstrap.Controller object"
-                  "\n\n\t'say': Talk in #r/a/dio channel"
-                  "\n\t'stats': Returns a small overview of the current state"
-                  "\n\t'shutdown': Tries to shut down everything")
+class StatusUpdate(object):
+    __metaclass__ = bootstrap.Singleton
+    def __init__(self):
+        object.__init__(self)
+        self.status = m.Status()
+        self.status.add_handler(self)
+        self.streamer = afkstreamer.Streamer(config.icecast_attributes())
+        self.listener = None
+        self.switching = False
+    def switch_dj(self, force=False):
+        self.switching = Switch(True)
+        # Call shutdown
+        self.streamer.shutdown(force)
+    def __call__(self, info):
+        if ("/main.mp3" not in info):
+            # There is no /main.mp3 mountpoint right now
+            # Create afk streamer
+            if (self.streamer.connected):
+                # The streamer is already up? but no mountpoint?
+                # close it
+                self.streamer.shutdown(force=True)
+                # are we switching DJ?
+                if (not self.switching):
+                    self.streamer.connect()
+            else:
+                # no streamer up, and no mountpoint
+                if (not self.switching):
+                    self.streamer.connect()
+        elif (not self.streamer.connected):
+            # No streamer is active, there is a DJ streaming
+            if (not self.listener):
+                # There is no listener active, create one
+                self.listener = listener.start()
+            elif (not self.listener.active):
+                # The listener died restart it
+                self.listener.shutdown()
+                self.listener = listener.start()
+                    
+class StreamManager(BaseManager):
+    pass
+
+StreamManager.register("stats", bootstrap.stats)
+StreamManager.register("Stream", StatusUpdate)
+
+def connect():
+    global manager, stream
+    manager = StreamManager(address=config.manager_stream, authkey=config.authkey)
+    manager.connect()
+    stream = manager.Stream()
+    return stream
+
+def start():
+    s = StatusUpdate()
+    manager = StreamManager(address=config.manager_stream, authkey=config.authkey)
+    server = manager.get_server()
+    server.serve_forever()
+    
+def launch_server():
+    manager = StreamManager(address=config.manager_stream, authkey=config.authkey)
+    manager.start()
+    global _unrelated_
+    _unrelated_ = manager.Stream()
+    return manager
+
+def main():
+    # Start IRC server
+    irc.launch_server()
+    
+    # Start streamstatus updater
+    m.start_updater()
+    
+    # Start listener/streamer
+    launch_server()
+    
+    # Start queue watcher ? why is this even in hanyuu
+    watcher.start()
+    
+    # Start request server
+    requests.launch_server()
+    
 if __name__ == "__main__":
     main()
