@@ -19,12 +19,16 @@ class Streamer(object):
         self.shutdown(force=True)
     @property
     def connected(self):
-        return self.instance.connected()
+        try:
+            return self.instance.connected()
+        except (AttributeError):
+            return False
     def connect(self):
         self.queue = manager.Queue()
         self.finish_shutdown = False
         self.instance = pyices.instance(self.attributes,
                                         file_method=self.supply_song)
+        self.instance.start()
         
     def shutdown(self, force=False):
         """Shuts down the AFK streamer and process"""

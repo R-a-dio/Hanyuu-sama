@@ -23,37 +23,53 @@ class StatusUpdate(object):
     __metaclass__ = bootstrap.Singleton
     def __init__(self):
         object.__init__(self)
+        
+        # Start streamstatus updater
+        m.start_updater()
+        
         self.status = m.Status()
         self.status.add_handler(self)
         self.streamer = afkstreamer.Streamer(config.icecast_attributes())
         self.listener = None
         self.switching = False
     def switch_dj(self, force=False):
-        self.switching = Switch(True)
+        if (force):
+            self.switching = Switch(True)
+        else:
+            np = m.NP()
+            self.switching = Switch(True, (np.length - np.position) + 15)
         # Call shutdown
         self.streamer.shutdown(force)
     def __call__(self, info):
         if ("/main.mp3" not in info):
+            print "NO /main.mp3"
             # There is no /main.mp3 mountpoint right now
             # Create afk streamer
             if (self.streamer.connected):
+                print "Streamer is already up"
                 # The streamer is already up? but no mountpoint?
                 # close it
                 self.streamer.shutdown(force=True)
                 # are we switching DJ?
                 if (not self.switching):
+                    print "trying to connect"
                     self.streamer.connect()
             else:
                 # no streamer up, and no mountpoint
+                print "Streamer isn't up"
                 if (not self.switching):
+                    print "Trying connection"
                     self.streamer.connect()
         elif (not self.streamer.connected):
+            print "there is a DJ streaming?"
             # No streamer is active, there is a DJ streaming
             if (not self.listener):
+                print "Listener not here, creating it"
                 # There is no listener active, create one
                 self.listener = listener.start()
             elif (not self.listener.active):
                 # The listener died restart it
+                print "listener died, creating a new one"
                 self.listener.shutdown()
                 self.listener = listener.start()
                     
@@ -86,10 +102,7 @@ def launch_server():
 def main():
     # Start IRC server
     irc.launch_server()
-    
-    # Start streamstatus updater
-    m.start_updater()
-    
+        
     # Start listener/streamer
     launch_server()
     
@@ -97,7 +110,7 @@ def main():
     watcher.start()
     
     # Start request server
-    requests.launch_server()
+    #requests.launch_server()
     
 if __name__ == "__main__":
     main()

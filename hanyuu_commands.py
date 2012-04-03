@@ -48,7 +48,6 @@ import re
 import config
 import irc
 import manager
-import markov
 import main
 
 irc_colours = {"c": u"\x03", "c1": u"\x0301", "c2": u"\x0302",
@@ -201,7 +200,7 @@ def kill_afk(server, nick, channel, text, hostmask):
     if (server.isop(channel, nick)):
         try:
             stream = main.connect()
-            stream.shutdown(force=True)
+            stream.switch_dj(force=True)
             message = u"Forced AFK Streamer down,\
                         please connect in 15 seconds or less."
         except:
@@ -220,7 +219,7 @@ def shut_afk(server, nick, channel, text, hostmask):
     if (server.isop(channel, nick)):
         try:
             stream = main.connect()
-            stream.shutdown()
+            stream.switch_dj()
             message = u'AFK Streamer will disconnect after current track, use ".kill" to force disconnect.'
         except:
             message = u"Something went wrong, please punch Wessie."
@@ -389,6 +388,7 @@ request_help.handler = ("on_text", r'.*how.+request',
                         irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def markov_store(server, nick, channel, text, hostmask):
+    import markov
     try:
         if (nick == "godzilla"):
             return
@@ -402,6 +402,7 @@ def markov_store(server, nick, channel, text, hostmask):
 #markov_store.handler = ("on_text", r'.*', irc.ALL_NICKS, ['#r/a/dio'])
 
 def markov_say(server, nick, channel, text, hostmask):
+    import markov
     try:
         server.privmsg(channel, markov.make_sentence())
     except:
@@ -437,7 +438,7 @@ def nick_request_song(trackid, host=None):
                 if int(time.time()) - int(row['timestamp']) < 3600:
                     can_request = False
         can_afk = True
-        cur.execute("SELECT isafkstream FROM `streamstatus`;")
+        cur.execute("SELECT isafkstream FROM `streamstatus` WHERE `id`=0;")
         if cur.rowcount == 1:
             row = cur.fetchone()
             afk = row['isafkstream']

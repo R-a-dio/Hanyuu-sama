@@ -5,11 +5,12 @@ import config
 import manager
 from os import path
 
-def start(state):
+def start():
     global notifier
     wm = pi.WatchManager()
     notifier = pi.ThreadedNotifier(wm, handler())
     notifier.name = "Queue Watcher"
+    notifier.daemon = 1
     notifier.start()
     wdd = wm.add_watch(config.watcher_path, pi.IN_MODIFY)
     

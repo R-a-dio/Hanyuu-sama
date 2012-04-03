@@ -18,9 +18,9 @@ class MySQLCursor:
     cache = {}
     def __init__(self, cursortype=MySQLdb.cursors.DictCursor, lock=None):
         threadid = current_thread().ident
-        if (self.cache[threadid]):
+        if (threadid in self.cache):
             self.conn = self.cache[threadid]
-            self.conn.ping(reconnect=True)
+            self.conn.ping(True)
         else:
             self.conn = MySQLdb.connect(host=config.dbhost,
                                 user=config.dbuser,
@@ -63,14 +63,14 @@ class Queue(object):
     def get_timestamp(type=REGULAR):
         with MySQLCursor() as cur:
             if (type == REGULAR):
-                cur.execute("SELECT unix_timestamp(time) AS timestamp, length FROM `queue` ORDER BY `time` DESC LIMIT 1;", (type,))
+                cur.execute("SELECT unix_timestamp(time) AS timestamp, length FROM `queue` ORDER BY `time` DESC LIMIT 1;")
             elif (type == REQUEST):
-                cur.execute("SELECT unix_timestamp(time) AS timestamp, length FROM `queue` WHERE (type=1 OR type=2) ORDER BY `time` DESC LIMIT 1;", (type,))
+                cur.execute("SELECT unix_timestamp(time) AS timestamp, length FROM `queue` WHERE (type=1 OR type=2) ORDER BY `time` DESC LIMIT 1;")
             if (cur.rowcount > 0):
                 result = cur.fetchone()
                 result = result['timestamp'] + int(result['length'])
             else:
-                result = NP().end()
+                result = NP().end
             return result if result != None else time.time()
     
     def append_request(self, song, ip="0.0.0.0"):
@@ -165,7 +165,7 @@ class Queue(object):
         with MySQLCursor(lock=self._lock) as cur:
             cur.execute("DELETE FROM `queue` WHERE `type`=2;")
     def check_times(self):
-        correct_time = NP().end()
+        correct_time = NP().end
         with MySQLCursor(lock=self._lock) as cur:
             cur.execute("SELECT id, length, unix_timestamp(time) AS time FROM \
                 `queue` ORDER BY `time` ASC LIMIT 1;")
@@ -873,12 +873,12 @@ class NP(Song):
     def s_start(self, value):
         self._start = value
         with MySQLCursor() as cur:
-            cur.execute("UPDATE `streamstatus` SET `start`=%s", (value,))
+            cur.execute("UPDATE `streamstatus` SET `start_time`=%s", (value,))
     start = property(lambda self: self._start, s_start)
     def s_end(self, value):
         self._end = value
         with MySQLCursor() as cur:
-            cur.execute("UPDATE `streamstatus` SET `end`=%s", (value,))
+            cur.execute("UPDATE `streamstatus` SET `end_time`=%s", (value,))
     end = property(lambda self: self._end, s_end)
     def remaining(self, remaining):
         self.update(length=(time.time() + remaining) - self.start)
@@ -896,9 +896,9 @@ class NP(Song):
         current = cls()
         # old stuff
         if (song.afk):
-            status.requests_enabled = True
+            Status().requests_enabled = True
         else:
-            status.requests_enabled = False
+            Status().requests_enabled = False
         if (current == song):
             return
         if (current.metadata != u""):
@@ -912,17 +912,18 @@ class NP(Song):
         with MySQLCursor() as cur:
             cur.execute("INSERT INTO `streamstatus` (id, lastset, \
                             np, djid, listeners, start_time, end_time, \
-                            isafkstream) VALUES (0, NOW(), %(np)s, %(djid)s, \
-                            %(listener)s, %(start)s, %(end)s, %(afk)s) ON DUPLICATE KEY \
+                            isafkstream, trackid) VALUES (0, NOW(), %(np)s, %(djid)s, \
+                            %(listener)s, %(start)s, %(end)s, %(afk)s, %(trackid)s) ON DUPLICATE KEY \
                             UPDATE `lastset`=NOW(), `np`=%(np)s, `djid`=%(djid)s, \
                             `listeners`=%(listener)s, `start_time`=%(start)s, \
-                            `end_time`=%(end)s, `isafkstream`=%(afk)s;",
+                            `end_time`=%(end)s, `isafkstream`=%(afk)s, `trackid`=%(trackid)s;",
                                     {"np": song.metadata,
-                                     "djid": dj.id,
+                                     "djid": DJ().id,
                                      "listener": Status().listeners,
                                      "start": current._start,
                                      "end": current._end,
-                                     "afk": 1 if song.afk else 0
+                                     "afk": 1 if song.afk else 0,
+                                     "trackid": song.id
                                      })
 
         import irc

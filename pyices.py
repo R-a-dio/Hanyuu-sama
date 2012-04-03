@@ -14,7 +14,7 @@ class Transcoder(object):
     def __init__(self, file_method):
         """Accepts a file_method that is called whenever the previous
         file finished decoding, should return a full filepath"""
-        object.__init__(self, file_method)
+        object.__init__(self)
         
         self.file_method = file_method
         
@@ -103,7 +103,7 @@ description - longer stream description
         for key, value in self.attributes.iteritems():
             if (key not in ["metadata"]):
                 setattr(self._shout, key, value)
-        self.metadata = (True, "Currently have no metadata available")
+        self.metadata = [True, "Currently have no metadata available"]
         self.daemon = 1
         self.name = "Streamer Instance"
     

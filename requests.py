@@ -23,6 +23,10 @@ class FastCGIServer(Thread):
         self.queue = manager.Queue()
         self.status = manager.Status()
         
+        self.server = WSGIServer(self.external_request,
+                bindAddress=config.fastcgi_socket,
+                umask=0)
+        
         self.name = "Request FastCGI Server"
         self.daemon = 1
         self.start()
@@ -31,9 +35,6 @@ class FastCGIServer(Thread):
         """Internal"""
         logging.info("Started FastCGI")
         try:
-            self.server = WSGIServer(self.external_request,
-                            bindAddress=config.fastcgi_socket,
-                            umask=0)
             self.server.run()
         finally:
             self.handler()
