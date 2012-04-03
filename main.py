@@ -1,13 +1,13 @@
 import manager as m
 import irc
 import watcher
-import requests
 import afkstreamer
 import time
 import listener
 from multiprocessing.managers import BaseManager
 import bootstrap
 import config
+import logging
 
 class Switch(object):
     def __init__(self, initial, timeout=15):
@@ -42,34 +42,34 @@ class StatusUpdate(object):
         self.streamer.shutdown(force)
     def __call__(self, info):
         if ("/main.mp3" not in info):
-            print "NO /main.mp3"
+            logging.debug("No /main.mp3 mountpoint found.")
             # There is no /main.mp3 mountpoint right now
             # Create afk streamer
             if (self.streamer.connected):
-                print "Streamer is already up"
+                logging.debug("Streamer is already connected")
                 # The streamer is already up? but no mountpoint?
                 # close it
                 self.streamer.shutdown(force=True)
                 # are we switching DJ?
                 if (not self.switching):
-                    print "trying to connect"
+                    logging.debug("Streamer trying to reconnect")
                     self.streamer.connect()
             else:
                 # no streamer up, and no mountpoint
-                print "Streamer isn't up"
+                logging.debug("Streamer is not connected")
                 if (not self.switching):
-                    print "Trying connection"
+                    logging.debug("Streaming trying to connect")
                     self.streamer.connect()
         elif (not self.streamer.connected):
-            print "there is a DJ streaming?"
+            logging.debug("We have a /main.mp3 mountpoint and no streamer, must be DJ")
             # No streamer is active, there is a DJ streaming
             if (not self.listener):
-                print "Listener not here, creating it"
+                logging.debug("Listener isn't active, starting it")
                 # There is no listener active, create one
                 self.listener = listener.start()
             elif (not self.listener.active):
                 # The listener died restart it
-                print "listener died, creating a new one"
+                logging.debug("Listener isn't active anymore, restarting it")
                 self.listener.shutdown()
                 self.listener = listener.start()
                     

@@ -8,7 +8,8 @@ import irc
 from multiprocessing.managers import BaseManager
 import bootstrap
 
-class FastCGIServer(Thread):
+#class FastCGIServer(Thread):
+class FastCGIServer(object):
     """Starts a fastcgi server that handles our requests,
     runs in a separate process, supply a problem_handler
     and it will be called when the process shuts down.
@@ -16,7 +17,8 @@ class FastCGIServer(Thread):
     DO NOTE that the handler is called in the separate process"""
     __metaclass__ = bootstrap.Singleton
     def __init__(self, problem_handler=lambda: None, queue=None):
-        Thread.__init__(self)
+        #Thread.__init__(self)
+        object.__init__(self)
         bootstrap.logging_setup()
         self.handler = problem_handler
         # Setup manager classes we need
@@ -27,9 +29,9 @@ class FastCGIServer(Thread):
                 bindAddress=config.fastcgi_socket,
                 umask=0)
         
-        self.name = "Request FastCGI Server"
-        self.daemon = 1
-        self.start()
+        #self.name = "Request FastCGI Server"
+        #self.daemon = 1
+        #self.start()
     
     def run(self):
         """Internal"""
@@ -181,4 +183,5 @@ def launch_server():
     return manager
 
 if __name__ == "__main__":
-    start()
+    server = FastCGIServer()
+    server.run()
