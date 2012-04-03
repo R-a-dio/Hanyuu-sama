@@ -288,13 +288,12 @@ class Status(object):
         """Updates the database with current collected info"""
         with MySQLCursor() as cur:
             cur.execute("INSERT INTO `streamstatus` (id, lastset, \
-                djid, listeners \
-                ) VALUES (0, NOW(),%(djid)s, \
+                listeners \
+                ) VALUES (0, NOW(), \
                 %(listener)s) ON DUPLICATE KEY \
-                UPDATE `lastset`=NOW(), `djid`=%(djid)s, \
+                UPDATE `lastset`=NOW(), \
                 `listeners`=%(listener)s;",
-                        {"djid": dj.id,
-                         "listener": self.listeners,
+                        {"listener": self.listeners,
                          })
 def start_updater():
     global updater_event, updater_thread
@@ -372,6 +371,10 @@ class DJ(object):
         if (self.user == None):
             self._name = old_name
             raise TypeError("Invalid name, no such DJ")
+        else:
+            with MySQLCursor() as cur:
+                cur.execute("UPDATE streamstatus SET djid=%s",
+                            (self.id))
     name = property(g_name, s_name)
     @property
     def user(self):

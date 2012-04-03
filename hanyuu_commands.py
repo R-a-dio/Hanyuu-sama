@@ -49,6 +49,7 @@ import config
 import irc
 import manager
 import markov
+import main
 
 irc_colours = {"c": u"\x03", "c1": u"\x0301", "c2": u"\x0302",
             "c3": u"\x0303", "c4": u"\x0304", "c5": u"\x0305",
@@ -58,15 +59,17 @@ irc_colours = {"c": u"\x03", "c1": u"\x0301", "c2": u"\x0302",
             "c15": u"\x0315"}
 
 def np(server, nick, channel, text, hostmask):
-    if (manager.status.online):
+    status = manager.Status()
+    np = manager.NP()
+    if (status.online):
         message = u"Now playing:{c4} '{np}' {c}[{curtime}/{length}]({listeners}/{max_listener}), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
-            np=manager.np.metadata, curtime=manager.np.positionf,
-            length=manager.np.lengthf, listeners=manager.status.listeners,
-            max_listener=config.listener_max, faves=manager.np.favecount,
-            fs="" if (manager.np.favecount == 1) else "s", 
-            times=manager.np.playcount,
-            ts="" if (manager.np.playcount == 1) else "s",
-            lp=manager.np.lpf,
+            np=np.metadata, curtime=np.positionf,
+            length=np.lengthf, listeners=status.listeners,
+            max_listener=config.listener_max, faves=np.favecount,
+            fs="" if (np.favecount == 1) else "s", 
+            times=np.playcount,
+            ts="" if (np.playcount == 1) else "s",
+            lp=np.lpf,
             **irc_colours)
     else:
         message = u"Stream is currently down."
@@ -75,7 +78,7 @@ def np(server, nick, channel, text, hostmask):
 np.handler = ("on_text", r'[.!@]np$', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def lp(server, nick, channel, text, hostmask):
-    lastplayed = manager.lp.get()
+    lastplayed = manager.LP().get()
     if (len(lastplayed) > 0):
         message = u"{c3}Last Played:{c} ".format(**irc_colours) + \
             " {c3}|{c} ".format(**irc_colours).join(
@@ -87,7 +90,7 @@ def lp(server, nick, channel, text, hostmask):
 lp.handler = ("on_text", r'[.!@]lp$', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def queue(server, nick, channel, text, hostmask):
-    queue = list(manager.queue)
+    queue = list(manager.Queue())
     if (len(queue) > 0):
         message = u"{c3}Queue:{c} ".format(**irc_colours) + \
             " {c3}|{c} ".format(**irc_colours)\
@@ -115,51 +118,54 @@ def dj(server, nick, channel, text, hostmask):
                     result = list(result.groups())
                     result[1:5] = u'|{c7} Stream:{c4} {status} {c7}DJ:{c4} {dj} {c11} http://r-a-dio.com{c} |'.format(status=new_status, dj=new_dj, **irc_colours)
                     server.topic(channel, u"".join(result))
-                    manager.dj.name = new_dj
+                    manager.DJ().name = new_dj
                 else:
                     server.privmsg(channel, "Topic is the wrong format, can't set new topic")
         else:
             server.notice(nick, "You don't have the necessary privileges to do this.")
     else:
         server.privmsg(channel, "Current DJ: {c3}{dj}"\
-                       .format(dj=manager.dj.name, **irc_colours))
+                       .format(dj=manager.DJ().name, **irc_colours))
         
 dj.handler = ("on_text", r'[.!@]dj.*', irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def favorite(server, nick, channel, text, hostmask):
-    if (nick in manager.np.faves):
+    np = manager.NP()
+    if (nick in np.faves):
         message = u"You already have {c3}'{np}'{c} favourited"\
-            .format(np=manager.np.metadata, **irc_colours)
+            .format(np=np.metadata, **irc_colours)
     else:
-        manager.np.faves.append(nick)
+        np.faves.append(nick)
         message = u"Added {c3}'{np}'{c} to your favorites."\
-        .format(np=manager.np.metadata, **irc_colours)
+        .format(np=np.metadata, **irc_colours)
     server.notice(nick, message)
     
 favorite.handler = ("on_text", r'[.!@]fave.*', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def unfavorite(server, nick, channel, text, hostmask):
-    if (nick in manager.np.faves):
-        manager.np.faves.remove(nick)
+    np = manager.NP()
+    if (nick in np.faves):
+        np.faves.remove(nick)
         message = u"{c3}'{np}'{c} is removed from your favorites."\
-            .format(np=manager.np.metadata, **irc_colours)
+            .format(np=np.metadata, **irc_colours)
     else:
         message = u"You don't have {c3}'{np}'{c} in your favorites."\
-            .format(np=manager.np.metadata, **irc_colours)
+            .format(np=np.metadata, **irc_colours)
     server.notice(nick, message)
     
 unfavorite.handler = ("on_text", r'[.!@]unfave.*',
                        irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def set_curthread(server, nick, channel, text, hostmask):
+    status = manager.Status()
     tokens = text.split(' ')
     threadurl = " ".join(tokens[1:]).strip()
 
     if threadurl != "" or len(tokens) > 1:
         if server.hasaccess(channel, nick):
-            manager.status.thread = threadurl
+            status.thread = threadurl
 
-    message = u"Thread: {thread}".format(thread=manager.status.thread)
+    message = u"Thread: {thread}".format(thread=status.thread)
     server.privmsg(channel, message)
     
 set_curthread.handler = ("on_text", r'[.!@]thread(\s.*)?',
@@ -194,11 +200,8 @@ killing_stream = False
 def kill_afk(server, nick, channel, text, hostmask):
     if (server.isop(channel, nick)):
         try:
-            import bootstrap
-            global killing_stream
-            if (not killing_stream):
-                killing_stream = True
-                manager.stream.shutdown(force=True)
+            stream = main.connect()
+            stream.shutdown(force=True)
             message = u"Forced AFK Streamer down,\
                         please connect in 15 seconds or less."
         except:
@@ -216,14 +219,8 @@ kill_afk.handler = ("on_text", r'[.!@]kill',
 def shut_afk(server, nick, channel, text, hostmask):
     if (server.isop(channel, nick)):
         try:
-            from threading import Thread
-            import bootstrap
-            global killing_stream
-            if (not killing_stream):
-                killing_stream = True
-                thread = Thread(target=manager.stream.shutdown)
-                thread.daemon = 1
-                thread.start()
+            stream = main.connect()
+            stream.shutdown()
             message = u'AFK Streamer will disconnect after current track, use ".kill" to force disconnect.'
         except:
             message = u"Something went wrong, please punch Wessie."
@@ -236,19 +233,21 @@ shut_afk.handler = ("on_text", r'[.!@]cleankill',
                      irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
 
 def announce(server):
+    np = manager.NP()
+    status = manager.Status()
     message = None
-    for nick in manager.np.faves:
+    for nick in np.faves:
         if (server.inchannel("#r/a/dio", nick)):
             server.notice(nick, u"Fave: {0} is playing."\
-                          .format(manager.np.metadata))
+                          .format(np.metadata))
         message = u"Now starting:{c4} '{np}' {c}[{curtime}/{length}]({listeners}/{max_listener}), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
-            np=manager.np.metadata, curtime=manager.np.positionf,
-            length=manager.np.lengthf, listeners=manager.status.listeners,
-            max_listener=config.listener_max, faves=manager.np.favecount,
-            fs="" if (manager.np.favecount == 1) else "s", 
-            times=manager.np.playcount,
-            ts="" if (manager.np.playcount == 1) else "s",
-            lp=manager.np.lpf,
+            np=np.metadata, curtime=np.positionf,
+            length=np.lengthf, listeners=status.listeners,
+            max_listener=config.listener_max, faves=np.favecount,
+            fs="" if (np.favecount == 1) else "s", 
+            times=np.playcount,
+            ts="" if (np.playcount == 1) else "s",
+            lp=np.lpf,
             **irc_colours)
     if (message != None):
         server.privmsg("#r/a/dio", message)
@@ -281,7 +280,8 @@ def random(server, nick, channel, text, hostmask):
             message = u"You have to wait a bit longer before requesting that song~"
             continue
         elif (isinstance(value, manager.Song)):
-            manager.queue.append_request(song)
+            
+            manager.Queue().append_request(song)
             request_announce(server, song)
             return
     if (mode == "@"):
@@ -313,7 +313,7 @@ def lucky(server, nick, channel, text, hostmask):
             message = u"You have to wait a bit longer before requesting that song~"
             continue
         elif (isinstance(value, manager.Song)):
-            manager.queue.append_request(song)
+            manager.Queue().append_request(song)
             request_announce(server, song)
             return
     if (message == None):
@@ -348,19 +348,6 @@ def search(server, nick, channel, text, hostmask):
 search.handler = ("on_text", r'[.!@]s(earch)?\b',
                    irc.ALL_NICKS, irc.ALL_CHANNELS)
 
-def stats(server, nick, channel, text, hostmask):
-    import bootstrap
-    try:
-        threads, tnames, processes, pnames, active = bootstrap.controller.stats()
-        message = (u"Client status: %(threads)d threads running, %(processes)d "
-                u"processes running, with a total of %(active)d modules loaded.") % locals()
-    except:
-        message = u"Status retrieving raised an exception"
-    server.privmsg(channel, message)
-    
-stats.handler = ("on_text", r'[.!@]stats\b',
-                  irc.ALL_NICKS, irc.ALL_CHANNELS)
-
 def request(server, nick, channel, text, hostmask):
     #this should probably be fixed to remove the nick thing, but i can't into regex
     match = re.match(r"^(?P<mode>[.!@])r(equest)?\s(?P<query>.*)", text, re.I|re.U)
@@ -378,7 +365,7 @@ def request(server, nick, channel, text, hostmask):
         response = nick_request_song(trackid, hostmask)
         if (isinstance(response, manager.Song)):
             song = manager.Song(trackid)
-            manager.queue.append_request(song)
+            manager.Queue().append_request(song)
             request_announce(server, song)
             return
         elif (response == 1): #wasn't song
