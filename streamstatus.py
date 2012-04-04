@@ -43,8 +43,8 @@ def get_status(icecast_server):
         for line in result:
             parser.feed(line)
         parser.close()
-        return parser.result
-
+        return parser.result or {}
+    return {}
 def get_listeners(icecast_host):
     import socket
     http_addr = 'http://'+icecast_host+':'+str(config.icecast_port)

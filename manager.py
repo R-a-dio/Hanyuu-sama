@@ -867,7 +867,7 @@ class NP(Song):
                 self._start = row["start_time"]
                 break
             else:
-                Song.__init__(self, u"", length=0.0)
+                Song.__init__(self, meta=u"", length=0.0)
                 self._end = 0
                 self._start = int(time.time())
     def s_start(self, value):
