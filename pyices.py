@@ -7,6 +7,7 @@ import logging
 class UnsupportedFormat(Exception):
     pass
 
+import select
 import lame
 from Queue import Queue, Empty
 
@@ -22,7 +23,8 @@ class Transcoder(object):
         self.encoder = self.create_encoder()
         self.encoder_in, self.decoder_out = self.create_pipe()
         self.data_in, self.encoder_out = self.create_pipe()
-        
+        self.poll = select.poll()
+        self.poll.register(self.data_in)
         self.thread = Thread(name="Chain Processor",
                              target=self.processor)
         self.thread.daemon = 1
@@ -33,8 +35,15 @@ class Transcoder(object):
         self.encoder.terminate()
         
     def read(self, size=2048):
-        return self.data_in.read(size)
-    
+        try:
+            fd, err = self.poll.poll(timeout=0.2)[0]
+        except IndexError:
+            return 0
+        else:
+            if (err != select.POLLIN or err != select.POLLPRI):
+                return err
+            return os.read(fd, size)
+        
     def processor(self):
         self.encoder(self.encoder_in, self.encoder_out)
         while True:
@@ -140,7 +149,16 @@ description - longer stream description
                     logging.exception("Failed sending stream metadata")
                     break
                 self.attributes['metadata'] = metadata
-            buff = self.transcoder.read(4096)
+            buff = 0
+            while buff is 0:
+                buff = self.transcoder.read(4096)
+            if (isinstance(buff, int)):
+                self.on_disconnect()
+                logging.debug("Transcoder Pipe error: %s",
+                              {select.POLLOUT: "Pipe is writing enabled",
+                                select.POLLERR: "Error occured",
+                                select.POLLHUP: "Hung up",
+                                select.POLLNVAL: "Invalid request"}[buff])
             if (len(buff) == 0):
                 self.on_disconnect()
                 logging.debug("Stream buffer empty, breaking loop")
@@ -154,8 +172,10 @@ description - longer stream description
                 break
     def close(self):
         self.on_disconnect()
-        self.join()
+        self.join(5)
     def on_disconnect(self):
+        import datetime
+        logging.debug("On disconnect called at %s", str(datetime.datetime.now()))
         try:
             self._shout.close()
         except (pylibshout.ShoutException):

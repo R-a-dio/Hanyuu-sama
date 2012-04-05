@@ -22,8 +22,10 @@ def start():
     return listener
     
 def shutdown():
-    listener.clone_when_done()
-    thread.join()
+    try:
+        listener.close()
+    except (NameError):
+        pass
     
 class Listener(async_chat):
     READING_DATA = 0

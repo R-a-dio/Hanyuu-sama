@@ -317,10 +317,23 @@ def stop_updater():
     updater_event.set()
     updater_thread.join(11)
     
+def radvar(name, value="holy crap magical default value", default=None):
+    with MySQLCursor() as cur:
+        if value != "holy crap magical default value":
+            cur.execute("INSERT INTO `radvars` (name, value) VALUES (%s, %s) \
+                ON DUPLICATE KEY UPDATE `value`=%s WHERE `name`=%s",
+                        (name, value, value, name))
+            return value
+        else:
+            cur.execute("SELECT value FROM `radvars` WHERE `name`=%s", (name,))
+            if cur.rowcount > 0:
+                return cur.fetchone()['value']
+            else:
+                return default
+
 class DJError(Exception):
     pass
 class DJ(object):
-    _name = None
     _cache = {}
     def g_id(self):
         user = self.user
@@ -339,7 +352,6 @@ class DJ(object):
                 if (cur.rowcount > 0):
                     user = cur.fetchone()['user']
                     self._cache[user] = djid
-                    self._name = user
                 return djid
             
             cur.execute("SELECT `djid` FROM `users` WHERE `user`=%s LIMIT 1;",
@@ -359,22 +371,19 @@ class DJ(object):
             if (cur.rowcount > 0):
                 user = cur.fetchone()['user']
                 self._cache[user] = value
-                self._name = user
             else:
                 raise TypeError("Invalid ID, no such DJ")
     id = property(g_id, s_id)
     def g_name(self):
-        return self._name
+        return radvar("djname", default=None)
     def s_name(self, value):
-        old_name = self._name
-        self._name = value
         if (self.user == None):
-            self._name = old_name
             raise TypeError("Invalid name, no such DJ")
         else:
             with MySQLCursor() as cur:
                 cur.execute("UPDATE streamstatus SET djid=%s",
                             (self.id))
+                radvar("djname", value)
     name = property(g_name, s_name)
     @property
     def user(self):
@@ -392,7 +401,6 @@ class DJ(object):
                 if (cur.rowcount > 0):
                     user = cur.fetchone()['user']
                     self._cache[user] = djid
-                    self._name = user
                     name = user
                 else:
                     return None
@@ -480,7 +488,7 @@ class Song(object):
         """Creates a digest of 'metadata'"""
         from hashlib import sha1
         if (type(metadata) == unicode):
-            metadata = metadata.encode('utf-8', 'replace')
+            metadata = metadata.encode('utf-8', 'replace').lower().strip()
         return sha1(metadata).hexdigest()
     @property
     def filename(self):

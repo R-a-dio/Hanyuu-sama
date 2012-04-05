@@ -101,7 +101,7 @@ def launch_server():
 
 def main():
     # Start IRC server
-    irc.launch_server()
+    #irc.launch_server()
         
     # Start listener/streamer
     launch_server()

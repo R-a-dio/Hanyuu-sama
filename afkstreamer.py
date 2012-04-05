@@ -44,11 +44,12 @@ class Streamer(object):
         if (self.finish_shutdown):
             self.shutdown(force=True)
             
-        self.queue.clear_pops()
+
         song = self.queue.pop()
         if (song.id == 0L):
             self.queue.clear()
             song = self.queue.pop()
+        self.queue.clear_pops()
         # update now playing
         manager.NP.change(song)
         
