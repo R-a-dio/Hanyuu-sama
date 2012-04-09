@@ -161,7 +161,6 @@ class TranscoderTwo(object):
                 pipe.close()
             except:
                 logging.exception("Pipe closing error")
-       
         
         for i, process in enumerate(self.processes):
             try:
@@ -172,7 +171,7 @@ class TranscoderTwo(object):
                 switch = main.Switch(True, timeout=5)
                 while switch:
                     result = process.poll()
-                    if result:
+                    if result is not None:
                         self.processes[i] = result
                     sleep(0.5)
         
@@ -181,7 +180,6 @@ class TranscoderTwo(object):
             self.processes.remove(self.decoder)
         decoder_args = self.decoder_args[:]
         decoder_args[decoder_args.index("FILE")] = filename
-        print decoder_args
         decoder = Popen(args=decoder_args,
                         stdout=self.decode_stdout)
         self.processes.append(decoder)
