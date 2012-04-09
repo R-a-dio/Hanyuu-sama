@@ -42,37 +42,40 @@ class StatusUpdate(object):
         self.streamer.shutdown(force)
     def __call__(self, info):
         if ("/main.mp3" not in info):
-            logging.debug("No /main.mp3 mountpoint found.")
+            self.debug("No /main.mp3 mountpoint found.")
             # There is no /main.mp3 mountpoint right now
             # Create afk streamer
             if (self.streamer.connected):
-                logging.debug("Streamer is already connected")
+                self.debug("Streamer is already connected")
                 # The streamer is already up? but no mountpoint?
                 # close it
                 self.streamer.shutdown(force=True)
                 # are we switching DJ?
                 if (not self.switching):
-                    logging.debug("Streamer trying to reconnect")
+                    self.debug("Streamer trying to reconnect")
                     self.streamer.connect()
             else:
                 # no streamer up, and no mountpoint
-                logging.debug("Streamer is not connected")
+                self.debug("Streamer is not connected")
                 if (not self.switching):
                     logging.debug("Streaming trying to connect")
                     self.streamer.connect()
         elif (not self.streamer.connected):
-            logging.debug("We have a /main.mp3 mountpoint and no streamer, must be DJ")
+            self.debug("We have a /main.mp3 mountpoint and no streamer, must be DJ")
             # No streamer is active, there is a DJ streaming
             if (not self.listener):
-                logging.debug("Listener isn't active, starting it")
+                self.debug("Listener isn't active, starting it")
                 # There is no listener active, create one
                 self.listener = listener.start()
             elif (not self.listener.active):
                 # The listener died restart it
-                logging.debug("Listener isn't active anymore, restarting it")
+                self.debug("Listener isn't active anymore, restarting it")
                 self.listener.shutdown()
                 self.listener = listener.start()
-                    
+    def debug(self, mode):
+        if mode != self.mode:
+            self.mode = mode
+            logging.debug(mode)
 class StreamManager(BaseManager):
     pass
 
