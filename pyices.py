@@ -131,7 +131,8 @@ class IcecastStream(Thread):
         
 class TranscoderTwo(object):
     encoder_args = ["lame", "--silent", "--flush",
-                    "--cbr", "-b", "192", "-", "-"]
+                    "--cbr", "--resample", "44.1",
+                    "-b", "192", "-", "-"]
     decoder_args = ["lame", "--silent", "--flush",
                     "--mp3input", "--decode", "FILE", "-"]
     processes = []
