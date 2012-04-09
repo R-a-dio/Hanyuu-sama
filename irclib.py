@@ -253,9 +253,9 @@ class IRC:
                 _difference = _current_time - connection._last_ping
             except (AttributeError):
                 continue
-            if (_difference >= 240.0):
+            if (_difference >= 260.0):
                 print("Good morning, client-side ping is here")
-                connection.reconnect("Ping timeout: 240 seconds")
+                connection.reconnect("Ping timeout: 260 seconds")
         self.send_once()
         self.process_timeout()
         

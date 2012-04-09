@@ -1,4 +1,4 @@
-from threading import Thread
+from threading import Thread, Event
 import logging
 import config
 import re
@@ -10,6 +10,7 @@ import bootstrap
 # Channels
 ALL_CHANNELS = 0
 MAIN_CHANNELS = ["#r/a/dio", "#r/a/dio-dev"]
+PRIVATE_MESSAGE = 1
 # Nicks
 ALL_NICKS = 0 # All nicknames can trigger this
 ACCESS_NICKS = 1 # Nicks with halfop or higher can trigger this
@@ -26,7 +27,7 @@ class Session(object):
         self.ready = False
         self.commands = None
         self._handlers = []
-        self._active = True
+        self.active = Event()
         self.exposed = {}
         self._irc = irclib.IRC()
         self.load_handlers()
@@ -44,14 +45,14 @@ class Session(object):
     def processor(self):
         # Our shiny thread that processes the socket
         logging.info("THREADING: Started IRC processor")
-        while (self._active):
+        while (not self.active.is_set()):
             # Call the process once
             self._irc.process_once(timeout=1)
             # We also check for new proxy calls from here
         logging.info("THREADING: Stopped IRC processor")
     def connect(self):
         # We really only need one server
-        if (self._active):
+        if (not self.active.is_set()):
             self._server = self._irc.server()
             self._server.connect(config.irc_server,
                                 config.irc_port,
@@ -66,7 +67,7 @@ class Session(object):
         self._irc.disconnect_all("Disconnected on command")
         
     def shutdown(self):
-        self._active = False
+        self.active.set()
         self._irc.disconnect_all("Leaving...")
         self.processor_thread.join()
         
@@ -92,7 +93,7 @@ class Session(object):
                     pass
                 else:
                     event, regex, nicks, channels = handler
-                    cregex = re.compile(regex)
+                    cregex = re.compile(regex, re.I)
                     # tuple is:
                     # (Compiled regex, function, event type, allowed nicks,
                     # allowed channels, plain-text regex)
@@ -197,7 +198,7 @@ class Session(object):
                     except:
                         logging.info("IRC Channel configuration incorrect")
             self.ready = True
-        elif (etype == "pubmsg"):
+        elif (etype == "pubmsg") or (etype == "privmsg"):
             # TEXT OH SO MUCH TEXT
             text = event.arguments()[0]
             for handler in [handlers for handlers in self._handlers if \
@@ -246,7 +247,10 @@ class Session(object):
                                 continue
                         elif (type(chans) == int):
                             # constant (WE DON'T HAVE ANY RIGHT NOW)
-                            continue
+                            if (etype == "privmsg" and chans != PRIVATE_MESSAGE):
+                                continue
+                                # a private message, special privilege yo
+                                
                         else:
                             # We don't even know just ignore it
                             # Send to debugging for cleanness
@@ -291,4 +295,4 @@ def launch_server():
     return manager
 
 if __name__ == "__main__":
-    start()
+    launch_server()

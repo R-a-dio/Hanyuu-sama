@@ -187,13 +187,23 @@ class Queue(object):
             cur.execute("SELECT COUNT(*) as count FROM `queue`;")
             return int(cur.fetchone()['count'])
     def __iter__(self):
+        return self.iter()
+    def iter(self, limit=5):
         with MySQLCursor(lock=self._lock) as cur:
-            cur.execute("SELECT * FROM `queue` ORDER BY `time` ASC LIMIT 5;")
+            query = "SELECT * FROM `queue` ORDER BY `time` ASC"
+            if limit:
+                query = query + " LIMIT %s"
+                cur.execute(query,
+                            (limit,))
+            else:
+                cur.execute(query)
             for row in cur:
-                yield Song(id=row['trackid'],
+                yield QSong(id=row['trackid'],
                            meta=row['meta'],
-                           length=row['length'])
-
+                           length=row['length'],
+                           type=row["type"],
+                           time=row["time"])
+                
 class LP(object):
     def get(self, amount=5):
         return list(self.iter(amount))
@@ -321,8 +331,8 @@ def radvar(name, value="holy crap magical default value", default=None):
     with MySQLCursor() as cur:
         if value != "holy crap magical default value":
             cur.execute("INSERT INTO `radvars` (name, value) VALUES (%s, %s) \
-                ON DUPLICATE KEY UPDATE `value`=%s WHERE `name`=%s",
-                        (name, value, value, name))
+                ON DUPLICATE KEY UPDATE `value`=%s",
+                        (name, value, value))
             return value
         else:
             cur.execute("SELECT value FROM `radvars` WHERE `name`=%s", (name,))
@@ -375,15 +385,17 @@ class DJ(object):
                 raise TypeError("Invalid ID, no such DJ")
     id = property(g_id, s_id)
     def g_name(self):
-        return radvar("djname", default=None)
+        return radvar("djname", default="None")
     def s_name(self, value):
+        old_name = self.name
+        radvar("djname", value)
         if (self.user == None):
+            radvar("djname", old_name)
             raise TypeError("Invalid name, no such DJ")
         else:
             with MySQLCursor() as cur:
                 cur.execute("UPDATE streamstatus SET djid=%s",
-                            (self.id))
-                radvar("djname", value)
+                            (self.id if self.id else 18))
     name = property(g_name, s_name)
     @property
     def user(self):
@@ -423,7 +435,7 @@ class DJ(object):
 
 class Song(object):
     def __init__(self, id=None, meta=None, length=None, filename=None):
-        object.__init__(self)
+        super(Song, self).__init__()
         if (not isinstance(id, (int, long, type(None)))):
             raise TypeError("'id' incorrect type, expected int or long")
         if (not isinstance(meta, (basestring, type(None)))):
@@ -865,6 +877,12 @@ class Song(object):
     def __setstate__(self, state):
         self.__init__(*state)
         
+class QSong(Song):
+    def __init__(self, id=None, meta=None, length=None, type=0, time=None):
+        super(QSong, self).__init__(id=id, meta=meta, length=length)
+        self.type = type
+        self.time = time
+        
 class NP(Song):
     def __init__(self):
         with MySQLCursor() as cur:
@@ -875,7 +893,7 @@ class NP(Song):
                 self._start = row["start_time"]
                 break
             else:
-                Song.__init__(self, meta=u"", length=0.0)
+                super(NP, self).__init__(meta=u"", length=0.0)
                 self._end = 0
                 self._start = int(time.time())
     def s_start(self, value):
@@ -918,6 +936,7 @@ class NP(Song):
         current.start = int(time.time())
         current.end = int(time.time()) + song.length
         with MySQLCursor() as cur:
+            djid = DJ().id
             cur.execute("INSERT INTO `streamstatus` (id, lastset, \
                             np, djid, listeners, start_time, end_time, \
                             isafkstream, trackid) VALUES (0, NOW(), %(np)s, %(djid)s, \
@@ -926,7 +945,7 @@ class NP(Song):
                             `listeners`=%(listener)s, `start_time`=%(start)s, \
                             `end_time`=%(end)s, `isafkstream`=%(afk)s, `trackid`=%(trackid)s;",
                                     {"np": song.metadata,
-                                     "djid": DJ().id,
+                                     "djid": djid if djid else 18,
                                      "listener": Status().listeners,
                                      "start": current._start,
                                      "end": current._end,
@@ -937,8 +956,8 @@ class NP(Song):
         import irc
         try:
             irc.connect().announce()
-        except (AttributeError, RemoteError):
-            pass
+        except (AttributeError, RemoteError, IOError):
+            logging.exception("IRC Announcing error")
     def __repr__(self):
         return "<Playing " + Song.__repr__(self)[1:]
     def __str__(self):

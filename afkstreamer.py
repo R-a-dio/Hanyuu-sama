@@ -2,6 +2,7 @@ import pyices
 import logging
 import bootstrap
 import manager
+from threading import Event
     
 class Streamer(object):
     """Streamer class that streams to a certain server and mountpoint specified
@@ -13,10 +14,8 @@ class Streamer(object):
         self.instance = None
         self.attributes = attributes
         
-        self.finish_shutdown = False
+        self.finish_shutdown = Event()
         
-    def __del__(self):
-        self.shutdown(force=True)
     @property
     def connected(self):
         try:
@@ -25,8 +24,8 @@ class Streamer(object):
             return False
     def connect(self):
         self.queue = manager.Queue()
-        self.finish_shutdown = False
-        self.instance = pyices.instance(self.attributes,
+        self.finish_shutdown.clear()
+        self.instance = pyices.IcecastStream(self.attributes,
                                         file_method=self.supply_song)
         self.instance.start()
         
@@ -36,21 +35,21 @@ class Streamer(object):
             self.instance.close()
             logging.info("Stopped AFK Streamer")
         else:
-            self.finish_shutdown = True
+            self.finish_shutdown.set()
             logging.info("Tried stopping AFK Streamer")
         
     def supply_song(self):
         # check for shutdown
-        if (self.finish_shutdown):
+        if (self.finish_shutdown.is_set()):
             self.shutdown(force=True)
-            
-
-        song = self.queue.pop()
-        if (song.id == 0L):
-            self.queue.clear()
+        else:
             song = self.queue.pop()
-        self.queue.clear_pops()
-        # update now playing
-        manager.NP.change(song)
-        
-        return (song.filename, song.metadata)
+            if (song.id == 0L):
+                self.queue.clear()
+                song = self.queue.pop()
+            self.queue.clear_pops()
+            # update now playing
+            manager.NP.change(song)
+            
+            return (song.filename, song.metadata)
+        return (None, None)

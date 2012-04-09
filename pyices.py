@@ -1,131 +1,44 @@
 ﻿import pylibshout
 from time import sleep
-from threading import Thread
+from threading import Thread, Event
 import os
 import logging
-
-class UnsupportedFormat(Exception):
-    pass
-
+import main
 import select
-import lame
-from Queue import Queue, Empty
+from subprocess import Popen
 
-class Transcoder(object):
-    def __init__(self, file_method):
-        """Accepts a file_method that is called whenever the previous
-        file finished decoding, should return a full filepath"""
-        object.__init__(self)
+class IcecastStream(Thread):
+    attributes = {}
+    def __init__(self, attributes, file_method):
+        super(IcecastStream, self).__init__()
         
+        # Setup event
+        self.active = Event()
+        
+        # Setup transcoder
         self.file_method = file_method
-        
-        self.decoder = self.create_decoder()
-        self.encoder = self.create_encoder()
-        self.encoder_in, self.decoder_out = self.create_pipe()
-        self.data_in, self.encoder_out = self.create_pipe()
-        self.poll = select.poll()
-        self.poll.register(self.data_in)
-        self.thread = Thread(name="Chain Processor",
-                             target=self.processor)
-        self.thread.daemon = 1
-        self.thread.start()
-        
-    def terminate(self):
-        self.decoder.terminate()
-        self.encoder.terminate()
-        
-    def read(self, size=2048):
-        try:
-            fd, err = self.poll.poll(timeout=0.2)[0]
-        except IndexError:
-            return 0
-        else:
-            if (err != select.POLLIN or err != select.POLLPRI):
-                return err
-            return os.read(fd, size)
-        
-    def processor(self):
-        self.encoder(self.encoder_in, self.encoder_out)
-        while True:
-            self.decoder.wait()
-            try:
-                self.current = self.file_method()
-            except (Empty):
-                sleep(0.1)
-            else:
-                self.decoder(self.current, self.decoder_out)
-        self.encoder_in.close()
-        
-    def create_pipe(self):
-        r, w = os.pipe()
-        return os.fdopen(r, 'rb'), os.fdopen(w, 'wb')
-    
-    def create_decoder(self):
-        decoder = lame.Lame()
-        decoder.config.input = lame.input.MP3
-        decoder.config.mode = lame.modes.Decode
-        return decoder
-    
-    def create_encoder(self):
-        encoder = lame.Lame()
-        encoder.config.mode = lame.modes.CBR
-        return encoder
-
-
-
-class instance(Thread):
-    """Wrapper around shout.Shout
-
-    Requires at least host, port, password and mount to be specified
-    in the 'attributes' which should be a dictionary which can contain:
-
-       host - name or address of destination server
-       port - port of destination server
-       user - source user name (optional)
-   password - source password
-      mount - mount point on server (relative URL, eg "/stream.ogg")
-   protocol - server protocol: "http" (the default) for icecast 2,
-              "xaudiocast" for icecast 1, or "icy" for shoutcast
-nonblocking - use nonblocking send
-     format - audio format: "ogg" (the default) or "mp3"
-       name - stream name
-        url - stream web page
-      genre - stream genre
-description - longer stream description
- audio_info - dictionary of stream audio parameters, for YP information.
-              Useful keys include "bitrate" (in kbps), "samplerate"
-              (in Hz), "channels" and "quality" (Ogg encoding
-              quality). All dictionary values should be strings. The known
-              keys are defined as the SHOUT_AI_* constants, but any other
-              will be passed along to the server as well.
-   dumpfile - file name to record stream to on server (not supported on
-              all servers)
-      agent - for customizing the HTTP user-agent header"""
-    attributes = {"protocol": "http", "format": "ogg"}
-    def __init__(self, attributes, queue=None, file_method=None):
-        Thread.__init__(self)
-        self.queue = queue or Queue()
-        self.file_method = file_method or (lambda: self.queue.pop())
-        self.transcoder = Transcoder(self.transcoder_file)
+        self.decoder = None
+        self.transcoder = TranscoderTwo()
+        self.stream_stdin = self.transcoder.stream_stdin
+        self.stream_poll = select.poll()
+        self.stream_poll.register(self.stream_stdin, select.POLLIN)
+        # Setup libshout
         self._shout = pylibshout.Shout()
         self.attributes.update(attributes)
         for key, value in self.attributes.iteritems():
             if (key not in ["metadata"]):
                 setattr(self._shout, key, value)
-        self.metadata = [True, "Currently have no metadata available"]
-        self.daemon = 1
-        self.name = "Streamer Instance"
-    
+                
+        self.daemon = True
+        self.name = "Icecast Stream"
+        
     def connected(self):
-        return True if self._shout.connected() == -7 else False
-    
-    def transcoder_file(self):
-        filename, metadata = self.file_method()
-        self.metadata = [True, metadata]
-        return filename
+        try:
+            return True if self._shout.connected() == -7 else False
+        except AttributeError:
+            return False
     
     def run(self):
-        """Internal method"""
         try:
             logging.debug("Opening connection to stream server")
             self._shout.open()
@@ -133,51 +46,149 @@ description - longer stream description
             logging.exception("Could not connect to stream server")
             self.on_disconnect()
             return
-        while (True):
-            # Handle our metadata
-            if (self.metadata[0]):
-                self.metadata[0] = False
-                metadata = self.metadata[1]
-                if (type(metadata) != str):
-                    metadata = metadata.encode('utf-8', 'replace')
+        metadata = (False, "No metadata available")
+        while self.connected() and not self.active.is_set():
+            # Set our metadata value
+            metadata = (False, metadata[1])
+            
+            # Decoder logic
+            if (not self.decoder or self.decoder.poll() is not None):
+                # Decoder doesn't exist yet
+                filename, metadata = self.file_method()
+                if (filename == None or metadata == None):
+                    logging.debug("File method returned None, disconnecting")
+                    self.on_disconnect()
+                    break
+                logging.debug("Decoding file: %s, %s", filename, metadata)
+                try:
+                    self.decoder = self.transcoder.decode(filename)
+                except OSError as err:
+                    print err.__dict__
+                    break
+                metadata = (True, metadata)
+                
+            # Check metadata
+            if (metadata[0]):
+                metadata = (False, metadata[1])
+                meta = metadata[1]
+                if (type(meta) != str):
+                    meta = meta.encode('utf-8', 'replace')
                 try:
                     logging.debug("Sending metadata: {meta}"\
-                                .format(meta=metadata))
-                    self._shout.metadata = {'song': metadata}
-                except (pylibshout.ShoutException):
+                                .format(meta=meta))
+                    self._shout.metadata = {'song': meta}
+                except (pylibshout.ShoutException) as err:
                     self.on_disconnect()
-                    logging.exception("Failed sending stream metadata")
+                    if err[0] == pylibshout.SHOUTERR_UNCONNECTED:
+                        pass
+                    else:
+                        logging.exception("Failed sending stream metadata")
                     break
-                self.attributes['metadata'] = metadata
-            buff = 0
-            while buff is 0:
-                buff = self.transcoder.read(4096)
-            if (isinstance(buff, int)):
-                self.on_disconnect()
-                logging.debug("Transcoder Pipe error: %s",
-                              {select.POLLOUT: "Pipe is writing enabled",
-                                select.POLLERR: "Error occured",
-                                select.POLLHUP: "Hung up",
-                                select.POLLNVAL: "Invalid request"}[buff])
-            if (len(buff) == 0):
-                self.on_disconnect()
-                logging.debug("Stream buffer empty, breaking loop")
+                self.attributes['metadata'] = meta
+                
+            disconnect = False
+            # Buffer logic
+            for fileno, event in self.stream_poll.poll(10):
+                buff = os.read(fileno, 4096)
+                if (len(buff) == 0):
+                    logging.debug("Stream stdin empty, disconnecting")
+                    disconnect = True
+                    break
+                try:
+                    self._shout.send(buff)
+                    self._shout.sync()
+                except (pylibshout.ShoutException) as err:
+                    if err[0] == pylibshout.SHOUTERR_UNCONNECTED:
+                        pass
+                    else:
+                        logging.exception("Failed sending stream data")
+                    disconnect = True
+                    break
+            if (disconnect):
                 break
-            try:
-                self._shout.send(buff)
-                self._shout.sync()
-            except (pylibshout.ShoutException):
-                self.on_disconnect()
-                logging.exception("Failed sending stream data")
-                break
+
+        self.on_disconnect()
+        
     def close(self):
         self.on_disconnect()
-        self.join(5)
+        try:
+            self.join(5)
+        except RuntimeError:
+            pass
+        
     def on_disconnect(self):
         import datetime
+        self.active.set()
         logging.debug("On disconnect called at %s", str(datetime.datetime.now()))
         try:
             self._shout.close()
-        except (pylibshout.ShoutException):
-            pass
-        self.transcoder.terminate()
+        except (pylibshout.ShoutException) as err:
+            if err[0] == pylibshout.SHOUTERR_UNCONNECTED:
+                pass
+            else:
+                logging.exception("Failure in libshout close")
+        self.transcoder.close()
+        
+class TranscoderTwo(object):
+    encoder_args = ["lame", "--silent", "--flush",
+                    "--cbr", "-b", "192", "-", "-"]
+    decoder_args = ["lame", "--silent", "--flush",
+                    "--mp3input", "--decode", "FILE", "-"]
+    processes = []
+    pipes = []
+    def __init__(self):
+        super(TranscoderTwo, self).__init__()
+        
+        self.encode_stdin, self.decode_stdout = self.create_pipe()
+        self.stream_stdin, self.encode_stdout = self.create_pipe()
+        self.pipes.extend([self.encode_stdin,
+                           self.decode_stdout,
+                           self.stream_stdin,
+                           self.encode_stdout])
+        self.encoder = Popen(args=self.encoder_args,
+                             stdin=self.encode_stdin,
+                             stdout=self.encode_stdout)
+        self.processes.append(self.encoder)
+    def close(self):
+        # Clean the pipes
+        self.pipes[:] = [f for f in self.pipes if not f.closed]
+        # Clean the processes
+        self.processes[:] = [p for p in self.processes if not isinstance(p, int)]
+        
+        for pipe in self.pipes:
+            try:
+                pipe.close()
+            except:
+                logging.exception("Pipe closing error")
+       
+        
+        for i, process in enumerate(self.processes):
+            try:
+                process.terminate()
+            except (OSError, AttributeError):
+                logging.exception("Termination failed")
+            finally:
+                switch = main.Switch(True, timeout=5)
+                while switch:
+                    result = process.poll()
+                    if result:
+                        self.processes[i] = result
+                    sleep(0.5)
+        
+    def decode(self, filename, wait=False):
+        if (hasattr(self, "decoder")):
+            self.processes.remove(self.decoder)
+        decoder_args = self.decoder_args[:]
+        decoder_args[decoder_args.index("FILE")] = filename
+        print decoder_args
+        decoder = Popen(args=decoder_args,
+                        stdout=self.decode_stdout)
+        self.processes.append(decoder)
+        self.decoder = decoder
+        if wait:
+            decoder.wait()
+        return decoder
+    
+    def create_pipe(self):
+        r, w = os.pipe()
+        return os.fdopen(r, 'rb'), os.fdopen(w, 'wb')

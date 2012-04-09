@@ -49,6 +49,11 @@ import config
 import irc
 import manager
 import main
+import random as _random
+from datetime import timedelta
+
+def tokenize(text):
+    return text.lower().split(" ")
 
 irc_colours = {"c": u"\x03", "c1": u"\x0301", "c2": u"\x0302",
             "c3": u"\x0303", "c4": u"\x0304", "c5": u"\x0305",
@@ -76,6 +81,27 @@ def np(server, nick, channel, text, hostmask):
     
 np.handler = ("on_text", r'[.!@]np$', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
+def create_faves_code(server, nick, channel, text, hostmask):
+    with manager.MySQLCursor() as cur:
+        cur.execute("SELECT * FROM enick WHERE `nick`=%s", (nick,))
+        authcode = None
+        if (cur.rowcount > 0):
+            authcode = cur.fetchone()['authcode']
+            print authcode
+        if (not authcode):
+            while 1:
+                authcode = str(_random.getrandbits(24))
+                cur.execute("SELECT * FROM enick WHERE `authcode`=%s", (authcode,))
+                if (cur.rowcount == 0):
+                    break
+            cur.execute("INSERT INTO enick (nick, authcode) VALUES (%(nick)s, "
+                        "%(authcode)s) ON DUPLICATE KEY UPDATE `authcode`="
+                        "%(authcode)s", {"nick": nick, "authcode": authcode})
+    server.privmsg(nick, "Your authentication code is: %s" % (authcode,))
+
+create_faves_code.handler = ("on_text", r'SEND CODE',
+                             irc.ALL_NICKS, irc.PRIVATE_MESSAGE)
+
 def lp(server, nick, channel, text, hostmask):
     lastplayed = manager.LP().get()
     if (len(lastplayed) > 0):
@@ -89,16 +115,35 @@ def lp(server, nick, channel, text, hostmask):
 lp.handler = ("on_text", r'[.!@]lp$', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def queue(server, nick, channel, text, hostmask):
-    queue = list(manager.Queue())
-    if (len(queue) > 0):
-        message = u"{c3}Queue:{c} ".format(**irc_colours) + \
-            " {c3}|{c} ".format(**irc_colours)\
-            .join([song.metadata for song in queue])
+    p = tokenize(text)
+    if len(p) > 1:
+        if p[1] == u"length":
+            request_queue = regular_queue = requests = regulars = 0
+            for song in manager.Queue().iter(None):
+                if (song.type == manager.REQUEST):
+                    request_queue += song.length
+                    requests += 1
+                elif (song.type == manager.REGULAR):
+                    regular_queue += song.length
+                    regulars += 1
+            message = u"There are {req} requests ({req_time}), {norm} randoms ({norm_time}), total of {total} songs ({total_time})".\
+                    format(**{'req_time': timedelta(seconds=request_queue),
+                    'norm_time': timedelta(seconds=regular_queue),
+                    'total_time': timedelta(seconds=request_queue+regular_queue),
+                    'req': requests,
+                    'norm': regulars,
+                    'total': requests+regulars})
     else:
-        message = u"No queue at the moment"
+        queue = list(manager.Queue())
+        if (len(queue) > 0):
+            message = u"{c3}Queue:{c} ".format(**irc_colours) + \
+                " {c3}|{c} ".format(**irc_colours)\
+                .join([song.metadata for song in queue])
+        else:
+            message = u"No queue at the moment"
     server.privmsg(channel, message)
 
-queue.handler = ("on_text", r'[.!@]q(ueue)?$', irc.ALL_NICKS, irc.ALL_CHANNELS)
+queue.handler = ("on_text", r'[.!@]q(ueue)?', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def dj(server, nick, channel, text, hostmask):
     tokens = text.split(' ')

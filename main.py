@@ -104,7 +104,8 @@ def main():
     #irc.launch_server()
         
     # Start listener/streamer
-    launch_server()
+    global manager
+    manager = launch_server()
     
     # Start queue watcher ? why is this even in hanyuu
     watcher.start()
