@@ -130,7 +130,7 @@ class IcecastStream(Thread):
         self.transcoder.close()
         
 class TranscoderTwo(object):
-    encoder_args = ["lame", "--silent", "--flush",
+    encoder_args = ["lame", "-t", "--silent", "--flush",
                     "--cbr", "--resample", "44.1",
                     "-b", "192", "-", "-"]
     decoder_args = ["lame", "--silent", "--flush",

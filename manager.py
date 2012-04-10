@@ -48,6 +48,22 @@ REGULAR = 0
 REQUEST = 1
 POPPED = 2
 
+class Radvars(object):
+    def __setattr__(self, name, value):
+        with MySQLCursor() as cur:
+            cur.execute("INSERT INTO radvars (name, value) VALUES (%(name)s, \
+            %(value)s) ON DUPLICATE KEY UPDATE `value`=%(value)s;",
+            {"name": name, "value": value})
+    def __getattr__(self, name):
+        with MySQLCursor() as cur:
+            cur.execute("SELECT * FROM radvars WHERE `name`=%s;", (name,))
+            for row in cur:
+                return row['value']
+            return None
+    def __delattr__(self, name):
+        with MySQLCursor() as cur:
+            cur.execute("DELETE FROM radvars WHERE `name`=%s;", (name,))
+            
 class EmptyQueue(Exception):
     pass
 
@@ -673,10 +689,9 @@ class Song(object):
                 """Not implemented"""
                 raise NotImplementedError("Can't set on <Faves> object")
             def __delitem__(self, key):
-                original = list(self)
                 if (isinstance(key, basestring)):
                     # Nick delete
-                    if (key in original):
+                    if (key in self):
                         # It is in there
                         with MySQLCursor() as cur:
                             cur.execute(
@@ -684,20 +699,8 @@ class Song(object):
         enick.nick=%s AND isong=%s;", (key, self.song.songid))
                     else:
                         raise KeyError("{0}".format(key))
-                elif (isinstance(key, (int, long))):
-                    try:
-                        key = original[key]
-                    except (IndexError):
-                        raise IndexError("Fave index out of range")
-                    else:
-                        with MySQLCursor() as cur:
-                            cur.execute(
-                                        "DELETE efave.* FROM efave LEFt JOIN \
-                                        enick ON enick.id = efave.inick WHERE \
-                                        enick.nick=%s AND isong=%s;",
-                                        (key, self.song.songid))
                 else:
-                    raise TypeError("Fave key has to be 'string' or 'int'")
+                    raise TypeError("Fave key has to be 'string'")
             def __contains__(self, key):
                 with MySQLCursor() as cur:
                     cur.execute("SELECT count(*) AS contains FROM efave JOIN\
@@ -823,21 +826,26 @@ class Song(object):
                             filename=join(config.music_directory, row['path'])))
         return result
     @classmethod
-    def nick(cls, nick, limit=5):
+    def nick(cls, nick, limit=5, tracks=False):
         with MySQLCursor() as cur:
             if (limit):
-                cur.execute("SELECT len, meta FROM `esong` JOIN `efave` ON \
-                esong.id = efave.isong JOIN `enick` ON efave.inick = enick.id \
-                WHERE LOWER(enick.nick) = LOWER(%s) LIMIT %s;", (nick, limit))
+                cur.execute("SELECT esong.len AS len, esong.meta AS meta, \
+                tracks.id AS trackid FROM tracks RIGHT JOIN esong ON tracks.hash \
+                = esong.hash JOIN efave ON efave.isong = esong.id JOIN enick \
+                ON efave.inick = enick.id WHERE enick.nick = %s LIMIT %s;",
+                (nick, limit))
             else:
-                cur.execute("SELECT len, meta FROM `esong` JOIN `efave` ON \
-                esong.id = efave.isong JOIN `enick` ON efave.inick = enick.id \
-                WHERE LOWER(enick.nick) = LOWER(%s);", (nick,))
+                cur.execute("SELECT esong.len AS len, esong.meta AS meta, \
+                tracks.id AS trackid FROM tracks RIGHT JOIN esong ON tracks.hash \
+                = esong.hash JOIN efave ON efave.isong = esong.id JOIN enick \
+                ON efave.inick = enick.id WHERE enick.nick = %s;", (nick,))
             result = []
             for row in cur:
-                result.append(cls(
-                              meta=row['meta'],
-                              length=row['len']))
+                if (tracks and row['trackid']) or (not tracks):
+                    result.append(cls(
+                                  id=row['trackid'],
+                                  meta=row['meta'],
+                                  length=row['len']))
             return result
     @classmethod
     def random(cls):

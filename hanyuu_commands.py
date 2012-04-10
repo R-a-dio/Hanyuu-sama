@@ -306,28 +306,46 @@ def request_announce(server, song):
 request_announce.exposed = True
 
 def random(server, nick, channel, text, hostmask):
-    match = re.match(r"^(?P<mode>[.!@])random\b(?P<query>.*)", text, re.I|re.U)
+    match = re.match(r"^(?P<mode>[.!@])random\b(?P<command>.*)", text, re.I|re.U)
     if (match):
-        mode, query = match.group("mode", "query")
+        mode, command = match.group("mode", "command")
     else:
         return
-    while True:
-        song = manager.Song.random()
-        value = nick_request_song(song.id, hostmask)
-        if (value == 2):
-            message = u"You have to wait a bit longer before you can request again~"
-            break
-        elif (value == 3):
-            message = u"I'm not streaming right now!"
-            break
-        elif (value == 4):
-            message = u"You have to wait a bit longer before requesting that song~"
-            continue
-        elif (isinstance(value, manager.Song)):
-            
-            manager.Queue().append_request(song)
-            request_announce(server, song)
-            return
+    if (command.lower() == "fave"):
+        songs = manager.Song.nick(nick, limit=None, tracks=True)
+        while len(songs) > 0:
+            song = songs.pop(_random.randrange(len(songs)))
+            value = nick_request_song(song.id, hostmask)
+            if (value == 2):
+                message = u"You have to wait a bit longer before you can request again~"
+                break
+            elif (value == 3):
+                message = u"I'm not streaming right now!"
+                break
+            elif (value == 4):
+                message = u"You have to wait a bit longer before requesting that song~"
+                continue
+            elif (isinstance(value, manager.Song)):
+                manager.Queue().append_request(song)
+                request_announce(server, song)
+                return
+    else:
+        while True:
+            song = manager.Song.random()
+            value = nick_request_song(song.id, hostmask)
+            if (value == 2):
+                message = u"You have to wait a bit longer before you can request again~"
+                break
+            elif (value == 3):
+                message = u"I'm not streaming right now!"
+                break
+            elif (value == 4):
+                message = u"You have to wait a bit longer before requesting that song~"
+                continue
+            elif (isinstance(value, manager.Song)):
+                manager.Queue().append_request(song)
+                request_announce(server, song)
+                return
     if (mode == "@"):
         server.privmsg(channel, message)
     else:
