@@ -101,6 +101,8 @@ class Queue(object):
             type, meta, length) VALUES (%s, from_unixtime(%s), %s, %s, %s, %s);",
                         (song.id, int(timestamp), ip, REQUEST,
                           song.metadata, song.length))
+            cur.execute("UPDATE `tracks` SET `lastrequested`=NOW(), \
+                        `priority`=priority+4 WHERE `id`=%s;", (song.id,))
         self.check_times()
     
     def append(self, song):
@@ -184,7 +186,7 @@ class Queue(object):
         correct_time = NP().end
         with MySQLCursor(lock=self._lock) as cur:
             cur.execute("SELECT id, length, unix_timestamp(time) AS time FROM \
-                `queue` ORDER BY `time` ASC LIMIT 1;")
+                `queue` ORDER BY `time` ASC;")
             with MySQLCursor() as cur2:
                 for row in cur:
                     id_ = row['id']

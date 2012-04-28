@@ -128,8 +128,6 @@ class FastCGIServer(object):
                             cur.execute("UPDATE `requesttime` SET `time`=NOW() WHERE `ip`='%s';" % (environ["REMOTE_ADDR"]))
                         else:
                             cur.execute("INSERT INTO `requesttime` (`ip`) VALUES ('%s');" % (environ["REMOTE_ADDR"]))
-                        cur.execute("UPDATE `tracks` SET `lastrequested`=NOW(), \
-                        `priority`=priority+4 WHERE `id`=%s;", (trackid,))
                         song = manager.Song(trackid)
                         try:
                             irc.connect().request_announce(song)
