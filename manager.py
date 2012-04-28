@@ -97,6 +97,7 @@ class Queue(object):
                             (song.length,))
             cur.execute("DELETE FROM `queue` WHERE type=0 \
                             ORDER BY time DESC LIMIT 1")
+            cur.execute("DELETE FROM `queue` WHERE trackid=%s;", (song.id,))
             cur.execute("INSERT INTO `queue` (trackid, time, ip, \
             type, meta, length) VALUES (%s, from_unixtime(%s), %s, %s, %s, %s);",
                         (song.id, int(timestamp), ip, REQUEST,
