@@ -181,5 +181,8 @@ def launch_server():
     return manager
 
 if __name__ == "__main__":
+    import multiprocessing, logging
+    logger = multiprocessing.log_to_stderr()
+    logger.setLevel(logging.DEBUG)
     server = FastCGIServer()
     server.run()
