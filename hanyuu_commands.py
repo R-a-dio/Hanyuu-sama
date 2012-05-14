@@ -395,7 +395,16 @@ def search(server, nick, channel, text, hostmask):
         message = u"Hauu~ you forgot a search query"
         server.notice(nick, message)
         return
-    message = [u"{c4}{meta} {c3}({trackid}){c}"\
+    try:
+        query = int(query);
+        try:
+            song = manager.Song(id=query)
+            message = [u"{c4}{meta} {c3}({trackid}){c}"\
+               .format(meta=song.metadata, trackid=song.id, **irc_colours)]
+        except (ValueError):
+            message = []
+    except (ValueError):
+        message = [u"{c4}{meta} {c3}({trackid}){c}"\
                .format(meta=song.metadata, trackid=song.id, **irc_colours) for \
                song in manager.Song.search(query)]
     if (len(message) > 0):
