@@ -160,7 +160,7 @@ def dj(server, nick, channel, text, hostmask):
                 result = regex.match(topic)
                 if (result != None):
                     result = list(result.groups())
-                    result[1:5] = u'|{c7} Stream:{c4} {status} {c7}DJ:{c4} {dj} {c11} http://r-a-dio.com{c} |'.format(status=new_status, dj=new_dj, **irc_colours)
+                    result[1:5] = u'|{c7} Stream:{c4} {status} {c7}DJ:{c4} {dj} {c11} http://r-a-d.io{c} |'.format(status=new_status, dj=new_dj, **irc_colours)
                     server.topic(channel, u"".join(result))
                     manager.DJ().name = new_dj
                 else:
@@ -453,7 +453,7 @@ request.handler = ("on_text", r'[.!@]r(equest)?\b',
                    irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def request_help(server, nick, channel, text, hostmask):
-    message = u"{nick}: http://r-a-dio.com/search {c5}Thank you for listening to r/a/dio!".format(nick=nick, **irc_colours)
+    message = u"{nick}: http://r-a-d.io/search {c5}Thank you for listening to r/a/dio!".format(nick=nick, **irc_colours)
     server.privmsg(channel, message)
     
 request_help.handler = ("on_text", r'.*how.+request',

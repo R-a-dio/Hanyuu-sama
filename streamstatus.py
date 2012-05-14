@@ -21,7 +21,7 @@ def get_status(icecast_server):
             f_fallback['Current Listeners'] = '0'
             f_fallback['Peak Listeners'] = '200'
             f_fallback['Stream Genre'] = 'ZTS'
-            f_fallback['Stream URL'] = 'http://r-a-dio.com'
+            f_fallback['Stream URL'] = 'http://r-a-d.io'
             f_fallback['Current Song'] = 'fallback'
             f_main = MultiDict.OrderedMultiDict()
             f_main['Stream Title'] = 'r/a/dio'
@@ -32,7 +32,7 @@ def get_status(icecast_server):
             f_main['Current Listeners'] = '500'
             f_main['Peak Listeners'] = '500'
             f_main['Stream Genre'] = 'Weeaboo'
-            f_main['Stream URL'] = 'http://r-a-dio.com'
+            f_main['Stream URL'] = 'http://r-a-d.io'
             f_main['Current Song'] = 'Unknown'
             return {'/fallback.mp3': f_fallback, '/main.mp3': f_main}
     except:
@@ -50,7 +50,7 @@ def get_listeners(icecast_host):
     http_addr = 'http://'+icecast_host+':'+str(config.icecast_port)
     
     cur_addr = socket.gethostbyname(icecast_host)
-    rad_addr = socket.gethostbyname("r-a-dio.com")
+    rad_addr = socket.gethostbyname("r-a-d.io")
     root_addr = socket.gethostbyname("shoutcast1.rootnode.net")
     
     if (cur_addr == rad_addr):
