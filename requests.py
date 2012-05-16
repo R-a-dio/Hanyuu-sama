@@ -15,7 +15,8 @@ def songdelay(val):
     import math
     if val > 64:
         val = 64
-    return int(29145 * math.exp(0.0476 * val) + 0.5)
+    #return int(29145 * math.exp(0.0476 * val) + 0.5)
+    return int(0.1791*val**4 - 17.184*val**3 + 557.07*val**2 - 3238.9*val + 30687 + 0.5)
 
 #class FastCGIServer(Thread):
 class FastCGIServer(object):
@@ -95,35 +96,33 @@ class FastCGIServer(object):
                     else:
                         iptime = 0
                     now = int(time.time())
-                    if now - iptime > 1800:
+                    if now - iptime > 3600:
                         canrequest_ip = True
+                    
                     
                     cur.execute("SELECT * FROM `tracks` WHERE \
                     `id`=%s LIMIT 1;", (trackid,))
                     if cur.rowcount >= 1:
+                        row = cur.fetchone()
                         try:
                             lptime = int(time.mktime(time.strptime(
-                                        str(cur.fetchone()["lastrequested"]),
+                                        str(row["lastrequested"]),
                                         "%Y-%m-%d %H:%M:%S")))
                         except:
                             lptime = 0
-                    else:
-                        lptime = now
-                    if now - lptime > 3600 * 8:
-                        canrequest_song = True
-                    
-                    if cur.rowcount >= 1:
+                        if now - lptime > songdelay(row['priority']):
+                            canrequest_song = True
+                        
                         try:
                             lptime = int(time.mktime(time.strptime(
-                                        str(cur.fetchone()["lastplayed"]),
+                                        str(row["lastplayed"]),
                                         "%Y-%m-%d %H:%M:%S" )))
                         except:
                             lptime = 0
+                        if now - lptime > songdelay(row['priority']):
+                            canrequest_song = canrequest_song and True
                     else:
-                        lptime = now
-                    if now - lptime > 3600 * 8:
-                        canrequest_song = canrequest_song and True
-    
+                        canrequest_song = False
                     
                     if not canrequest_ip or not canrequest_song:
                         if not canrequest_ip:

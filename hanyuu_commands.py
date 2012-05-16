@@ -493,6 +493,7 @@ def nick_request_song(trackid, host=None):
     # TODO:
     # rewrite shit man
     import time
+    import requests
     with manager.MySQLCursor() as cur:
         try:
             song = manager.Song(trackid)
@@ -524,7 +525,7 @@ def nick_request_song(trackid, host=None):
             row = cur.fetchone()
             song_lp = row['lp']
             song_lr = row['lr']
-            if int(time.time()) - song_lp < 3600 * 8 or int(time.time()) - song_lr < 3600 * 8:
+            if int(time.time()) - song_lp < requests.songdelay(row[priority]) or int(time.time()) - song_lr < requests.songdelay(row[priority]):
                 can_song = False
         if (not can_request):
             return 2
