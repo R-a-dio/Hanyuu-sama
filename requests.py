@@ -8,6 +8,15 @@ import irc
 from multiprocessing.managers import BaseManager
 import bootstrap
 
+def songdelay(val):
+    """Gives the time delay in seconds for a specific song
+    priority.
+    """
+    import math
+    if val > 64:
+        val = 64
+    return int(29145 * math.exp(0.0476 * val) + 0.5)
+
 #class FastCGIServer(Thread):
 class FastCGIServer(object):
     """Starts a fastcgi server that handles our requests,

@@ -118,10 +118,12 @@ class Listener(async_chat):
                     pass
             if (metadata == "fallback"):
                 self.handle_close()
-            new_song = manager.Song(meta=metadata)
-            np = manager.NP()
-            if (np != new_song):
-                np.change(new_song)
+                return
+            if (metadata != ""):
+                new_song = manager.Song(meta=metadata)
+                np = manager.NP()
+                if (np != new_song):
+                    np.change(new_song)
             
             # flush buffer
             self.ibuffer = []
