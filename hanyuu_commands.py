@@ -520,12 +520,12 @@ def nick_request_song(trackid, host=None):
         else:
             can_afk = False
         can_song = True
-        cur.execute("SELECT UNIX_TIMESTAMP(lastplayed) as lp, UNIX_TIMESTAMP(lastrequested) as lr, priority from `tracks` WHERE `id`=%s", (trackid,))
+        cur.execute("SELECT UNIX_TIMESTAMP(lastplayed) as lp, UNIX_TIMESTAMP(lastrequested) as lr, requestcount from `tracks` WHERE `id`=%s", (trackid,))
         if cur.rowcount == 1:
             row = cur.fetchone()
             song_lp = row['lp']
             song_lr = row['lr']
-            if int(time.time()) - song_lp < requests.songdelay(row['priority']) or int(time.time()) - song_lr < requests.songdelay(row['priority']):
+            if int(time.time()) - song_lp < requests.songdelay(row['requestcount']) or int(time.time()) - song_lr < requests.songdelay(row['requestcount']):
                 can_song = False
         if (not can_request):
             return 2
