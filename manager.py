@@ -715,7 +715,7 @@ class Song(object):
                         return True
                     return False
             def __repr__(self):
-                return (u"Favorites of %s" % repr(self.song)).encode('utf-8')
+                return (u"Favorites of {song}".format(song=repr(self.song).decode('utf-8'))).encode('utf-8')
             def __str__(self):
                 return self.__repr__()
         if (not self._faves):
