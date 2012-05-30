@@ -197,12 +197,12 @@ class Queue(object):
                     (%s) WHERE id=%s;", (correct_time, id_))
                     correct_time += length
     def bump(self, song):
-        if (not NP().afk()):
+        if (not NP().afk):
             return
         with MySQLCursor(lock=self._lock) as cur:
-            cur.execute("SELECT * FROM `queue` WHERE trackid=%s LIMIT 1;", (song.id(),))
+            cur.execute("SELECT * FROM `queue` WHERE trackid=%s LIMIT 1;", (song.id,))
             if (cur.rowcount == 1):
-                cur.execute("UPDATE `queue` SET type=1, time=NOW() WHERE trackid=%s LIMIT 1;", (song.id(),))
+                cur.execute("UPDATE `queue` SET type=1, time=NOW() WHERE trackid=%s LIMIT 1;", (song.id,))
             else:
                 raise KeyError("Song was not in the queue")
         self.check_times();
