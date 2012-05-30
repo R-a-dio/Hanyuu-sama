@@ -17,7 +17,8 @@ def songdelay(val):
         val = 20
     #return int(29145 * math.exp(0.0476 * val) + 0.5)
     #return int(0.1791*val**4 - 17.184*val**3 + 557.07*val**2 - 3238.9*val + 30687 + 0.5)
-    return int(25133*math.exp(0.1625*val)+0.5)
+    #return int(25133*math.exp(0.1625*val)+0.5)
+    return int(-123.82*val**3 + 3355.2*val**2 + 10110*val + 51584 + 0.5)
 
 #class FastCGIServer(Thread):
 class FastCGIServer(object):
