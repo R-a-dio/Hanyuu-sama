@@ -311,7 +311,7 @@ def random(server, nick, channel, text, hostmask):
         mode, command = match.group("mode", "command")
     else:
         return
-    if (command.lower() == "fave"):
+    if (command.lower().strip() == "fave"):
         songs = manager.Song.nick(nick, limit=None, tracks=True)
         while len(songs) > 0:
             song = songs.pop(_random.randrange(len(songs)))
