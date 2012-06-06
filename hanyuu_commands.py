@@ -279,11 +279,7 @@ shut_afk.handler = ("on_text", r'[.!@]cleankill',
 def announce(server):
     np = manager.NP()
     status = manager.Status()
-    message = None
-    for nick in np.faves:
-        if (server.inchannel("#r/a/dio", nick)):
-            server.notice(nick, u"Fave: {0} is playing."\
-                          .format(np.metadata))
+    if (len(np.faves) != 0):
         message = u"Now starting:{c4} '{np}' {c}[{curtime}/{length}]({listeners}/{max_listener}), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
             np=np.metadata, curtime=np.positionf,
             length=np.lengthf, listeners=status.listeners,
@@ -293,8 +289,11 @@ def announce(server):
             ts="" if (np.playcount == 1) else "s",
             lp=np.lpf,
             **irc_colours)
-    if (message != None):
         server.privmsg("#r/a/dio", message)
+    for nick in np.faves:
+        if (server.inchannel("#r/a/dio", nick)):
+            server.notice(nick, u"Fave: {0} is playing."\
+                          .format(np.metadata))
 
 announce.exposed = True
 

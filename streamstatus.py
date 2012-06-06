@@ -35,6 +35,8 @@ def get_status(icecast_server):
             f_main['Stream URL'] = 'http://r-a-d.io'
             f_main['Current Song'] = 'Unknown'
             return {'/fallback.mp3': f_fallback, '/main.mp3': f_main}
+        else:
+            raise
     except:
         # catching all why????
         logging.exception("Can't connect to status page")
