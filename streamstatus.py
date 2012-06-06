@@ -11,7 +11,7 @@ def get_status(icecast_server):
                                             headers={'User-Agent': 'Mozilla'}))
     except HTTPError as e:
         if e.code == 403: #assume it's a full server
-            logging.warning("Can't connect to status page; listener count reached")
+            logging.warning("Can't connect to status page; Assuming listener limit reached")
             f_fallback = MultiDict.OrderedMultiDict()
             f_fallback['Stream Title'] = 'Fallback at R/a/dio'
             f_fallback['Stream Description'] = 'Sorry we are currently down'
@@ -36,7 +36,7 @@ def get_status(icecast_server):
             f_main['Current Song'] = 'Unknown'
             return {'/fallback.mp3': f_fallback, '/main.mp3': f_main}
         else:
-            raise
+            logging.exception("HTTPError occured in status retrieval")
     except:
         # catching all why????
         logging.exception("Can't connect to status page")
