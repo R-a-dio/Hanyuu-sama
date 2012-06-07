@@ -261,17 +261,14 @@ kill_afk.handler = ("on_text", r'[.!@]kill',
 # TODO:
 #    same as above
 def shut_afk(server, nick, channel, text, hostmask):
-    if (server.isop(channel, nick)):
-        try:
-            stream = main.connect()
-            stream.switch_dj()
-            message = u'AFK Streamer will disconnect after current track, use ".kill" to force disconnect.'
-        except:
-            message = u"Something went wrong, please punch Wessie."
-            logging.exception("AFK cleankill failed")
-        server.privmsg(channel, message)
-    else:
-        server.notice(nick, u"You don't have high enough access to do this.")
+    try:
+        stream = main.connect()
+        stream.switch_dj()
+        message = u'AFK Streamer will disconnect after current track, use ".kill" to force disconnect.'
+    except:
+        message = u"Something went wrong, please punch Wessie."
+        logging.exception("AFK cleankill failed")
+    server.privmsg(channel, message)
         
 shut_afk.handler = ("on_text", r'[.!@]cleankill',
                      irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
