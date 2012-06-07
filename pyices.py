@@ -177,7 +177,10 @@ class TranscoderTwo(object):
         
     def decode(self, filename, wait=False):
         if (hasattr(self, "decoder")):
-            self.processes.remove(self.decoder)
+            try:
+                self.processes.remove(self.decoder)
+            except ValueError:
+                pass
         decoder_args = self.decoder_args[:]
         decoder_args[decoder_args.index("FILE")] = filename
         decoder = Popen(args=decoder_args,
