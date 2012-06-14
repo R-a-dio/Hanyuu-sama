@@ -6,6 +6,7 @@ import logging
 import main
 import select
 from subprocess import Popen
+from collections import deque
 
 class IcecastStream(Thread):
     attributes = {}
@@ -14,6 +15,9 @@ class IcecastStream(Thread):
         
         # Setup event
         self.active = Event()
+        
+        # history deques
+        self.buffer_history = deque(maxlen=15)
         
         # Setup transcoder
         self.file_method = file_method
@@ -90,7 +94,9 @@ class IcecastStream(Thread):
             # Buffer logic
             for fileno, event in self.stream_poll.poll(10):
                 buff = os.read(fileno, 4096)
-                if (len(buff) == 0):
+                length = len(buff)
+                self.buffer_history.append(length)
+                if (length == 0):
                     logging.debug("Stream stdin empty, disconnecting")
                     disconnect = True
                     break
@@ -118,6 +124,8 @@ class IcecastStream(Thread):
         
     def on_disconnect(self):
         import datetime
+        logging.debug(self.buffer_history)
+        logging.debug(self.transcoder)
         self.active.set()
         logging.debug("On disconnect called at %s", str(datetime.datetime.now()))
         try:
@@ -194,3 +202,7 @@ class TranscoderTwo(object):
     def create_pipe(self):
         r, w = os.pipe()
         return os.fdopen(r, 'rb'), os.fdopen(w, 'wb')
+    def __repr__(self):
+        return str(self)
+    def __str__(self):
+        return "Decoder: %s, Encoder: %s, Pipes: %s" % (str(self.decoder), str(self.encoder), str(self.pipes))
