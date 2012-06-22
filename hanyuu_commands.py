@@ -544,8 +544,8 @@ def nick_request_song(trackid, host=None):
                 can_song = False
                 if delaytime == 0 and int(time.time()) - song_lp > delaytime:
                     delaytime = int(time.time()) - song_lp
-                if delaytime == 0 and int(time.time()) - song_lr > delaytime:
-                    delaytime = int(time.time()) - song_lr
+                    if int(time.time()) - song_lr > delaytime: # :/
+                        delaytime = int(time.time()) - song_lr
         if (not can_request):
             return (2, delaytime)
         elif (not can_afk):
