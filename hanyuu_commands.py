@@ -524,7 +524,7 @@ def nick_request_song(trackid, host=None):
                 hostmask_id = int(row['id'])
                 if int(time.time()) - int(row['timestamp']) < 3600:
                     can_request = False
-                    delaytime = int(time.time()) - int(row['timestamp'])
+                    delaytime = 3600 - (int(time.time()) - int(row['timestamp']))
         can_afk = True
         cur.execute("SELECT isafkstream FROM `streamstatus` WHERE `id`=0;")
         if cur.rowcount == 1:
@@ -542,10 +542,10 @@ def nick_request_song(trackid, host=None):
             song_lr = row['lr']
             if int(time.time()) - song_lp < requests.songdelay(row['requestcount']) or int(time.time()) - song_lr < requests.songdelay(row['requestcount']):
                 can_song = False
-                if delaytime == 0 and int(time.time()) - song_lp > delaytime:
-                    delaytime = int(time.time()) - song_lp
+                if delaytime == 0:
+                    delaytime = requests.songdelay(row['requestcount']) - (int(time.time()) - song_lp)
                     if int(time.time()) - song_lr > delaytime: # :/
-                        delaytime = int(time.time()) - song_lr
+                        delaytime = requests.songdelay(row['requestcount']) - (int(time.time()) - song_lr)
         if (not can_request):
             return (2, delaytime)
         elif (not can_afk):
