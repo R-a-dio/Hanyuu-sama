@@ -468,19 +468,19 @@ markov_say.handler = ("on_text", r'[.!]say', irc.ALL_NICKS, irc.ALL_CHANNELS)
 def hanyuu_response(response, delay):
     """Gets a chat response for a specific delay type and delay time.
     """
-    self_messages = [(60*10, u"Only less than ten minutes before you can request again!"),
-                     (60*30, u"You need to wait at most another half hour until you can request!"),
-                     (60*61, u"You still have quite a lot of time before you can request again..."),
-                     (20000000, u"No.")]
-    song_messages = [(60*5, u"Only five more minutes before I'll let you request that!"),
-                     (60*15, u"Just another 15 minutes to go for that song!"),
-                     (60*40, u"Only less than 40 minutes to go for that song!"),
-                     (60*60, u"You need to wait at most an hour for that song!"),
-                     (60*60*4, u"That song can be requested in a few hours!"),
-                     (60*60*24, u"You'll have to wait at most a day for that song..."),
-                     (60*60*24*3, u"That song can only be requested in a few days' time..."),
-                     (60*60*24*7, u"You might want to go do something else while you wait for that song."),
-                     (20000000, u"No.")]
+    self_messages = [(60*10, irc_colours['c3'] + u"Only less than ten minutes before you can request again!"),
+                     (60*30, irc_colours['c2'] + u"You need to wait at most another half hour until you can request!"),
+                     (60*61, irc_colours['c5'] + u"You still have quite a lot of time before you can request again..."),
+                     (20000000, irc_colours['c4'] + u"No.")]
+    song_messages = [(60*5, irc_colours['c3'] + u"Only five more minutes before I'll let you request that!"),
+                     (60*15, irc_colours['c3'] + u"Just another 15 minutes to go for that song!"),
+                     (60*40, irc_colours['c2'] + u"Only less than 40 minutes to go for that song!"),
+                     (60*60, irc_colours['c2'] + u"You need to wait at most an hour for that song!"),
+                     (60*60*4, irc_colours['c2'] + u"That song can be requested in a few hours!"),
+                     (60*60*24, irc_colours['c5'] + u"You'll have to wait at most a day for that song..."),
+                     (60*60*24*3, irc_colours['c5'] + u"That song can only be requested in a few days' time..."),
+                     (60*60*24*7, irc_colours['c5'] + u"You might want to go do something else while you wait for that song."),
+                     (20000000, irc_colours['c4'] + u"No.")]
     
     if (response == 2):
         for (d, r) in self_messages:
