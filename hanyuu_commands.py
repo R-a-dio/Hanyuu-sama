@@ -312,15 +312,12 @@ def random(server, nick, channel, text, hostmask):
         while len(songs) > 0:
             song = songs.pop(_random.randrange(len(songs)))
             value = nick_request_song(song.id, hostmask)
-            if (value == 2):
-                message = u"You have to wait a bit longer before you can request again~"
-                break
-            elif (value == 3):
-                message = u"I'm not streaming right now!"
-                break
-            elif (value == 4):
-                message = u"You have to wait a bit longer before requesting that song~"
-                continue
+            if (isinstance(value, tuple)):
+                message = hanyuu_response(value[0], value[1])
+                if (value[0] == 4):
+                    continue
+                else:
+                    break
             elif (isinstance(value, manager.Song)):
                 manager.Queue().append_request(song)
                 request_announce(server, song)
@@ -329,15 +326,12 @@ def random(server, nick, channel, text, hostmask):
         while True:
             song = manager.Song.random()
             value = nick_request_song(song.id, hostmask)
-            if (value == 2):
-                message = u"You have to wait a bit longer before you can request again~"
-                break
-            elif (value == 3):
-                message = u"I'm not streaming right now!"
-                break
-            elif (value == 4):
-                message = u"You have to wait a bit longer before requesting that song~"
-                continue
+            if (isinstance(value, tuple)):
+                message = hanyuu_response(value[0], value[1])
+                if (value[0] == 4):
+                    continue
+                else:
+                    break
             elif (isinstance(value, manager.Song)):
                 manager.Queue().append_request(song)
                 request_announce(server, song)
@@ -361,15 +355,12 @@ def lucky(server, nick, channel, text, hostmask):
     message = None
     for song in result:
         value = nick_request_song(song.id, hostmask)
-        if (value == 2):
-            message = u"You have to wait a bit longer before you can request again~"
-            break
-        elif (value == 3):
-            message = u"I'm not streaming right now!"
-            break
-        elif (value == 4):
-            message = u"You have to wait a bit longer before requesting that song~"
-            continue
+        if (isinstance(value, tuple)):
+            message = hanyuu_response(value[0], value[1])
+            if (value[0] == 4):
+                continue
+            else:
+                break
         elif (isinstance(value, manager.Song)):
             manager.Queue().append_request(song)
             request_announce(server, song)
@@ -437,12 +428,8 @@ def request(server, nick, channel, text, hostmask):
             return
         elif (response == 1): #wasn't song
             message = u"I don't know of any song with that id..."
-        elif (response == 2): #too early
-            message = u"You have to wait a bit longer before you can request again~"
-        elif (response == 3): #not afk stream
-            message = u"I'm not streaming right now!"
-        elif (response == 4): #song not ready
-            message = u"You have to wait a bit longer before requesting that song~"
+        elif (isinstance(response, tuple)):
+            message = hanyuu_response(response[0], response[1])
     server.privmsg(channel, message)
 
 request.handler = ("on_text", r'[.!@]r(equest)?\b',
@@ -478,6 +465,36 @@ def markov_say(server, nick, channel, text, hostmask):
     
 markov_say.handler = ("on_text", r'[.!]say', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
+def hanyuu_response(response, delay):
+    """Gets a chat response for a specific delay type and delay time.
+    """
+    self_messages = [(60*10, irc_colours['c3'] + u"Only less than ten minutes before you can request again!"),
+                     (60*30, irc_colours['c2'] + u"You need to wait at most another half hour until you can request!"),
+                     (60*61, irc_colours['c5'] + u"You still have quite a lot of time before you can request again..."),
+                     (20000000, irc_colours['c4'] + u"No.")]
+    song_messages = [(60*5, irc_colours['c3'] + u"Only five more minutes before I'll let you request that!"),
+                     (60*15, irc_colours['c3'] + u"Just another 15 minutes to go for that song!"),
+                     (60*40, irc_colours['c2'] + u"Only less than 40 minutes to go for that song!"),
+                     (60*60, irc_colours['c2'] + u"You need to wait at most an hour for that song!"),
+                     (60*60*4, irc_colours['c2'] + u"That song can be requested in a few hours!"),
+                     (60*60*24, irc_colours['c5'] + u"You'll have to wait at most a day for that song..."),
+                     (60*60*24*3, irc_colours['c5'] + u"That song can only be requested in a few days' time..."),
+                     (60*60*24*7, irc_colours['c5'] + u"You might want to go do something else while you wait for that song."),
+                     (20000000, irc_colours['c4'] + u"No.")]
+    
+    if (response == 2):
+        for (d, r) in self_messages:
+            if delay <= d:
+                return r
+    elif (response == 3):
+        return u"I'm not streaming right now!"
+    elif (response == 4):
+        for (d, r) in song_messages:
+            if delay <= d:
+                return r
+    return u"I have no idea what's happening~"
+    
+
 def nick_request_song(trackid, host=None):
     """Gets data about the specified song, for the specified hostmask.
     If the song didn't exist, it returns 1.
@@ -497,6 +514,7 @@ def nick_request_song(trackid, host=None):
             return 1
         can_request = True
         hostmask_id = None
+        delaytime = 0;
         if host:
             cur.execute("SELECT id, UNIX_TIMESTAMP(time) as timestamp \
                 FROM `nickrequesttime` WHERE `host`=%s LIMIT 1;",
@@ -506,6 +524,7 @@ def nick_request_song(trackid, host=None):
                 hostmask_id = int(row['id'])
                 if int(time.time()) - int(row['timestamp']) < 3600:
                     can_request = False
+                    delaytime = 3600 - (int(time.time()) - int(row['timestamp']))
         can_afk = True
         cur.execute("SELECT isafkstream FROM `streamstatus` WHERE `id`=0;")
         if cur.rowcount == 1:
@@ -523,12 +542,16 @@ def nick_request_song(trackid, host=None):
             song_lr = row['lr']
             if int(time.time()) - song_lp < requests.songdelay(row['requestcount']) or int(time.time()) - song_lr < requests.songdelay(row['requestcount']):
                 can_song = False
+                if delaytime == 0:
+                    delaytime = requests.songdelay(row['requestcount']) - (int(time.time()) - song_lp)
+                    if int(time.time()) - song_lr > delaytime: # :/
+                        delaytime = requests.songdelay(row['requestcount']) - (int(time.time()) - song_lr)
         if (not can_request):
-            return 2
+            return (2, delaytime)
         elif (not can_afk):
-            return 3
+            return (3, 0)
         elif (not can_song):
-            return 4
+            return (4, delaytime)
         else:
             if host:
                 if hostmask_id:
