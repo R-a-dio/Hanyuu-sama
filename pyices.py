@@ -139,8 +139,10 @@ class IcecastStream(Thread):
         
 class TranscoderTwo(object):
     encoder_args = ["lame", "-t", "--silent", "--flush",
-                    "--cbr", "--resample", "44.1",
-                    "-b", "192", "-", "-"]
+                    "--preset", "cbr", "192", "-m", "j", "-q", "0",
+                    "--noreplaygain", "-", "-"]
+    sox_args = ["sox", "-t", "wav", "-", "-r", "44100", "-b", "16", "-c", "2",
+                "-t", "wav", "-"]
     decoder_args = ["lame", "--silent", "--flush",
                     "--mp3input", "--decode", "FILE", "-"]
     processes = []
@@ -148,10 +150,16 @@ class TranscoderTwo(object):
     def __init__(self):
         super(TranscoderTwo, self).__init__()
         
-        self.encode_stdin, self.decode_stdout = self.create_pipe()
+        # lame decoder: stdout = decode_stdout
+        # sox transformer: stdin = sox_stdin, stdout = sox_stdout
+        # lame encoder: stdin = encode_stdin, stdout = encode_stdout
+        self.sox_stdin, self.decode_stdout = self.create_pipe()
+        self.encode_stdin, self.sox_stdout = self.create_pipe()
         self.stream_stdin, self.encode_stdout = self.create_pipe()
-        self.pipes.extend([self.encode_stdin,
+        self.pipes.extend([self.sox_stdin,
+                           self.encode_stdin,
                            self.decode_stdout,
+                           self.sox_stdout,
                            self.stream_stdin,
                            self.encode_stdout])
         self.encoder = Popen(args=self.encoder_args,
@@ -184,6 +192,7 @@ class TranscoderTwo(object):
                     sleep(0.5)
         
     def decode(self, filename, wait=False):
+        # Get our lame decoder running
         if (hasattr(self, "decoder")):
             try:
                 self.processes.remove(self.decoder)
@@ -195,6 +204,18 @@ class TranscoderTwo(object):
                         stdout=self.decode_stdout)
         self.processes.append(decoder)
         self.decoder = decoder
+        
+        # get out sox transformer running
+        if (hasattr(self, "sox")):
+            try:
+                self.processes.remove(self.sox)
+            except (ValueError):
+                pass
+        sox_args = self.sox_args[:]
+        sox = Popen(args=sox_args,
+                    stdin=self.sox_stdin,
+                    stdout=self.sox_stdout)
+        self.sox = sox
         if wait:
             decoder.wait()
         return decoder
