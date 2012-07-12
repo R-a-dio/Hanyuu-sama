@@ -174,27 +174,37 @@ def dj(server, nick, channel, text, hostmask):
 dj.handler = ("on_text", r'[.!@]dj.*', irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def favorite(server, nick, channel, text, hostmask):
-    np = manager.NP()
-    if (nick in np.faves):
-        message = u"You already have {c3}'{np}'{c} favourited"\
-            .format(np=np.metadata, **irc_colours)
+    match = re.match(r"^(?P<mode>[.!@])fave.*\b(?P<command>.*)", text, re.I|re.U)
+    song = manager.NP()
+    if match:
+        mode, command = match.group("mode", "command")
+        if (command.strip() == "last"):
+            song = manager.LP().get(1)[0]
+    if (nick in song.faves):
+        message = u"You already have {c3}'{song}'{c} favorited"\
+            .format(song=song.metadata, **irc_colours)
     else:
-        np.faves.append(nick)
-        message = u"Added {c3}'{np}'{c} to your favorites."\
-        .format(np=np.metadata, **irc_colours)
+        song.faves.append(nick)
+        message = u"Added {c3}'{song}'{c} to your favorites."\
+        .format(song=song.metadata, **irc_colours)
     server.notice(nick, message)
     
 favorite.handler = ("on_text", r'[.!@]fave.*', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def unfavorite(server, nick, channel, text, hostmask):
-    np = manager.NP()
-    if (nick in np.faves):
-        np.faves.remove(nick)
-        message = u"{c3}'{np}'{c} is removed from your favorites."\
-            .format(np=np.metadata, **irc_colours)
+    match = re.match(r"^(?P<mode>[.!@])unfave.*\b(?P<command>.*)", text, re.I|re.U)
+    song = manager.NP()
+    if match:
+        mode, command = match.group("mode", "command")
+        if (command.strip() == "last"):
+            song = manager.LP().get(1)[0]
+    if (nick in song.faves):
+        song.faves.remove(nick)
+        message = u"{c3}'{song}'{c} is removed from your favorites."\
+            .format(song=song.metadata, **irc_colours)
     else:
-        message = u"You don't have {c3}'{np}'{c} in your favorites."\
-            .format(np=np.metadata, **irc_colours)
+        message = u"You don't have {c3}'{song}'{c} in your favorites."\
+            .format(song=song.metadata, **irc_colours)
     server.notice(nick, message)
     
 unfavorite.handler = ("on_text", r'[.!@]unfave.*',
