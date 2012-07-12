@@ -174,7 +174,7 @@ def dj(server, nick, channel, text, hostmask):
 dj.handler = ("on_text", r'[.!@]dj.*', irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def favorite(server, nick, channel, text, hostmask):
-    match = re.match(r"^(?P<mode>[.!@])fave.*\b(?P<command>.*)", text, re.I|re.U)
+    match = re.match(r"^(?P<mode>[.!@])fave\b(?P<command>.*)", text, re.I|re.U)
     song = manager.NP()
     if match:
         mode, command = match.group("mode", "command")
@@ -192,7 +192,7 @@ def favorite(server, nick, channel, text, hostmask):
 favorite.handler = ("on_text", r'[.!@]fave.*', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def unfavorite(server, nick, channel, text, hostmask):
-    match = re.match(r"^(?P<mode>[.!@])unfave.*\b(?P<command>.*)", text, re.I|re.U)
+    match = re.match(r"^(?P<mode>[.!@])unfave\b(?P<command>.*)", text, re.I|re.U)
     song = manager.NP()
     if match:
         mode, command = match.group("mode", "command")
