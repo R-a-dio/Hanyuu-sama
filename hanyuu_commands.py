@@ -543,9 +543,10 @@ def nick_request_song(trackid, host=None):
             if int(time.time()) - song_lp < requests.songdelay(row['requestcount']) or int(time.time()) - song_lr < requests.songdelay(row['requestcount']):
                 can_song = False
                 if delaytime == 0:
-                    delaytime = requests.songdelay(row['requestcount']) - (int(time.time()) - song_lp)
-                    if int(time.time()) - song_lr > delaytime: # :/
-                        delaytime = requests.songdelay(row['requestcount']) - (int(time.time()) - song_lr)
+                    lp_delay = requests.songdelay(row['requestcount']) - (int(time.time()) - song_lp)
+                    lr_delay = requests.songdelay(row['requestcount']) - (int(time.time()) - song_lr)
+                    songdelay = max(lp_delay, lr_delay)
+                        
         if (not can_request):
             return (2, delaytime)
         elif (not can_afk):
