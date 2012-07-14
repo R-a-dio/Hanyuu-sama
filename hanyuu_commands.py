@@ -555,7 +555,7 @@ def nick_request_song(trackid, host=None):
                 if delaytime == 0:
                     lp_delay = requests.songdelay(row['requestcount']) - (int(time.time()) - song_lp)
                     lr_delay = requests.songdelay(row['requestcount']) - (int(time.time()) - song_lr)
-                    songdelay = max(lp_delay, lr_delay)
+                    delaytime = max(lp_delay, lr_delay)
                         
         if (not can_request):
             return (2, delaytime)
