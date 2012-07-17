@@ -53,12 +53,12 @@ def get_listeners(icecast_host):
     
     cur_addr = socket.gethostbyname(icecast_host)
     rad_addr = socket.gethostbyname("r-a-d.io")
-    root_addr = socket.gethostbyname("shoutcast1.rootnode.net")
+    stream_addr = socket.gethostbyname("stream.r-a-d.io")
     
     if (cur_addr == rad_addr):
         auth = config.radio_admin_auth
-    elif (cur_addr == root_addr):
-        auth = config.rootnode_admin_auth
+    elif (cur_addr == stream_addr):
+        auth = config.stream_admin_auth
     else:
         raise ValueError("no known icecast host was specified")
     
