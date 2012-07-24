@@ -27,6 +27,8 @@ class StatusUpdate(object):
         # Start streamstatus updater
         m.start_updater()
         
+        self.mode = None
+        
         self.status = m.Status()
         self.status.add_handler(self)
         self.streamer = afkstreamer.Streamer(config.icecast_attributes())
