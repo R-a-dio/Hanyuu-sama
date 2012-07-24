@@ -49,11 +49,11 @@ class StatusUpdate(object):
                 self.debug("Streamer is already connected")
                 # The streamer is already up? but no mountpoint?
                 # close it
-                self.streamer.shutdown(force=True)
+                ##self.streamer.shutdown(force=True)
                 # are we switching DJ?
-                if (not self.switching):
-                    self.debug("Streamer trying to reconnect")
-                    self.streamer.connect()
+                ##if (not self.switching):
+                ##    self.debug("Streamer trying to reconnect")
+                ##    self.streamer.connect()
             else:
                 # no streamer up, and no mountpoint
                 self.debug("Streamer is not connected")
