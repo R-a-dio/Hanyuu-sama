@@ -4,9 +4,11 @@ from threading import Thread, Event
 import os
 import logging
 import main
+import manager
 import select
 from subprocess import Popen
 from collections import deque
+import time
 
 class IcecastStream(Thread):
     attributes = {}
@@ -60,11 +62,17 @@ class IcecastStream(Thread):
             if (not self.decoder or self.decoder.poll() is not None):
                 # Decoder doesn't exist yet
                 filename, metadata = self.file_method()
+                song = manager.Song(filename=filename, meta=metadata)
                 if (filename == None or metadata == None):
                     logging.debug("File method returned None, disconnecting")
                     self.on_disconnect()
                     break
-                logging.debug("Decoding file: %s, %s", filename, metadata)
+                logging.debug("Expected length was: %s, seconds played: %s",
+                              self.prev_length, time.time() - song.prev_time)
+                self.prev_length = song.length
+                self.prev_time = time.time()
+                logging.debug("Decoding file: %s, %s, length: %s", filename,
+                              metadata, self.prev_length)
                 try:
                     self.decoder = self.transcoder.decode(filename)
                 except OSError as err:
