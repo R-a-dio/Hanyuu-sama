@@ -208,4 +208,6 @@ class TranscoderTwo(object):
     def __repr__(self):
         return str(self)
     def __str__(self):
-        return "Decoder: %s, Encoder: %s, Pipes: %s" % (str(self.decoder), str(self.encoder), str(self.pipes))
+        return "Decoder: %s (%s), Encoder: %s (%s), Pipes: %s" % (str(self.decoder),
+                    self.decoder.returncode, str(self.encoder),
+                    self.encoder.returncode, str(self.pipes))
