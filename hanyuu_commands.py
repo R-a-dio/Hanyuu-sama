@@ -178,8 +178,15 @@ def favorite(server, nick, channel, text, hostmask):
     song = manager.NP()
     if match:
         mode, command = match.group("mode", "command")
-        if (command.strip() == "last"):
+        if (command.strip().lower() == "last"):
             song = manager.LP().get(1)[0]
+        if (command.strip().isdigit()):
+            id = int(command.strip())
+            try:
+                song = manager.Song(id=id)
+            except:
+                server.notice(nick, u"I don't know of a song with that ID...")
+                return
     if (nick in song.faves):
         message = u"You already have {c3}'{song}'{c} favorited"\
             .format(song=song.metadata, **irc_colours)
@@ -198,6 +205,13 @@ def unfavorite(server, nick, channel, text, hostmask):
         mode, command = match.group("mode", "command")
         if (command.strip() == "last"):
             song = manager.LP().get(1)[0]
+        if (command.strip().isdigit()):
+            id = int(command.strip())
+            try:
+                song = manager.Song(id=id)
+            except:
+                server.notice(nick, u"I don't know of a song with that ID...")
+                return
     if (nick in song.faves):
         song.faves.remove(nick)
         message = u"{c3}'{song}'{c} is removed from your favorites."\
