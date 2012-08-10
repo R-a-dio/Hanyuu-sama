@@ -460,6 +460,7 @@ request.handler = ("on_text", r'[.!@]r(equest)?\b',
                    irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def lastrequest(server, nick, channel, text, hostmask):
+    import time
     match = re.match(r"^(?P<mode>[.!@])lastr(equest)?.*", text, re.I|re.U)
     if (match):
         mode = match.group('mode')
@@ -475,7 +476,7 @@ def lastrequest(server, nick, channel, text, hostmask):
                 host_time = int(row['timestamp'])
             else:
                 host_time = 0
-        time_since = time.time() - host_time
+        time_since = int(time.time()) - host_time
         
         host_format = time.strftime('%b %d, %H:%M:%S %Z', time.localtime(host_time))
         since_format = small_time_format(time_since)
