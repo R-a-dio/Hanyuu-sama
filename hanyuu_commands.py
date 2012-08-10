@@ -459,6 +459,48 @@ def request(server, nick, channel, text, hostmask):
 request.handler = ("on_text", r'[.!@]r(equest)?\b',
                    irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
+def lastrequest(server, nick, channel, text, hostmask):
+    match = re.match(r"^(?P<mode>[.!@])lastr(equest)?.*", text, re.I|re.U)
+    if (match):
+        mode = match.group('mode')
+    else:
+        mode = '.'
+    try:
+        with manager.MySQLCursor() as cur:
+            cur.execute("SELECT id, UNIX_TIMESTAMP(time) as timestamp \
+                FROM `nickrequesttime` WHERE `host`=%s LIMIT 1;",
+                (hostmask,))
+            if (cur.rowcount == 1):
+                row = cur.fetchone()
+                host_time = int(row['timestamp'])
+            else:
+                host_time = 0
+        time_since = time.time() - host_time
+        
+        host_format = time.strftime('%b %d, %H:%M:%S %Z', time.localtime(host_time))
+        since_format = small_time_format(time_since)
+        can_request = time_since >= 3600
+        
+        if (host_time == 0):
+            message = u"You don't seem to have requested on IRC before, {nick}!".format(nick=nick)
+        else:
+            message = u"You last requested at{c4} {time}{c}, which is{c4} {time_ago}{c} ago.{c3} {can_r}".format(
+                time=host_format,
+                time_ago=since_format,
+                can_r=('You can request!' if can_request else ''),
+                **irc_colours)
+    except:
+        logging.exception("Error in last request function")
+        message = "Something broke! Hauu~"
+    
+    if (mode == '@'):
+        server.privmsg(channel, message)
+    else:
+        server.notice(nick, message)
+
+lastrequest.handler = ("on_text", r'[.!@]lastr(equest)?.*',
+                       irc.ALL_NICKS, irc.MAIN_CHANNELS)
+
 def request_help(server, nick, channel, text, hostmask):
     message = u"{nick}: http://r-a-d.io/search {c5}Thank you for listening to r/a/dio!".format(nick=nick, **irc_colours)
     server.privmsg(channel, message)
@@ -517,7 +559,26 @@ def hanyuu_response(response, delay):
             if delay <= d:
                 return r
     return u"I have no idea what's happening~"
-    
+
+def small_time_format(t):
+    if (t > 4*3600*24):
+        return 'a long time'
+    if (t == 0):
+        return '0s'
+    retval = ''
+    b, t = divmod(t, 3600*24)
+    if b != 0:
+        retval += (str(b) + 'd')
+    b, t = divmod(t, 3600)
+    if b != 0:
+        retval += (str(b) + 'h')
+    b, t = divmod(t, 60)
+    if b != 0:
+        retval += (str(b) + 'm')
+    b, t = divmod(t, 1)
+    if b != 0:
+        retval += (str(b) + 's')
+    return retval
 
 def nick_request_song(trackid, host=None):
     """Gets data about the specified song, for the specified hostmask.
