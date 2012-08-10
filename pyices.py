@@ -4,9 +4,11 @@ from threading import Thread, Event
 import os
 import logging
 import main
+import manager
 import select
 from subprocess import Popen
 from collections import deque
+import time
 
 class IcecastStream(Thread):
     attributes = {}
@@ -51,6 +53,7 @@ class IcecastStream(Thread):
             self.on_disconnect()
             return
         metadata = (False, "No metadata available")
+        disconnect = False
         while self.connected() and not self.active.is_set():
             # Set our metadata value
             metadata = (False, metadata[1])
@@ -59,11 +62,17 @@ class IcecastStream(Thread):
             if (not self.decoder or self.decoder.poll() is not None):
                 # Decoder doesn't exist yet
                 filename, metadata = self.file_method()
+                song = manager.Song(filename=filename, meta=metadata)
                 if (filename == None or metadata == None):
                     logging.debug("File method returned None, disconnecting")
                     self.on_disconnect()
                     break
-                logging.debug("Decoding file: %s, %s", filename, metadata)
+                logging.debug("Expected length was: %s, seconds played: %s",
+                              self.prev_length, time.time() - song.prev_time)
+                self.prev_length = song.length
+                self.prev_time = time.time()
+                logging.debug("Decoding file: %s, %s, length: %s", filename,
+                              metadata, self.prev_length)
                 try:
                     self.decoder = self.transcoder.decode(filename)
                 except OSError as err:
@@ -105,14 +114,16 @@ class IcecastStream(Thread):
                     self._shout.sync()
                 except (pylibshout.ShoutException) as err:
                     if err[0] == pylibshout.SHOUTERR_UNCONNECTED:
-                        pass
+                        logging.exception("Unconnected shouterr")
                     else:
                         logging.exception("Failed sending stream data")
                     disconnect = True
                     break
             if (disconnect):
+                logging.error("Forced disconnect in buffer logic")
                 break
-
+        logging.debug("Disconnect status: connected: %s, switch: %s, force: %s", 
+                      self.connected(), self.active.is_set(), disconnect)
         self.on_disconnect()
         
     def close(self):
@@ -205,4 +216,6 @@ class TranscoderTwo(object):
     def __repr__(self):
         return str(self)
     def __str__(self):
-        return "Decoder: %s, Encoder: %s, Pipes: %s" % (str(self.decoder), str(self.encoder), str(self.pipes))
+        return "Decoder: %s (%s), Encoder: %s (%s), Pipes: %s" % (str(self.decoder),
+                    self.decoder.returncode, str(self.encoder),
+                    self.encoder.returncode, str(self.pipes))
