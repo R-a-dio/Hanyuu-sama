@@ -361,7 +361,7 @@ def lucky(server, nick, channel, text, hostmask):
         message = u"Hauu~ you didn't have a search query!"
         server.notice(nick, message)
         return
-    result = manager.Song.search(query, limit=20)
+    result = manager.Song.search(query, limit=None)
     message = None
     for song in result:
         value = nick_request_song(song.id, hostmask)
