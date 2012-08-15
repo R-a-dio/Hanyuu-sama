@@ -791,8 +791,8 @@ class Song(object):
             if (cur.rowcount == 1):
                 return cur.fetchone()['id']
             else:
-                cur.execute("INSERT INTO `esong` (`hash`, `len`, `meta`) \
-                VALUES (%s, %s, %s);", (song.digest, song.length, song.metadata))
+                cur.execute("INSERT INTO `esong` (`hash`, `len`, `meta`, `hash_link`) \
+                VALUES (%s, %s, %s, %s);", (song.digest, song.length, song.metadata, song.digest))
                 cur.execute("SELECT * FROM `esong` WHERE `hash`=%s LIMIT 1;",
                         (song.digest,))
                 return cur.fetchone()['id']
