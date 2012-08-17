@@ -288,6 +288,11 @@ def start():
     server.serve_forever()
     
 def launch_server():
+    import os
+    try:
+        os.remove('/tmp/hanyuu_irc')
+    except:
+        pass
     manager = IRCManager(address=config.manager_irc, authkey=config.authkey)
     manager.start()
     global _unrelated_

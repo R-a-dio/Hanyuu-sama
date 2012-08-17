@@ -98,6 +98,11 @@ def start():
     server.serve_forever()
     
 def launch_server():
+    import os
+    try:
+        os.remove('/tmp/hanyuu_stream')
+    except:
+        pass
     manager = StreamManager(address=config.manager_stream, authkey=config.authkey)
     manager.start()
     global _unrelated_
