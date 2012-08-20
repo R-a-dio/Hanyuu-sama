@@ -300,7 +300,7 @@ shut_afk.handler = ("on_text", r'[.!@]cleankill',
 def announce(server):
     np = manager.NP()
     status = manager.Status()
-    if (len(np.faves) != 0):
+    if (len(np.faves) != 0 and np.length >= 30):
         message = u"Now starting:{c4} '{np}' {c}[{curtime}/{length}]({listeners}/{max_listener}), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
             np=np.metadata, curtime=np.positionf,
             length=np.lengthf, listeners=status.listeners,
