@@ -671,7 +671,7 @@ class ServerConnection(Connection):
                     if 'CHANMODES' in self.featurelist:
                         chanmodes = self.featurelist['CHANMODES']
                         chansplit = chanmodes.split(',')
-                        self.sqlite.argmodes = ''.join(spl[:3]) #first three groups are argmodes
+                        self.sqlite.argmodes = ''.join(chansplit[:3]) #first three groups are argmodes
                     if 'PREFIX' in self.featurelist:
                         match = re.match(r"\((.*?)\)(.*?)$", self.featurelist['PREFIX'])
                         self.sqlite.nickchars = match.groups()[1]
