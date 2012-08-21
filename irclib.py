@@ -427,6 +427,7 @@ class ServerConnection(Connection):
         self.last_time = time.time()
         self._last_ping = time.time()
         self.encoding = irclibobj.encoding
+        self.featurelist = {}
         
     def connect(self, server, port, nickname, password=None, username=None,
                 ircname=None, localaddress="", localport=0,
@@ -475,6 +476,7 @@ class ServerConnection(Connection):
         self.localaddress = localaddress
         self.localport = localport
         self.localhost = socket.gethostname()
+        self.featurelist = {}
         self._ipv6 = ipv6
         self._ssl = ssl
         if ipv6:
@@ -659,12 +661,22 @@ class ServerConnection(Connection):
                 elif command == "notopic":
                     self.sqlite.topic(target, "")
                 elif command == "featurelist":
-                    match = re.search(r"\sPREFIX=\((.*?)\)(.*?)\s",
-                                       " ".join(arguments))
-                    if (match):
+                    for feature in arguments:
+                        split = feature.split("=")
+                        if (len(split) == 2):
+                            self.featurelist[split[0]] = split[1]
+                        elif (len(split) == 1):
+                            self.featurelist[split[0]] = ""
+                elif command == "endofmotd":
+                    if 'CHANMODES' in self.featurelist:
+                        chanmodes = self.featurelist['CHANMODES']
+                        chansplit = chanmodes.split(',')
+                        self.sqlite.argmodes = ''.join(spl[:3]) #first three groups are argmodes
+                    if 'PREFIX' in self.featurelist:
+                        match = re.match(r"\((.*?)\)(.*?)$", self.featurelist['PREFIX'])
                         self.sqlite.nickchars = match.groups()[1]
                         self.sqlite.nickmodes = match.groups()[0]
-                        self.sqlite.argmodes += self.sqlite.nickmodes
+                        self.sqlite.argmodes += self.sqlite.nickmodes #nickmodes are also argmodes
                 elif command == "namreply":
                     chan = arguments[1]
                     names = arguments[2].strip().split(' ')
@@ -1032,7 +1044,7 @@ class SqliteConnection:
             #cur.execute("insert into nick_chan_link (nick_id, chan_id, modes) values (1, 1, 'ov')")
         self.nickmodes = ''
         self.nickchars = ''
-        self.argmodes = 'bkle' #lol i'm lazy. just assuming that bkl are all argument modes
+        self.argmodes = '' #lol i'm lazy. just assuming that bkl are all argument modes
 
     def join(self, chan, nick):
         chan_id = self.__get_chan_id(chan)
