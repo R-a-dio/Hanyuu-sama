@@ -4,6 +4,60 @@ import MultiDict
 import logging
 import config
 from urllib2 import HTTPError
+import manager
+
+
+def get_listener_count(server_name='stream'):
+    with manager.MySQLCursor() as cur:
+        cur.execute("SELECT * FROM `relays` WHERE `relay_name`=%s;", (server_name,))
+        if cur.rowcount == 1:
+            row = cur.fetchone()
+            port = row['port']
+            mount = row['mount']
+            url = 'http://{server}.r-a-d.io:{port}'.format(server=server_name,port=port)
+        else:
+            raise KeyError("unknown relay \"" + server_name + "\"")
+    try:
+        result = urllib2.urlopen(urllib2.Request(url,
+                                            headers={'User-Agent': 'Mozilla'}))
+    except:
+        #logging.exception("Could not get listener count for server {server}".format(server=server_name))
+        with manager.MySQLCursor() as cur:
+            cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;", (server_name,))
+        raise
+    else:
+        parser = StatusParser()
+        for line in result:
+            parser.feed(line)
+        parser.close()
+        result = parser.result
+        if mount in result:
+            if 'Current Listeners' in result[mount]:
+                listeners = int(result[mount]['Current Listeners'])
+                with manager.MySQLCursor() as cur:
+                    cur.execute("UPDATE `relays` SET listeners=%s, active=1 WHERE relay_name=%s;", (listeners, server_name))
+                return listeners
+        else:
+            with manager.MySQLCursor() as cur:
+                cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;", (server_name,))
+            return -1
+    logging.debug('Could not get listener count for server ' + server_name)
+    return -1
+
+def get_all_listener_count():
+    counts = {}
+    with manager.MySQLCursor() as cur:
+        cur.execute("SELECT * FROM `relays`;")
+        for row in cur:
+            name = row['relay_name']
+            count = 0
+            try:
+                count = get_listener_count(name)
+            except:
+                count = -1
+            counts[name] = count
+    return counts
+    
 
 def get_status(icecast_server):
     try:
