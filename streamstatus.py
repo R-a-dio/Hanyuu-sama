@@ -57,7 +57,7 @@ def get_all_listener_count():
                 count = -1
             counts[name] = count
     return counts
-    
+
 
 def get_status(icecast_server):
     try:
@@ -99,6 +99,11 @@ def get_status(icecast_server):
         for line in result:
             parser.feed(line)
         parser.close()
+        result = parser.result
+        if config.icecast_mount in result:
+            all_listeners = get_all_listener_count()
+            total_count = reduce(lambda x,y: x+y if x > 0 and y > 0 else x, all_listeners.values())
+            result[config.icecast_mount]['Current Listeners'] = str(total_count)
         return parser.result or {}
     return {}
 def get_listeners(icecast_host):
