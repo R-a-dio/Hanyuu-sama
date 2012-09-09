@@ -61,7 +61,7 @@ def get_all_listener_count():
                 try:
                     count = get_listener_count(name)
                 except urllib2.URLError as err:
-                    if err.reason == 'timed out':
+                    if str(err.reason) == 'timed out':
                         timeout[name] = time.time()
                     count = -1
                 except:
