@@ -19,7 +19,7 @@ def get_listener_count(server_name='stream'):
             raise KeyError("unknown relay \"" + server_name + "\"")
     try:
         result = urllib2.urlopen(urllib2.Request(url,
-                                            headers={'User-Agent': 'Mozilla'}))
+                                            headers={'User-Agent': 'Mozilla'}), timeout=2)
     except:
         #logging.exception("Could not get listener count for server {server}".format(server=server_name))
         with manager.MySQLCursor() as cur:
@@ -44,17 +44,27 @@ def get_listener_count(server_name='stream'):
     logging.debug('Could not get listener count for server ' + server_name)
     return -1
 
+timeout = {}
 def get_all_listener_count():
+    import time
     counts = {}
     with manager.MySQLCursor() as cur:
         cur.execute("SELECT * FROM `relays`;")
         for row in cur:
             name = row['relay_name']
             count = 0
-            try:
-                count = get_listener_count(name)
-            except:
+            if name in timeout and (time.time() - timeout[name]) < 10*60:
                 count = -1
+            else:
+                del timeout[name]            
+                try:
+                    count = get_listener_count(name)
+                except urllib2.URLError as err:
+                    if err.reason == 'timed out':
+                        timeout[name] = time.time()
+                    count = -1
+                except:
+                    count = -1
             counts[name] = count
     return counts
 
