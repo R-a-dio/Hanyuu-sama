@@ -56,7 +56,8 @@ def get_all_listener_count():
             if name in timeout and (time.time() - timeout[name]) < 10*60:
                 count = -1
             else:
-                del timeout[name]            
+                if name in timeout:
+                    del timeout[name]
                 try:
                     count = get_listener_count(name)
                 except urllib2.URLError as err:
