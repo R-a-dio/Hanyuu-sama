@@ -983,7 +983,7 @@ class NP(Song):
             except:
                 logging.exception("Error when contacting tuneIn API")
         
-        pool.apply_async(tunein, (current,))
+        pool.apply_async(tunein, (song,))
         
         with MySQLCursor() as cur:
             djid = DJ().id
