@@ -13,7 +13,8 @@ import bootstrap
 
 bootstrap.logging_setup()
 
-pool = multiprocessing.Pool(2)
+
+pool = Pool(2)
 
 class MySQLCursor:
     """Return a connected MySQLdb cursor object"""
