@@ -13,9 +13,6 @@ import bootstrap
 
 bootstrap.logging_setup()
 
-
-pool = Pool(2)
-
 class MySQLCursor:
     """Return a connected MySQLdb cursor object"""
     counter = 0
@@ -984,7 +981,9 @@ class NP(Song):
             except:
                 logging.exception("Error when contacting tuneIn API")
         
-        pool.apply_async(tunein, (song,))
+        tunein_thread = Thread(target=tunein, args=(song,), name="TuneIn")
+        tunein_thread.daemon = True
+        tunein_thread.start()
         
         with MySQLCursor() as cur:
             djid = DJ().id
