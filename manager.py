@@ -944,10 +944,11 @@ class NP(Song):
         return get_ms(self.position)
     @classmethod
     def change(cls, song):
-        import urllib2
-        import urllib
         """Changes the current playing song to 'song' which should be an
         manager.Song object"""
+        import urllib2
+        import urllib
+        import re
         current = cls()
         # old stuff
         if (song.afk):
