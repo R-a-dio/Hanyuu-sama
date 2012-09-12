@@ -8,9 +8,12 @@ import MySQLdb
 import MySQLdb.cursors
 from threading import Event, Thread, current_thread
 from multiprocessing.managers import RemoteError
+from multiprocessing.dummy import Pool
 import bootstrap
 
 bootstrap.logging_setup()
+
+pool = multiprocessing.Pool(2)
 
 class MySQLCursor:
     """Return a connected MySQLdb cursor object"""
@@ -940,6 +943,8 @@ class NP(Song):
         return get_ms(self.position)
     @classmethod
     def change(cls, song):
+        import urllib2
+        import urllib
         """Changes the current playing song to 'song' which should be an
         manager.Song object"""
         current = cls()
@@ -958,6 +963,27 @@ class NP(Song):
         # New stuff
         current.start = int(time.time())
         current.end = int(time.time()) + song.length
+        
+        #tunein
+        def tunein(song):
+            try:
+                url = "http://air.radiotime.com/Playing.ashx?{params}"
+                urlparams = {'partnerId':config.tunein_id, 'partnerKey':config.tunein_key, 'id':config.tunein_station}
+                if song.metadata != u'':
+                    match = re.match(r"^((?P<artist>.*?) - )?(?P<title>.*)", song.metadata)
+                    artist = match.groups()[1]
+                    title = match.groups()[2]
+                    if artist:
+                        urlparams['artist'] = artist.encode('utf-8') if type(artist) == unicode else artist
+                    if title:
+                        urlparams['title'] = title.encode('utf-8') if type(title) == unicode else title
+                url = url.format(params=urllib.urlencode(urlparams))
+                urllib2.urlopen(url, timeout=8)
+            except:
+                logging.exception("Error when contacting tuneIn API")
+        
+        pool.apply_async(tunein, (current,))
+        
         with MySQLCursor() as cur:
             djid = DJ().id
             cur.execute("INSERT INTO `streamstatus` (id, lastset, \
