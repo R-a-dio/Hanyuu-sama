@@ -240,7 +240,7 @@ class Queue(object):
                            time=row["time"])
     @classmethod
     def get(cls, song):
-        with MySQLCursor(cursor=MySQLdb.cursors.Cursor) as cur:
+        with MySQLCursor(cursortype=MySQLdb.cursors.Cursor) as cur:
             cur.execute("SELECT trackid, meta, length, type, time FROM queue WHERE trackid=%s LIMIT 1;", (song.id))
             for row in cur:
                 return QSong(*row)
