@@ -614,6 +614,11 @@ class Song(object):
         class Faves(object):
             def __init__(self, song):
                 self.song = song
+            def transfer(self, other_song):
+                """Transfers faves from `self` to `other_song`"""
+                other_song.faves.extend(self)
+                for fave in self:
+                    self.remove(fave)
             def index(self, key):
                 """Same as a normal list, very inefficient shouldn't be used"""
                 return list(self).index(key)
@@ -1032,6 +1037,7 @@ class NP(Song):
     
 # GENERAL TOOLS GO HERE
 def get_hms(seconds):
+    negative = False
     if seconds < 0:
         negative = True
         seconds = abs(seconds)

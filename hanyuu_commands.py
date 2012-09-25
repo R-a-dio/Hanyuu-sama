@@ -338,8 +338,7 @@ def random(server, nick, channel, text, hostmask):
         mode, command = match.group("mode", "command")
     else:
         return
-    if (command.lower().strip() == "fave"):
-        songs = manager.Song.nick(nick, limit=None, tracks=True)
+    def request_from_list(songs):
         while len(songs) > 0:
             song = songs.pop(_random.randrange(len(songs)))
             value = nick_request_song(song.id, hostmask)
@@ -353,6 +352,13 @@ def random(server, nick, channel, text, hostmask):
                 manager.Queue().append_request(song)
                 request_announce(server, song)
                 return
+    if (command.lower().strip() == "fave"):
+        songs = manager.Song.nick(nick, limit=None, tracks=True)
+        request_from_list(songs)
+    elif (re.match(r"^fave (.*)")):
+        fave_nick = re.match(r"^fave (.*)").groups()[1]
+        songs = manager.Song.nick(fave_nick, limit=None, tracks=True)
+        request_from_list(songs)
     else:
         while True:
             song = manager.Song.random()
