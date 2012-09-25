@@ -50,7 +50,7 @@ import irc
 import manager
 import main
 import random as _random
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 def tokenize(text):
     return text.lower().split(" ")
