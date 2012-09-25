@@ -174,9 +174,12 @@ class Queue(object):
                     result = cur.fetchone()
                     cur.execute("UPDATE `queue` SET `type`=2 WHERE id=%s;",
                                 (result['id'],))
-                    return Song(id=result['trackid'],
+                    try:
+                        return Song(id=result['trackid'],
                                 meta=result['meta'],
                                 length=result['length'])
+                    except ValueError:
+                        raise QueueError("Unknown song ID")
                 else:
                     raise EmptyQueue("Queue is empty")
         finally:
@@ -235,7 +238,17 @@ class Queue(object):
                            length=row['length'],
                            type=row["type"],
                            time=row["time"])
-                
+    @classmethod
+    def get(cls, song):
+        with MySQLCursor(cursor=MySQLdb.cursors.Cursor) as cur:
+            cur.execute("SELECT trackid, meta, length, type, time FROM queue WHERE trackid=%s LIMIT 1;", (song.id))
+            for row in cur:
+                return QSong(*row)
+            raise QueueError("Song is not in the queue")
+        
+class QueueError(Exception):
+    pass
+
 class LP(object):
     def get(self, amount=5):
         return list(self.iter(amount))
@@ -906,7 +919,10 @@ class QSong(Song):
         super(QSong, self).__init__(id=id, meta=meta, length=length)
         self.type = type
         self.time = time
-        
+    @property
+    def until(self):
+        return get_hms((self.time - datetime.datetime.now()).total_seconds())
+    
 class NP(Song):
     def __init__(self):
         with MySQLCursor() as cur:
@@ -1014,7 +1030,17 @@ class NP(Song):
         return self.__repr__()
     
 # GENERAL TOOLS GO HERE
-
+def get_hms(seconds):
+    if seconds < 0:
+        negative = True
+        seconds = abs(seconds)
+    h, m = divmod(seconds, 3600)
+    m, s = divmod(m, 60)
+    if negative:
+        return u"-%02d:%02d:%02d" % (h, m ,s)
+    else:
+        return u"%02d:%02d:%02d" % (h, m ,s)
+    
 def get_ms(seconds):
         m, s = divmod(seconds, 60)
         return u"%02d:%02d" % (m, s)

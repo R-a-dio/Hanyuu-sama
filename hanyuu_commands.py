@@ -319,8 +319,15 @@ def announce(server):
 announce.exposed = True
 
 def request_announce(server, song):
-    message = u"Requested:{c3} '{song}'".format(song=song.metadata,
-                                                   **irc_colours)
+    # UNLEASH THE HACK
+    try:
+        qsong = manager.Queue.get(song)
+    except manager.QueueError:
+        message = u"Requested:{c3} '{song}'".format(song=song.metadata,
+                                                    **irc_colours)
+    else:
+        message = u"Requested:{c3} '{song}' ({until})".format(song=song.metadata,
+                                                   until=qsong.until, **irc_colours)
     server.privmsg("#r/a/dio", message)
 
 request_announce.exposed = True

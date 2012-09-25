@@ -43,13 +43,18 @@ class Streamer(object):
         if (self.finish_shutdown.is_set()):
             self.shutdown(force=True)
         else:
-            song = self.queue.pop()
-            if (song.id == 0L):
-                self.queue.clear()
+            try:
                 song = self.queue.pop()
-            self.queue.clear_pops()
-            # update now playing
-            manager.NP.change(song)
-            
-            return (song.filename, song.metadata)
+            except manager.QueueError:
+                self.queue.clear_pops()
+                return self.supply_song()
+            else:
+                if (song.id == 0L):
+                    self.queue.clear()
+                    song = self.queue.pop()
+                self.queue.clear_pops()
+                # update now playing
+                manager.NP.change(song)
+                
+                return (song.filename, song.metadata)
         return (None, None)
