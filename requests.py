@@ -139,11 +139,12 @@ class FastCGIServer(object):
                         else:
                             cur.execute("INSERT INTO `requesttime` (`ip`) VALUES ('%s');" % (environ["REMOTE_ADDR"]))
                         song = manager.Song(trackid)
+                        self.queue.append_request(song, environ["REMOTE_ADDR"])
                         try:
                             irc.connect().request_announce(song)
                         except:
                             logging.exception("Announcing request failure")
-                        self.queue.append_request(song, environ["REMOTE_ADDR"])
+                        
             else:
                 sitetext = "Invalid parameter."
         else:
