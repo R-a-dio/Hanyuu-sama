@@ -208,12 +208,12 @@ class IRC:
                 continue
             c.last_time = time.time()
             c.send_time += delta
-            if c.send_time >= 1.2:
+            if c.send_time >= 1.3:
                 c.send_time = 0
-                c.sent_lines = 0
+                c.sent_bytes = 0
             
             while not c.message_queue.empty():
-                if c.sent_lines <= 5:
+                if c.sent_bytes <= 2500:
                     message = c.message_queue.get()
                     try:
                         if c.ssl:
@@ -222,7 +222,7 @@ class IRC:
                             c.send_raw_instant(message)
                     except (AttributeError):
                         c.reconnect()
-                    c.sent_lines += 1
+                    c.sent_bytes += len(message.encode('utf-8'))
                     if DEBUG:
                         print "TO SERVER:", message
                 else:
