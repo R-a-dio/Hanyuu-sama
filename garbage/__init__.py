@@ -23,8 +23,10 @@ class Collector(object):
         super(Collector, self).__init__()
         self.items = set()
         
+        self.collecting = threading.Event()
         self.thread = threading.Thread(target=self.run,
                                        name="Garbage Collection Thread")
+        self.thread.daemon = True
         self.thread.start()
         
     def add(self, garbage):
