@@ -43,9 +43,9 @@ class StatusUpdate(object):
         # Call shutdown
         self.streamer.shutdown(force)
     def __call__(self, info):
-        if ("/main.mp3" not in info):
-            self.debug("No /main.mp3 mountpoint found.")
-            # There is no /main.mp3 mountpoint right now
+        if (config.icecast_mount not in info):
+            self.debug("No {mount} mountpoint found.".format(mount=config.icecast_mount))
+            # There is no mountpoint right now
             # Create afk streamer
             if (self.streamer.connected):
                 self.debug("Streamer is already connected")
