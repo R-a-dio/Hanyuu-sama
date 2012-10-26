@@ -59,8 +59,12 @@ class Icecast(object):
     def run(self):
         while not self._should_run.is_set():
             while self.connected():
+                if hasattr(self, '_saved_meta'):
+                    self.set_metadata(self._saved_meta)
+                    del self._saved_meta
+                    
                 buff = self.source.read(4096)
-                if buff == b'':
+                if not buff:
                     # EOF
                     self.close()
                     logger.exception("Source EOF, closing ourself.")
@@ -74,7 +78,8 @@ class Icecast(object):
                     
             if not self._should_run.is_set():
                 time.sleep(self.connecting_timeout)
-            
+                self.reboot_libshout()
+                
     def start(self):
         """Starts the thread that reads from source and feeds it to icecast."""
         self._should_run = threading.Event()
@@ -95,12 +100,11 @@ class Icecast(object):
         self.start() # Start a new thread (so roundabout)
         
     def set_metadata(self, metadata):
-        metadata = (metadata.encode('utf-8', 'replace') if 
-                    isinstance(meta, unicode) else metadata)
         try:
             self._shout.metadata = {'song': metadata} # Stupid library
         except (pylibshout.ShoutException) as err:
             logger.exception("Failed sending metadata. No action taken.")
+            self._saved_meta = metadata
             
     def setup_libshout(self):
         """Internal method
@@ -125,7 +129,6 @@ class Icecast(object):
             self.connect()
         except (IcecastError) as err:
             logger.exception("Connection failure.")
-            self.close()
             
 class IcecastConfig(dict):
     """Simple dict subclass that knows how to apply the keys to a
