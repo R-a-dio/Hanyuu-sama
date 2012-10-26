@@ -33,6 +33,10 @@ class Manager(object):
         self.encoder.start()
         self.icecast.connect()
         
+    def connected(self):
+        """Returns if icecast is connected or not"""
+        return self.icecast.connected()
+    
     def give_source(self):
         filename, meta = self.next_file()
         if filename is None:

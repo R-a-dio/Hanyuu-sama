@@ -62,6 +62,8 @@ class Encoder(object):
     def __getattr__(self, key):
         """Since we are used as the source to other parts we require
         to have direct access to EncoderInstance methods from ourself."""
+        if key == 'instance':
+            raise AttributeError("No attribute named 'instance'")
         return getattr(self.instance, key)
     
     
