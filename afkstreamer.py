@@ -1,20 +1,21 @@
-import pyices
 import logging
-import bootstrap
+import threading
+import audio
+
 import manager
-from threading import Event
-    
+import bootstrap
+
+
+logger = logging.getLogger('afkstreamer')
+
+
 class Streamer(object):
-    """Streamer class that streams to a certain server and mountpoint specified
-    with attributes which is a dictionary of ... attributes.
-    """
-    __metaclass__ = bootstrap.Singleton
     def __init__(self, attributes):
-        object.__init__(self)
+        super(Streamer, self).__init__()
         self.instance = None
-        self.attributes = attributes
+        self.icecast_config = attributes
         
-        self.finish_shutdown = Event()
+        self.close_at_end = threading.Event()
         
     @property
     def connected(self):
@@ -22,25 +23,24 @@ class Streamer(object):
             return self.instance.connected()
         except (AttributeError):
             return False
+        
     def connect(self):
         self.queue = manager.Queue()
-        self.finish_shutdown.clear()
-        self.instance = pyices.IcecastStream(self.attributes,
-                                        file_method=self.supply_song)
-        self.instance.start()
+        self.close_at_end.clear()
+        
+        self.instance = audio.Manager(self.icecast_config, self.supply_song)
         
     def shutdown(self, force=False):
-        """Shuts down the AFK streamer and process"""
         if force:
             self.instance.close()
-            logging.info("Stopped AFK Streamer")
+            logger.info("Closed audio manager.")
         else:
-            self.finish_shutdown.set()
-            logging.info("Tried stopping AFK Streamer")
-        
+            self.close_at_end.set()
+            logger.info("Set close at end of song flag.")
+            
     def supply_song(self):
         # check for shutdown
-        if (self.finish_shutdown.is_set()):
+        if (self.close_at_end.is_set()):
             self.shutdown(force=True)
         else:
             try:
