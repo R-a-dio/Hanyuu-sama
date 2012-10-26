@@ -18,21 +18,26 @@ class Manager(object):
     def __init__(self, icecast_config={}, next_file=lambda self: None):
         super(Manager, self).__init__()
         
+        self.started = False
+        
         self.next_file = next_file
         
+        logger.debug("Creating source instance.")
         self.source = UnendingSource(self.give_source)
         
+        logger.debug("Creating encoder instance.")
         self.encoder = encoder.Encoder(self.source)
         
         logger.debug("Creating icecast instance.")
         self.icecast = icecast.Icecast(self.encoder, icecast_config)
-        logger.debug("Connecting icecast instance.")
-
         
-        self.source.initialize()
-        self.encoder.start()
-        self.icecast.connect()
-        
+    def start(self):
+        if not self.started:
+            self.source.initialize()
+            self.encoder.start()
+            self.icecast.connect()
+            self.started = True
+            
     def connected(self):
         """Returns if icecast is connected or not"""
         return self.icecast.connected()
@@ -61,7 +66,8 @@ class Manager(object):
         self.encoder.close()
         
         self.icecast.close()
-
+        
+        self.started = False
 
 class UnendingSource(object):
     def __init__(self, source_function):

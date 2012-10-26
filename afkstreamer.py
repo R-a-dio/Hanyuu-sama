@@ -15,6 +15,7 @@ class Streamer(object):
         self.instance = None
         self.icecast_config = attributes
         
+        self.instance = audio.Manager(self.icecast_config, self.supply_song)
         self.close_at_end = threading.Event()
         
     @property
@@ -27,8 +28,7 @@ class Streamer(object):
     def connect(self):
         self.queue = manager.Queue()
         self.close_at_end.clear()
-        
-        self.instance = audio.Manager(self.icecast_config, self.supply_song)
+        self.instance.start()
         
     def shutdown(self, force=False):
         if force:
