@@ -35,7 +35,7 @@ class Collector(object):
     def run(self):
         while not self.collecting.is_set():
             removal = set()
-            for item in self.items:
+            for item in self.items.copy():
                 try:
                     code = item.collect() # Try collecting
                 except:
