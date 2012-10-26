@@ -422,7 +422,7 @@ class ServerConnection(Connection):
         self.socket = None
         self.ssl = None
         self.message_queue = Queue.Queue()
-        self.sent_lines = 0
+        self.sent_bytes = 0
         self.send_time = 0
         self.last_time = time.time()
         self._last_ping = time.time()
