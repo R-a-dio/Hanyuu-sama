@@ -35,7 +35,7 @@ class Manager(object):
         if not self.started:
             self.source.initialize()
             self.encoder.start()
-            self.icecast.connect()
+            self.icecast.start()
             self.started = True
             
     def connected(self):

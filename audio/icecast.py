@@ -15,7 +15,6 @@ class Icecast(object):
         self.source = source
         
         self._shout = self.setup_libshout()
-        self.start()
     
     def connect(self):
         """Connect the libshout object to the configured server."""
@@ -82,6 +81,8 @@ class Icecast(object):
                 
     def start(self):
         """Starts the thread that reads from source and feeds it to icecast."""
+        if not self.connected():
+            self.connect()
         self._should_run = threading.Event()
         
         self._thread = threading.Thread(target=self.run)
