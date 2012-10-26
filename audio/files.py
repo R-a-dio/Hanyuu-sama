@@ -1,9 +1,20 @@
 import audiotools
+import garbage
+
 
 class AudioError(Exception):
     pass
 
 
+class GarbageAudioFile(garbage.Garbage):
+    def collect(self):
+        try:
+            self.item.close()
+        except (audiotools.DecodingError):
+            pass
+        return True
+    
+    
 class AudioFile(object):
     def __init__(self, filename):
         super(AudioFile, self).__init__()
@@ -12,6 +23,9 @@ class AudioFile(object):
     def read(self, size=4096, timeout=0.0):
         return self._reader.read(size).to_bytes(False, True)
     
+    def close(self):
+        GarbageAudioFile(self)
+        
     def __getattr__(self, key):
         try:
             return getattr(self._reader, key)
