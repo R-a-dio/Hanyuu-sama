@@ -2,6 +2,13 @@ import encoder
 import files
 import icecast
 import logging
+import garbage
+import audiotools
+
+
+# Remove this 
+logging.basicConfig(level=logging.DEBUG)
+# Remove that ^
 
 
 logger = logging.getLogger('audio')
@@ -16,26 +23,56 @@ class Manager(object):
         self.source = UnendingSource(self.give_source)
         
         self.encoder = encoder.Encoder(self.source)
-        self.encoder.start()
         
+        logger.debug("Creating icecast instance.")
         self.icecast = icecast.Icecast(self.encoder, icecast_config)
+        logger.debug("Connecting icecast instance.")
+
+        
+        self.source.initialize()
+        self.encoder.start()
         self.icecast.connect()
         
     def give_source(self):
+        filename, meta = self.next_file()
+        if filename is None:
+            self.close()
         try:
-            return files.AudioFile(self.next_file())
+            audiofile = files.AudioFile(filename)
         except (files.AudioError) as err:
             logger.exception("Unsupported file.")
             return self.give_source()
+        except (IOError) as err:
+            logger.exception("Failed opening file.")
+            return self.give_source()
+        else:
+            print meta
+            if hasattr(self, 'icecast'):
+                self.icecast.set_metadata(meta)
+            return audiofile
     
+    def close(self):
+        self.source.close()
+        
+        self.encoder.close()
+        
+        self.icecast.close()
+
+
 class UnendingSource(object):
     def __init__(self, source_function):
         super(UnendingSource, self).__init__()
         self.source_function = source_function
-        self.source = source_function()
         
         self.eof = False
         
+    def initialize(self):
+        self.source = self.source_function()
+        
+    def change_source(self):
+        self.source.close()
+        return self.source_function()
+    
     def read(self, size=4096, timeout=10.0):
         if self.eof:
             return b''
@@ -43,33 +80,56 @@ class UnendingSource(object):
             data = self.source.read(size, timeout)
         except (ValueError) as err:
             if err.message == 'MD5 mismatch at end of stream':
-                pass
+                data = b''
         if data == b'':
-            self.source = self.source_function()
+            self.source = self.change_source()
             if self.source == None:
                 self.eof = True
                 return b''
         return data
     
+    def skip(self):
+        self.source = self.change_source()
+        
     def close(self):
         self.eof = True
         
     def __getattr__(self, key):
         return getattr(self.source, key)
     
+    
 import os
-def test_dir(directory='/media/F/Music'):
-    files = set()
+import mutagen
+def test_dir(directory=u'/media/F/Music', files=None):
+    files = set() if files is None else files
     for base, dir, filenames in os.walk(directory):
         for name in filenames:
             files.add(os.path.join(base, name))
     
     def pop_file():
-        filename = files.pop()
+        try:
+            filename = files.pop()
+        except KeyError:
+            return (None, None)
         if (filename.endswith('.flac') or
-            filename.endswith('.mp3') or
-            filename.endswith('.ogg')):
-            return filename
+                filename.endswith('.mp3') or
+                filename.endswith('.ogg')):
+            try:
+                meta = mutagen.File(filename, easy=True)
+            except:
+                meta = "No metadata available, because I errored."
+            else:
+                artist = meta.get('artist')
+                title = meta.get('title')
+                
+                meta = u"{:s} - {:s}" if artist else u"{:s}"
+                
+                if artist:
+                    artist = u", ".join(artist)
+                if title:
+                    title = u", ".join(title)
+                meta = meta.format(artist, title)
+            return (filename, meta)
         else:
             return pop_file()
     return pop_file
