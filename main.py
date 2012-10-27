@@ -6,19 +6,11 @@ import time
 import listener
 from multiprocessing.managers import BaseManager
 import bootstrap
+from bootstrap import Switch
 import config
 import logging
 
-class Switch(object):
-    def __init__(self, initial, timeout=15):
-        object.__init__(self)
-        self.state = initial
-        self.timeout = time.time() + timeout
-    def __nonzero__(self):
-        return False if self.timeout <= time.time() else self.state
-    def __bool__(self):
-        return False if self.timeout <= time.time() else self.state
-    
+        
 class StatusUpdate(object):
     __metaclass__ = bootstrap.Singleton
     def __init__(self):
@@ -78,6 +70,8 @@ class StatusUpdate(object):
         if mode != self.mode:
             self.mode = mode
             logging.debug(mode)
+            
+            
 class StreamManager(BaseManager):
     pass
 

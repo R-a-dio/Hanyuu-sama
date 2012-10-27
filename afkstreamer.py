@@ -1,7 +1,7 @@
 import logging
 import threading
 import audio
-
+import util
 import manager
 import bootstrap
 
@@ -10,6 +10,9 @@ logger = logging.getLogger('afkstreamer')
 
 
 class Streamer(object):
+    """Top wrapper of the AFK Streamer. This gives out filenames and metadata
+    to the underlying audio module.
+    """
     def __init__(self, attributes):
         super(Streamer, self).__init__()
         self.instance = None
@@ -20,17 +23,28 @@ class Streamer(object):
         
     @property
     def connected(self):
+        """Returns True if the audio modules icecast is currently connected."""
         try:
             return self.instance.connected()
         except (AttributeError):
             return False
         
-    def connect(self):
+    def start(self):
+        """Starts the audio pipeline and connects to icecast."""
         self.queue = manager.Queue()
         self.close_at_end.clear()
         self.instance.start()
         
+    def connect(self):
+        """Old version of start"""
+        self.start()
+        
     def shutdown(self, force=False):
+        """Old version of close"""
+        self.close(force)
+            
+    def close(self, force=False):
+        """Stop the audio pipeline and disconnects from icecast."""
         if force:
             self.instance.close()
             logger.info("Closed audio manager.")
@@ -39,7 +53,8 @@ class Streamer(object):
             logger.info("Set close at end of song flag.")
             
     def supply_song(self):
-        # check for shutdown
+        """Returns a tuple of (filename, metadata) to be played next."""
+        # check if we got asked to shut down at end of track.
         if (self.close_at_end.is_set()):
             self.shutdown(force=True)
         else:
@@ -58,3 +73,8 @@ class Streamer(object):
                 
                 return (song.filename, song.metadata)
         return (None, None)
+    
+class StreamManager(util.BaseManager):
+    socket = '/tmp/hanyuu_stream'
+
+StreamManager.register("Streamer", Streamer)

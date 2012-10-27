@@ -10,10 +10,12 @@ from threading import Event, Thread, current_thread
 from multiprocessing.managers import RemoteError
 from multiprocessing.dummy import Pool
 import bootstrap
+from bootstrap import Switch
 import datetime
 
 bootstrap.logging_setup()
-
+        
+        
 class MySQLCursor:
     """Return a connected MySQLdb cursor object"""
     counter = 0
@@ -267,7 +269,7 @@ class LP(object):
 
 class Status(object):
     __metaclass__ = bootstrap.Singleton
-    _timeout = time.time() - 60
+    _timeout = Switch(True, 0)
     _handlers = []
     @property
     def listeners(self):
@@ -324,19 +326,19 @@ class Status(object):
     requests_enabled = property(g_requests_enabled, s_requests_enabled)
     @property
     def cached_status(self):
-        if (time.time() - self._timeout > 9):
+        if (not self._timeout):
             return self.status.get(config.icecast_mount, {})
         return self._status.get(config.icecast_mount, {})
     @property
     def status(self):
         import streamstatus
         self._status = streamstatus.get_status(config.icecast_server)
+        self._timeout.reset(9)
         for handle in self._handlers:
             try:
                 handle(self._status)
             except:
                 logging.exception("Status handler failed")
-        self._timeout = time.time()
         return self._status
     def add_handler(self, handle):
         self._handlers.append(handle)
