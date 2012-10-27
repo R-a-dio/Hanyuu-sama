@@ -24,7 +24,7 @@ class AudioFile(object):
         return self._reader.read(size).to_bytes(False, True)
     
     def close(self):
-        GarbageAudioFile(self)
+        GarbageAudioFile(self._reader)
         
     def __getattr__(self, key):
         try:
