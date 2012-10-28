@@ -1,30 +1,46 @@
+"""Module that handles file access and decoding to PCM.
+
+It uses python-audiotools for the majority of the work done."""
 import audiotools
 import garbage
 
 
 class AudioError(Exception):
+    """Exception raised when an error occurs in this module."""
     pass
 
 
 class GarbageAudioFile(garbage.Garbage):
+    """Garbage class of the AudioFile class"""
     def collect(self):
+        """Tries to close the AudioFile resources when called."""
         try:
-            self.item.close()
+            self.item._reader.close()
         except (audiotools.DecodingError):
             pass
         return True
     
     
 class AudioFile(object):
+    """A Simple wrapper around the audiotools library.
+    
+    This opens the filename given wraps the file in a PCMConverter that
+    turns it into PCM of format 44.1kHz, Stereo, 24-bit depth."""
     def __init__(self, filename):
         super(AudioFile, self).__init__()
         self._reader = self._open_file(filename)
         
     def read(self, size=4096, timeout=0.0):
+        """Returns at most a string of size `size`.
+        
+        The `timeout` argument is unused. But kept in for compatibility with
+        other read methods in the `audio` module."""
         return self._reader.read(size).to_bytes(False, True)
     
     def close(self):
-        GarbageAudioFile(self._reader)
+        """Registers self for garbage collection. This method does not
+        close anything and only registers itself for colleciton."""
+        GarbageAudioFile(self)
         
     def __getattr__(self, key):
         try:
