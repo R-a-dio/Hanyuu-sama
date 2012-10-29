@@ -93,6 +93,7 @@ class EncoderInstance(object):
             logger.exception("Failed to cleanly shutdown encoder.")
             
     def start(self):
+        self.running.clear()
         arguments = [LAME_BIN, '--quiet',
                      '--flush',
                      '-r',
