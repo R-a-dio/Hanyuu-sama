@@ -78,9 +78,14 @@ class UnendingSource(object):
         
         self.eof = False
         
+    def start(self):
+        """Starts the source"""
+        self.eof = False
+        self.source = self.source_function()
+        
     def initialize(self):
         """Sets the initial source from the source function."""
-        self.source = self.source_function()
+        self.start()
         
     def change_source(self):
         """Calls the source function and returns the result if not None."""
