@@ -1,3 +1,4 @@
+import threading
 import encoder
 import files
 import icecast
@@ -18,7 +19,7 @@ class Manager(object):
     def __init__(self, icecast_config={}, next_file=lambda self: None):
         super(Manager, self).__init__()
         
-        self.started = False
+        self.started = threading.Event()
         
         self.next_file = next_file
         
@@ -32,11 +33,11 @@ class Manager(object):
         self.icecast = icecast.Icecast(self.encoder, icecast_config)
         
     def start(self):
-        if not self.started:
+        if not self.started.is_set():
             self.source.initialize()
             self.encoder.start()
             self.icecast.start()
-            self.started = True
+            self.started.set()
             
     def connected(self):
         """Returns if icecast is connected or not"""
@@ -46,6 +47,7 @@ class Manager(object):
         filename, meta = self.next_file()
         if filename is None:
             self.close()
+            return None
         try:
             audiofile = files.AudioFile(filename)
         except (files.AudioError) as err:
@@ -61,13 +63,13 @@ class Manager(object):
             return audiofile
     
     def close(self):
+        self.started.clear()
+        
         self.source.close()
         
         self.encoder.close()
         
         self.icecast.close()
-        
-        self.started = False
 
 class UnendingSource(object):
     def __init__(self, source_function):
@@ -77,11 +79,17 @@ class UnendingSource(object):
         self.eof = False
         
     def initialize(self):
+        """Sets the initial source from the source function."""
         self.source = self.source_function()
         
     def change_source(self):
+        """Calls the source function and returns the result if not None."""
         self.source.close()
-        return self.source_function()
+        new_source = self.source_function()
+        if new_source is None:
+            self.eof = True
+        else:
+            return new_source
     
     def read(self, size=4096, timeout=10.0):
         if self.eof:

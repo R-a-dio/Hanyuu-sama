@@ -10,8 +10,9 @@ logger = logging.getLogger('afkstreamer')
 
 
 class Streamer(object):
-    """Top wrapper of the AFK Streamer. This gives out filenames and metadata
-    to the underlying audio module.
+    """
+    Top wrapper of the AFK Streamer. This gives out filenames and metadata
+    to the underlying :mod:`audio` module.
     """
     def __init__(self, attributes):
         super(Streamer, self).__init__()
@@ -23,7 +24,10 @@ class Streamer(object):
         
     @property
     def connected(self):
-        """Returns True if the audio modules icecast is currently connected."""
+        """
+        Returns True if the audio modules :mod:`audio.icecast` is 
+        currently connected. Else returns False.
+        """
         try:
             return self.instance.connected()
         except (AttributeError):
@@ -34,14 +38,6 @@ class Streamer(object):
         self.queue = manager.Queue()
         self.close_at_end.clear()
         self.instance.start()
-        
-    def connect(self):
-        """Old version of start"""
-        self.start()
-        
-    def shutdown(self, force=False):
-        """Old version of close"""
-        self.close(force)
             
     def close(self, force=False):
         """Stop the audio pipeline and disconnects from icecast."""
@@ -74,6 +70,19 @@ class Streamer(object):
                 return (song.filename, song.metadata)
         return (None, None)
     
+    def connect(self, *args, **kwargs):
+        """
+        .. deprecated:: 1.2
+           use :meth:`start`: instead.
+        """
+        self.start(*args, **kwargs)
+        
+    def shutdown(self, *args, **kwargs):
+        """
+        .. deprecated:: 1.2
+           use :meth:`close`: instead.
+        """
+        self.close(*args, **kwargs)
 class StreamManager(util.BaseManager):
     socket = '/tmp/hanyuu_stream'
 
