@@ -32,6 +32,7 @@ class Encoder(object):
         self.out_file = '-'
         
     def start(self):
+        self.alive.clear()
         self.start_instance()
         
     def close(self):

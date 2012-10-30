@@ -34,7 +34,7 @@ class Manager(object):
         
     def start(self):
         if not self.started.is_set():
-            self.source.initialize()
+            self.source.start()
             self.encoder.start()
             self.icecast.start()
             self.started.set()
