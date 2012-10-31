@@ -19,9 +19,11 @@ class Singleton(type):
     
 class Collector(object):
     __metaclass__ = Singleton
+    _hooks = list()
     def __init__(self):
         super(Collector, self).__init__()
         self.items = set()
+        
         
         self.collecting = threading.Event()
         self.thread = threading.Thread(target=self.run,
@@ -31,7 +33,12 @@ class Collector(object):
         
     def add(self, garbage):
         self.items.add(garbage)
-        
+        for hook in self._hooks:
+            try:
+                hook(garbage)
+            except:
+                logger.exception("Hook function exception.")
+            
     def run(self):
         while not self.collecting.is_set():
             removal = set()
@@ -51,6 +58,9 @@ class Collector(object):
         about current pending garbage."""
         yield None # Not implemented
         
+    @classmethod
+    def add_hook(cls, hook):
+        cls._hooks.append(hook)
         
 class Garbage(object):
     collector = Collector()

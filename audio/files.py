@@ -18,6 +18,15 @@ class GarbageAudioFile(garbage.Garbage):
             self.item._reader.close()
         except (audiotools.DecodingError):
             pass
+        # Hack to kill zombies below
+        import gc, subprocess
+        try:
+            [item.poll() for item in gc.get_referrers(subprocess.Popen)
+             if isinstance(item, subprocess.Popen)]
+        except:
+            logger.warning("Exception occured in hack.")
+        # Hack to kill zombies above
+        
         return True
     
     
