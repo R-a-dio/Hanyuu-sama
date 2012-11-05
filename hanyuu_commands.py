@@ -355,10 +355,12 @@ def random(server, nick, channel, text, hostmask):
     if (command.lower().strip() == "fave"):
         songs = manager.Song.nick(nick, limit=None, tracks=True)
         request_from_list(songs)
+        return
     elif (re.match(r"^fave (.*)", command)):
         fave_nick = re.match(r"^fave (.*)", command).groups()[1]
         songs = manager.Song.nick(fave_nick, limit=None, tracks=True)
         request_from_list(songs)
+        return
     else:
         while True:
             song = manager.Song.random()
@@ -525,7 +527,7 @@ request_help.handler = ("on_text", r'.*how.+request',
 def lastfm_listening(server, nick, channel, text, hostmask):
     import pylast
     message = u''
-    match = re.match(r"^-fm?\s(?P<nick>.*)", text, re.I|re.U)
+    match = re.match(r"[\-.@!]fm?\s(?P<nick>.*)", text, re.I|re.U)
     if match and match.group('nick') != '':
         nick = match.group('nick')
         
@@ -547,15 +549,30 @@ def lastfm_listening(server, nick, channel, text, hostmask):
                 if np:
                     track = np
                 else:
-                    track = user.get_recent_tracks()[0]
-                artist = track.track.artist.name
-                title = track.track.title
-                tags = [u"{c6} {tag}{c}".format(tag=tag.item.name, **irc_colours) for tag in track.track.get_top_tags()]
-                message = u"{c5}{username}{c} {state} listening to{c7} {artist}{c} -{c4} {title}{c} ({tags})"\
-                            .format(username=username, artist=artist, title=title,\
-                                    state=(u"is currently" if np else u"was last seen"),\
-                                    tags=(u"{c6}no tags{c}".format(**irc_colours) if\
-                                          len(tags) == 0 else u",".join(tags)), **irc_colours)
+                    try:
+                        track = user.get_recent_tracks()[0].track
+                    except IndexError:
+                        message = (u"{c4}You haven't listened to anything "
+                                   u"recently.").format(**irc_colours)
+                artist = track.artist.name
+                title = track.title
+                tags = [tag for tag in track.get_top_tags()]
+                # Sort by weight
+                tags.sort(key=lambda tag: int(tag.weight), reverse=True)
+                tags = tags[:5] # Get top 5
+                tags = [u"{c6}{tag}{c}".format(tag=tag.item.name, **irc_colours)
+                        for tag in tags]
+                message = (u"{c5}{username}{c} {state} listening to{c7} "
+                           u"{artist}{c} -{c4} {title}{c} ({tags})").format(
+                                    username=username, 
+                                    artist=artist,
+                                    title=title,
+                                    state=(u"is currently" if np 
+                                           else u"was last seen"),
+                                    tags=(u"{c6}no tags{c}".format(**irc_colours)
+                                          if len(tags) == 0 else 
+                                          u", ".join(tags)), 
+                                    **irc_colours)
         except pylast.WSError as err:
             message = u"{c4}{error}!".format(error=err.details, **irc_colours)
         except:
@@ -564,12 +581,12 @@ def lastfm_listening(server, nick, channel, text, hostmask):
     
     server.privmsg(channel, message)
 
-lastfm_listening.handler = ("on_text", r'-fm(\s|$).*',
+lastfm_listening.handler = ("on_text", r'[\-.@!]fm(\s|$).*',
                           irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def lastfm_setuser(server, nick, channel, text, hostmask):
     import pylast
-    match = re.match(r"^-fma?\s(?P<user>.*)", text, re.I|re.U)
+    match = re.match(r"[\-.@!]fma?\s(?P<user>.*)", text, re.I|re.U)
     message = u''
     if match and match.group('user') != '':
         username = match.group('user')
@@ -597,7 +614,7 @@ def lastfm_setuser(server, nick, channel, text, hostmask):
                 message = u"You are not known as any last.fm username."
     server.notice(nick, message)
 
-lastfm_setuser.handler = ("on_text", r'-fma.*',
+lastfm_setuser.handler = ("on_text", r'[\-.@!]fma.*',
                           irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def hanyuu_response(response, delay):
