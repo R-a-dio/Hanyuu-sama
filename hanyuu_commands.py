@@ -555,7 +555,7 @@ def lastfm_listening(server, nick, channel, text, hostmask):
                             .format(username=username, artist=artist, title=title,\
                                     state=(u"is currently" if np else u"was last seen"),\
                                     tags=(u"{c6}no tags{c}".format(**irc_colours) if\
-                                          len(tags) == 0 else u",".join(tags)))
+                                          len(tags) == 0 else u",".join(tags)), **irc_colours)
         except pylast.WSError as err:
             message = u"{c4}{error}!".format(error=err.details, **irc_colours)
         except:
