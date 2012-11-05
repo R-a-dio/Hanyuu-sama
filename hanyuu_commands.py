@@ -57,7 +57,7 @@ def tokenize(text):
 
 irc_colours = {"c": u"\x03", "c1": u"\x0301", "c2": u"\x0302",
             "c3": u"\x0303", "c4": u"\x0304", "c5": u"\x0305",
-            "c7": u"\x0306", "c7": u"\x0307", "c8": u"\x0308",
+            "c6": u"\x0306", "c7": u"\x0307", "c8": u"\x0308",
             "c9": u"\x0309", "c10": u"\x0310", "c11": u"\x0311",
             "c12": u"\x0312", "c13": u"\x0313", "c14": u"\x0314",
             "c15": u"\x0315"}
@@ -539,28 +539,32 @@ def lastfm_listening(server, nick, channel, text, hostmask):
         network = pylast.LastFMNetwork(api_key=config.lastfm_key, api_secret=config.lastfm_secret)
         user = network.get_user(username)
         try:
-            np = user.get_now_playing()
-            if np:
-                track = np
+            try:
+                np = user.get_now_playing()
+            except(IndexError): #broken api
+                message = u"{c4}You should listen to something first!".format(**irc_colours)
             else:
-                track = user.get_recent_tracks()[0]
-            artist = track.artist.name
-            title = track.title
-            tags = [u"{c6} {tag}{c}".format(tag=tag.item.name, **irc_colours) for tag in track.get_top_tags()]
-            message = u"{c5}{username}{c} {state} listening to{c7} {artist}{c} -{c4} {title}{c} ({tags})"\
-                        .format(username=username, artist=artist, title=title,\
-                                state=(u"is currently" if np else u"was last seen"),\
-                                tags=(u"{c6}no tags{c}".format(**irc_colours) if\
-                                      len(tags == 0) else u",".join(tags)))
+                if np:
+                    track = np
+                else:
+                    track = user.get_recent_tracks()[0]
+                artist = track.artist.name
+                title = track.title
+                tags = [u"{c6} {tag}{c}".format(tag=tag.item.name, **irc_colours) for tag in track.get_top_tags()]
+                message = u"{c5}{username}{c} {state} listening to{c7} {artist}{c} -{c4} {title}{c} ({tags})"\
+                            .format(username=username, artist=artist, title=title,\
+                                    state=(u"is currently" if np else u"was last seen"),\
+                                    tags=(u"{c6}no tags{c}".format(**irc_colours) if\
+                                          len(tags == 0) else u",".join(tags)))
         except pylast.WSError as err:
             message = u"{c4}{error}!".format(error=err.details, **irc_colours)
         except:
             logging.exception('Error in lastfm listen handler')
-            message = u"{c6}Something went wrong!".format(**irc_colours)
+            message = u"{c4}Something went wrong!".format(**irc_colours)
     
     server.privmsg(channel, message)
 
-lastfm_listening.handler = ("on_text", r'-fm?.*',
+lastfm_listening.handler = ("on_text", r'-fm(\s|$).*',
                           irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def lastfm_setuser(server, nick, channel, text, hostmask):
@@ -572,7 +576,7 @@ def lastfm_setuser(server, nick, channel, text, hostmask):
         network = pylast.LastFMNetwork(api_key=config.lastfm_key, api_secret=config.lastfm_secret)
         try:
             user = network.get_user(username)
-            user.get_now_playing()
+            user.get_recent_tracks()
             with manager.MySQLCursor() as cur:
                 cur.execute("SELECT * FROM lastfm WHERE nick=%s;", (nick.lower(),))
                 if cur.rowcount == 1:
@@ -586,7 +590,7 @@ def lastfm_setuser(server, nick, channel, text, hostmask):
         message = u"{c4}You need to specify a username!".format(**irc_colours)
     server.notice(nick, message)
 
-lastfm_setuser.handler = ("on_text", r'-fma?.*',
+lastfm_setuser.handler = ("on_text", r'-fma.*',
                           irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def hanyuu_response(response, delay):
