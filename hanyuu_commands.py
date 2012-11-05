@@ -548,9 +548,9 @@ def lastfm_listening(server, nick, channel, text, hostmask):
                     track = np
                 else:
                     track = user.get_recent_tracks()[0]
-                artist = track.artist.name
-                title = track.title
-                tags = [u"{c6} {tag}{c}".format(tag=tag.item.name, **irc_colours) for tag in track.get_top_tags()]
+                artist = track.track.artist.name
+                title = track.track.title
+                tags = [u"{c6} {tag}{c}".format(tag=tag.item.name, **irc_colours) for tag in track.track.get_top_tags()]
                 message = u"{c5}{username}{c} {state} listening to{c7} {artist}{c} -{c4} {title}{c} ({tags})"\
                             .format(username=username, artist=artist, title=title,\
                                     state=(u"is currently" if np else u"was last seen"),\
@@ -587,7 +587,14 @@ def lastfm_setuser(server, nick, channel, text, hostmask):
         except pylast.WSError as err:
             message = u"{c4}{error}!".format(error=err.details, **irc_colours)
     else:
-        message = u"{c4}You need to specify a username!".format(**irc_colours)
+        with manager.MySQLCursor() as cur:
+            cur.execute("SELECT * FROM lastfm WHERE nick=%s;", (nick,))
+            if cur.rowcount == 1:
+                row = cur.fetchone()
+                user = row['user']
+                message = u"You are known as {user}.".format(user=user)
+            else:
+                message = u"You are not known as any last.fm username."
     server.notice(nick, message)
 
 lastfm_setuser.handler = ("on_text", r'-fma.*',
