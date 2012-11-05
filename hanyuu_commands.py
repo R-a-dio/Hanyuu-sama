@@ -522,28 +522,72 @@ def request_help(server, nick, channel, text, hostmask):
 request_help.handler = ("on_text", r'.*how.+request',
                         irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
-def markov_store(server, nick, channel, text, hostmask):
-    import markov
-    try:
-        if (nick == "godzilla"):
-            return
-        if type(text) == unicode:
-            text = text.encode('utf-8') # do i really need to do this? i'm so confused by the unicode in mysql
-        if len(text.strip()) > 0:
-            markov.add_sentence(text)
-    except:
-        logging.exception("Markov store failure")
+def lastfm_listening(server, nick, channel, text, hostmask):
+    import pylast
+    message = u''
+    match = re.match(r"^-fm?\s(?P<nick>.*)", text, re.I|re.U)
+    if match and match.group('nick') != '':
+        nick = match.group('nick')
+        
+    with manager.MySQLCursor() as cur:
+        cur.execute("SELECT * FROM lastfm WHERE nick=%s;", (nick.lower(),))
+        if cur.rowcount == 1:
+            row = cur.fetchone()
+            username = row['user']
+        else:
+            username = nick
+        network = pylast.LastFMNetwork(api_key=config.lastfm_key, api_secret=config.lastfm_secret)
+        user = network.get_user(username)
+        try:
+            np = user.get_now_playing()
+            if np:
+                track = np
+            else:
+                track = user.get_recent_tracks()[0]
+            artist = track.artist.name
+            title = track.title
+            tags = [u"{c6} {tag}{c}".format(tag=tag.item.name, **irc_colours) for tag in track.get_top_tags()]
+            message = u"{c5}{username}{c} {state} listening to{c7} {artist}{c} -{c4} {title}{c} ({tags})"\
+                        .format(username=username, artist=artist, title=title,\
+                                state=(u"is currently" if np else u"was last seen"),\
+                                tags=(u"{c6}no tags{c}".format(**irc_colours) if\
+                                      len(tags == 0) else u",".join(tags)))
+        except pylast.WSError as err:
+            message = u"{c4}{error}!".format(error=err.details, **irc_colours)
+        except:
+            logging.exception('Error in lastfm listen handler')
+            message = u"{c6}Something went wrong!".format(**irc_colours)
     
-#markov_store.handler = ("on_text", r'.*', irc.ALL_NICKS, ['#r/a/dio'])
+    server.privmsg(channel, message)
 
-def markov_say(server, nick, channel, text, hostmask):
-    import markov
-    try:
-        server.privmsg(channel, markov.make_sentence())
-    except:
-        server.privmsg(channel, u'Something went wrong.')
-    
-markov_say.handler = ("on_text", r'[.!]say', irc.ALL_NICKS, irc.ALL_CHANNELS)
+lastfm_listening.handler = ("on_text", r'-fm?.*',
+                          irc.ALL_NICKS, irc.MAIN_CHANNELS)
+
+def lastfm_setuser(server, nick, channel, text, hostmask):
+    import pylast
+    match = re.match(r"^-fma?\s(?P<user>.*)", text, re.I|re.U)
+    message = u''
+    if match and match.group('user') != '':
+        username = match.group('user')
+        network = pylast.LastFMNetwork(api_key=config.lastfm_key, api_secret=config.lastfm_secret)
+        try:
+            user = network.get_user(username)
+            user.get_now_playing()
+            with manager.MySQLCursor() as cur:
+                cur.execute("SELECT * FROM lastfm WHERE nick=%s;", (nick.lower(),))
+                if cur.rowcount == 1:
+                    cur.execute("UPDATE lastfm SET user=%s WHERE nick=%s;", (username, nick.lower()))
+                else:
+                    cur.execute("INSERT INTO lastfm (user, nick) VALUES (%s, %s);", (username, nick.lower()))
+            message = u"You are now registered as '{user}', {nick}!".format(user=username, nick=nick)
+        except pylast.WSError as err:
+            message = u"{c4}{error}!".format(error=err.details, **irc_colours)
+    else:
+        message = u"{c4}You need to specify a username!".format(**irc_colours)
+    server.notice(nick, message)
+
+lastfm_setuser.handler = ("on_text", r'-fma?.*',
+                          irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def hanyuu_response(response, delay):
     """Gets a chat response for a specific delay type and delay time.
