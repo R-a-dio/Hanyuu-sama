@@ -652,9 +652,9 @@ class Song(object):
                 return False #something went badly
         songdelay = requests.songdelay(requestcount)
         now = time.time()
-        if songdelay > (now - self.lp):
+        if self.lp and songdelay > (now - self.lp):
             return False #the song delay has not passed for lp
-        if songdelay > (now - self.lr):
+        if self.lr and songdelay > (now - self.lr):
             return False #the song delay has not passed for lr
         return True
     @property
