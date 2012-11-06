@@ -439,7 +439,7 @@ def search(server, nick, channel, text, hostmask):
     except (ValueError):
         message = [u"{c4}{meta} {c3}({trackid}){c} (LP: {c5}{lp}{c}) (R: {c5}{lr}{c}) "\
             .format(meta=song.metadata, trackid=song.id, lp=formatDate(song.lpd), lr=formatDate(song.lrd), **irc_colours) for \
-            song in manager.song.search(query)]
+            song in manager.Song.search(query)]
     if (len(message) > 0):
         message = u" | ".join(message)
     else:
