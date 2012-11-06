@@ -617,6 +617,17 @@ def lastfm_setuser(server, nick, channel, text, hostmask):
 lastfm_setuser.handler = ("on_text", r'[\-.@!]fma.*',
                           irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
+def favorite_list(server, nick, channel, text, hostmask):
+    match = re.match(r'[.!@]flist (.*)', text, re.I|re.U)
+    message = u''
+    if match:
+        nick = match.group(1)
+    message = u'http://r-a-d.io/#/favorites/{nick}'.format(nick=nick)
+    
+favorite_list.handler = ('on_text', r'[.!@]flist',
+                         irc.ALL_NICKS, irc.MAIN_CHANNELS)
+
+
 def hanyuu_response(response, delay):
     """Gets a chat response for a specific delay type and delay time.
     """
