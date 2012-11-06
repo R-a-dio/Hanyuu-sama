@@ -12,6 +12,7 @@ from multiprocessing.dummy import Pool
 import bootstrap
 from bootstrap import Switch
 import datetime
+import requests
 
 bootstrap.logging_setup()
         
@@ -633,6 +634,29 @@ class Song(object):
     def lrf(self):
         """Return same format as lpf but for last requested."""
         return parse_lastplayed(0 if self.lr == None else self.lr)
+    @property
+    def requestable(self):
+        """Returns true if the song can be requested, false otherwise."""
+        if self.id == 0L:
+            return False # song isn't in the db
+        with MySQLCursor() as cur:
+            query = "SELECT `requestcount`, `usable` FROM `tracks` WHERE `id`=%s;"
+            cur.execute(query, (self.id,))
+            try:
+                row = cur.fetchone()
+                if row['usable'] == 0:
+                    return False #song is not usable
+                requestcount = row['requestcount']                
+            except:
+                logging.exception("Missing tracks entry")
+                return False #something went badly
+        songdelay = requests.songdelay(requestcount)
+        now = time.time()
+        if songdelay > (now - self.lp):
+            return False #the song delay has not passed for lp
+        if songdelay > (now - self.lr):
+            return False #the song delay has not passed for lr
+        return True
     @property
     def favecount(self):
         """Returns the amount of favorites on this song as integer,
