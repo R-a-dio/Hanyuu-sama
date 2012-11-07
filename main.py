@@ -109,7 +109,10 @@ def main():
         
     # Start listener/streamer
     global manager
-    manager = launch_server()
+    t = threading.Thread(target=start)
+    t.daemon = True
+    t.name = "Streamer Manager Thread"
+    t.start()
     
     # Start queue watcher ? why is this even in hanyuu
     watcher.start()

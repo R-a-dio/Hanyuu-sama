@@ -621,8 +621,11 @@ def favorite_list(server, nick, channel, text, hostmask):
     match = re.match(r'[.!@]flist (.*)', text, re.I|re.U)
     message = u''
     if match:
-        nick = match.group(1)
-    message = u'http://r-a-d.io/#/favorites/{nick}'.format(nick=nick)
+        fnick = match.group(1)
+    else:
+        fnick = nick
+    message = u'Favorites are at: http://r-a-d.io/#/favorites/{nick}'.format(nick=fnick)
+    server.notice(nick, message)
     
 favorite_list.handler = ('on_text', r'[.!@]flist',
                          irc.ALL_NICKS, irc.MAIN_CHANNELS)
