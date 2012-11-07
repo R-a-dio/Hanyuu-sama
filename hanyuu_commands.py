@@ -425,14 +425,16 @@ def search(server, nick, channel, text, hostmask):
         query = int(query);
         try:
             song = manager.Song(id=query)
-            message = [u"{c4}{meta} {c3}({trackid}){c}"\
-               .format(meta=song.metadata, trackid=song.id, **irc_colours)]
+            lpd = datetime.datetime.now() - song.lpd
+            lrd = datetime.datetime.now() - song.lrd
+            message = [u"{c4}{meta} (LP: {lp}) (R: {req}) {c3}({trackid}){c}"\
+               .format(meta=song.metadata, lp="{d}d{h}h".format(d=lpd.days, h=lpd.seconds/3600), req="{d}d{h}h".format(d=lrd.days, h=lrd.seconds/3600), trackid=song.id, **irc_colours)]
         except (ValueError):
             message = []
     except (ValueError):
-        message = [u"{c4}{meta} {c3}({trackid}){c}"\
-               .format(meta=song.metadata, trackid=song.id, **irc_colours) for \
-               song in manager.Song.search(query)]
+        message = [u"{c4}{meta} (LP: {lp}) (R: {req}) {c3}({trackid}){c}"\
+            .format(meta=song.metadata, lp="{d}d{h}h".format(d=song.lpd.days, h=song.lpd.seconds/3600), req="{d}d{h}h".format(d=song.lrd.days, h=lrd.song.seconds/3600), trackid=song.id, **irc_colours) for \
+            song in manager.song.search(query)]
     if (len(message) > 0):
         message = u" | ".join(message)
     else:
