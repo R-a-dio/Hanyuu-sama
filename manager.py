@@ -605,6 +605,35 @@ class Song(object):
          54 minutes, 20 seconds', defaults to 'Never before'"""
         return parse_lastplayed(0 if self.lp == None else self.lp)
     @property
+    def lpd(self):
+        """Returns lastplayed as datetime.datetime object."""
+        with MySQLCursor() as cur:
+            query = "SELECT `lastrequested` FROM `tracks` WHERE id=%s;"
+            cur.execute(query, (self.id,))
+            for row in cur:
+                return row['lastrequested']
+            return None
+    @property
+    def lrd(self):
+        """Return last requested time as datetime.datetime"""
+        with MySQLCursor() as cur:
+            query = "SELECT `lastrequested` FROM `tracks` WHERE id=%s;"
+            cur.execute(query, (self.id,))
+            for row in cur:
+                return row['lastrequested']
+            return None
+    @property
+    def lr(self):
+        """Return last requested time in unix timestamp format"""
+        try:
+            return time.mktime(self.lrd.timetuple())
+        except AttributeError:
+            return None
+    @property
+    def lrf(self):
+        """Return same format as lpf but for last requested."""
+        return parse_lastplayed(0 if self.lr == None else self.lr)
+    @property
     def favecount(self):
         """Returns the amount of favorites on this song as integer,
         defaults to 0"""
