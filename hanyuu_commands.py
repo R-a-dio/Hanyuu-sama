@@ -414,7 +414,7 @@ def lucky(server, nick, channel, text, hostmask):
 lucky.handler = ("on_text", r'[.!@]lucky\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def search(server, nick, channel, text, hostmask):
-    def formatDate(dt):
+    def format_date(dt):
         if (dt == None):
             return 'Never'
         else:
@@ -432,14 +432,18 @@ def search(server, nick, channel, text, hostmask):
         query = int(query);
         try:
             song = manager.Song(id=query)
-            message = [u"{c4}{meta} {c3}({trackid}){c} (LP: {c5}{lp}{c}) (R: {c5}{lr}{c})"\
-               .format(meta=song.metadata, trackid=song.id, lp=formatDate(song.lpd), lr=formatDate(song.lrd), **irc_colours)]
+            message = [u"{c4}{meta}{c3} ({trackid}){c} (LP:{c5}{lp}{c})"\
+                .format(meta=song.metadata, trackid=song.id,\
+                    lp=format_date(song.lpd), lr=format_date(song.lrd),\
+                    **irc_colours)]
         except (ValueError):
             message = []
     except (ValueError):
-        message = [u"{c4}{meta} {c3}({trackid}){c} (LP: {c5}{lp}{c}) (R: {c5}{lr}{c}) "\
-            .format(meta=song.metadata, trackid=song.id, lp=formatDate(song.lpd), lr=formatDate(song.lrd), **irc_colours) for \
-            song in manager.song.search(query)]
+        message = [u"{c4}{meta}{c3} ({trackid}){c} (LP:{c5}{lp}{c})"\
+            .format(meta=song.metadata, trackid=song.id,\
+                lp=format_date(song.lpd), lr=format_date(song.lrd),\
+                **irc_colours) for \
+                song in manager.Song.search(query)]
     if (len(message) > 0):
         message = u" | ".join(message)
     else:
