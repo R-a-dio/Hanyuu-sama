@@ -419,7 +419,14 @@ def search(server, nick, channel, text, hostmask):
             return 'Never'
         else:
             dt = datetime.now() - dt
-            return '{d}d{h}h'.format(d=dt.days, h=dt.seconds/3600)
+            
+            if dt.total_seconds < 86400:
+                return '{h}h{m}m'.format(h=dt.total_seconds/3600, \
+                    m=(dt.total_seconds//3600)/60)
+            elif dt.days > 30
+                return '{m}m{d}d'.format(m=dt.days/30, d=dt.days//30)
+            else
+                return '{d}d{h}h'.format(d=dt.days, h=dt.seconds/3600)
 
     match = re.match(r"^(?P<mode>[.!@])s(earch)?\s(?P<query>.*)", text, re.I|re.U)
     if (match):
@@ -432,17 +439,15 @@ def search(server, nick, channel, text, hostmask):
         query = int(query);
         try:
             song = manager.Song(id=query)
-            message = [u"{c4}{meta}{c3} ({trackid}){c} (LP:{c5}{lp}{c})"\
-                .format(meta=song.metadata, trackid=song.id,\
-                    lp=format_date(song.lpd), lr=format_date(song.lrd),\
-                    **irc_colours)]
+            message = [u"{c4}{meta} {c3}({trackid}){c} (LP:{c5}{lp}{c})"\
+                .format(meta=song.metadata, trackid=song.id, \
+                    lp=format_date(song.lpd), **irc_colours)]
         except (ValueError):
             message = []
     except (ValueError):
-        message = [u"{c4}{meta}{c3} ({trackid}){c} (LP:{c5}{lp}{c})"\
-            .format(meta=song.metadata, trackid=song.id,\
-                lp=format_date(song.lpd), lr=format_date(song.lrd),\
-                **irc_colours) for \
+        message = [u"{c4}{meta} {c3}({trackid}){c} (LP:{c5}{lp}{c})"\
+            .format(meta=song.metadata, trackid=song.id, \
+                lp=format_date(song.lpd), **irc_colours) for \
                 song in manager.Song.search(query)]
     if (len(message) > 0):
         message = u" | ".join(message)
