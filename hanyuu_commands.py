@@ -439,14 +439,16 @@ def search(server, nick, channel, text, hostmask):
         query = int(query);
         try:
             song = manager.Song(id=query)
-            message = [u"{c4}{meta} {c3}({trackid}){c} (LP:{c5}{lp}{c})"\
-                .format(meta=song.metadata, trackid=song.id, \
+            message = [u"{col_code}{meta} {c3}({trackid}){c} (LP:{c5}{lp}{c})"\
+                .format(col_code=irc_colours['c3' if song.requestable() else 'c4'],\
+                    meta=song.metadata, trackid=song.id, \
                     lp=format_date(song.lpd), **irc_colours)]
         except (ValueError):
             message = []
     except (ValueError):
-        message = [u"{c4}{meta} {c3}({trackid}){c} (LP:{c5}{lp}{c})"\
-            .format(meta=song.metadata, trackid=song.id, \
+        message = [u"{col_code}{meta} {c3}({trackid}){c} (LP:{c5}{lp}{c})"\
+            .format(col_code=irc_colours['c3' if song.requestable() else 'c4'],\
+                meta=song.metadata, trackid=song.id, \
                 lp=format_date(song.lpd), **irc_colours) for \
                 song in manager.Song.search(query)]
     if (len(message) > 0):

@@ -300,4 +300,8 @@ def launch_server():
     return manager
 
 if __name__ == "__main__":
-    launch_server()
+    import threading
+    t = threading.Thread(target=start)
+    t.name = 'IRC Manager Thread'
+    t.daemon = True
+    t.start()
