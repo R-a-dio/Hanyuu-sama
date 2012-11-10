@@ -422,9 +422,9 @@ def search(server, nick, channel, text, hostmask):
             
             if dt.total_seconds < 86400:
                 return '{h}h{m}m'.format(h=dt.total_seconds/3600, \
-                    m=(dt.total_seconds//3600)/60)
+                    m=(dt.total_seconds%3600)/60)
             elif dt.days > 30
-                return '{m}m{d}d'.format(m=dt.days/30, d=dt.days//30)
+                return '{m}m{d}d'.format(m=dt.days/30, d=dt.days%30)
             else
                 return '{d}d{h}h'.format(d=dt.days, h=dt.seconds/3600)
 
@@ -642,7 +642,7 @@ def favorite_list(server, nick, channel, text, hostmask):
         fnick = match.group(1)
     else:
         fnick = nick
-    message = u'Favorites are at: http://r-a-d.io/#/Favorites/{nick}'.format(nick=fnick)
+    message = u'Favorites are at: http://r-a-d.io/#/favorites/?nick={nick}'.format(nick=fnick)
     server.notice(nick, message)
     
 favorite_list.handler = ('on_text', r'[.!@]flist',
