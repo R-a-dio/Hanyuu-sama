@@ -126,6 +126,7 @@ class Session(object):
                                 create_func(self, func))
                             self.exposed[name] = func
     def reload_handlers(self):
+        old_handlers = self._handlers[:]
         self._handlers = []
         for name in self.exposed:
             try:
@@ -133,7 +134,12 @@ class Session(object):
             except (AttributeError):
                 pass
         self.exposed = {}
-        self.load_handlers(load=True)
+        try:
+            self.load_handlers(load=True)
+        except:
+            logging.debug("Error when reloading commands file. Restoring old version.")
+            self._handlers = old_handlers
+            raise
     def set_topic(self, channel, topic):
         self._server.topic(channel, topic)
     def wait(self, timeout=None):

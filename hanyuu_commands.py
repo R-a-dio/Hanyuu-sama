@@ -423,9 +423,9 @@ def search(server, nick, channel, text, hostmask):
             if dt.total_seconds < 86400:
                 return '{h}h{m}m'.format(h=dt.total_seconds/3600, \
                     m=(dt.total_seconds%3600)/60)
-            elif dt.days > 30
+            elif dt.days > 30:
                 return '{m}m{d}d'.format(m=dt.days/30, d=dt.days%30)
-            else
+            else:
                 return '{d}d{h}h'.format(d=dt.days, h=dt.seconds/3600)
 
     match = re.match(r"^(?P<mode>[.!@])s(earch)?\s(?P<query>.*)", text, re.I|re.U)
