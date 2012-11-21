@@ -288,9 +288,9 @@ def shut_afk(server, nick, channel, text, hostmask):
     try:
         stream = main.connect()
         stream.switch_dj()
-        message = u'AFK Streamer will disconnect after current track, use ".kill" to force disconnect.'
+        message =  u'Disconnecting after current track. Start streaming a fallback song before the AFK Streamer disconnects.'
     except:
-        message = u"Something went wrong, please punch Wessie."
+        message = u"Something went wrong, please try again."
         logging.exception("AFK cleankill failed")
     server.privmsg(channel, message)
         
@@ -535,6 +535,36 @@ def lastrequest(server, nick, channel, text, hostmask):
 lastrequest.handler = ("on_text", r'[.!@]lastr(equest)?.*',
                        irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
+def info(server, nick, channel, text, hostmask):
+    """Returns info about a song ID"""
+    match = re.match(r'^(?P<mode>[.!@])i(nfo)?\s?(?P<id>\d+)?$')
+    id = None
+    if match:
+        # We have an ID and stuff
+        mode = match.group('mode')
+        id = match.group('id')
+    else:
+        mode = None
+    if id:
+        # do shit with id
+        try:
+            song = manager.Song(id)
+        except ValueError:
+            message = u'ID Does not exist in database'
+        except TypeError:
+            message = u'ID Invalid.'
+        else:
+            message = u"Not implemented"
+    else:
+        # Show some kind of info lol
+        message = u"Suck my dick"
+    if (mode == '@'):
+        server.privmsg(channel, message)
+    else:
+        server.notice(nick, message)
+        
+info.handler = ("on_text", r"[.!@]i(nfo)?", irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
+
 def request_help(server, nick, channel, text, hostmask):
     message = u"{nick}: http://r-a-d.io/search {c5}Thank you for listening to r/a/dio!".format(nick=nick, **irc_colours)
     server.privmsg(channel, message)
@@ -642,7 +672,7 @@ def favorite_list(server, nick, channel, text, hostmask):
         fnick = match.group(1)
     else:
         fnick = nick
-    message = u'Favorites are at: http://r-a-d.io/#/favorites/?nick={nick}'.format(nick=fnick)
+    message = u'Favorites are at: http://r-a-d.io/favorites/?nick={nick}'.format(nick=fnick)
     server.notice(nick, message)
     
 favorite_list.handler = ('on_text', r'[.!@]flist',
