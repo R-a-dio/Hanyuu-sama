@@ -29,7 +29,6 @@ class GarbageAudioFile(garbage.Garbage):
         
         return True
     
-    
 class AudioFile(object):
     """A Simple wrapper around the audiotools library.
     
@@ -44,7 +43,7 @@ class AudioFile(object):
         
         The `timeout` argument is unused. But kept in for compatibility with
         other read methods in the `audio` module."""
-        return self._reader.read(size).to_bytes(False, True)
+        return self._reader.read(size)
     
     def close(self):
         """Registers self for garbage collection. This method does not

@@ -5,6 +5,7 @@ import icecast
 import logging
 import garbage
 import audiotools
+import audiotools.crossfader
 
 
 # Remove this 
@@ -78,41 +79,26 @@ class UnendingSource(object):
         
         self.eof = False
         
+    def next(self):
+        return self.source_function()
+        
     def start(self):
         """Starts the source"""
         self.eof = False
-        self.source = self.source_function()
+        self.source = audiotools.crossfader.PCMCrossFader(self, fade=2.0)
         
     def initialize(self):
         """Sets the initial source from the source function."""
         self.start()
-        
-    def change_source(self):
-        """Calls the source function and returns the result if not None."""
-        self.source.close()
-        new_source = self.source_function()
-        if new_source is None:
-            self.eof = True
-        else:
-            return new_source
     
     def read(self, size=4096, timeout=10.0):
         if self.eof:
             return b''
         try:
-            data = self.source.read(size, timeout)
+            return self.source.read(size).to_bytes(False, True)
         except (ValueError) as err:
             if err.message == 'MD5 mismatch at end of stream':
-                data = b''
-        if data == b'':
-            self.source = self.change_source()
-            if self.source == None:
-                self.eof = True
                 return b''
-        return data
-    
-    def skip(self):
-        self.source = self.change_source()
         
     def close(self):
         self.eof = True
@@ -159,7 +145,7 @@ def test_dir(directory=u'/media/F/Music', files=None):
 
 def test_config(password=None):
     return {'host': 'stream.r-a-d.io',
-            'port': 1130,
+            'port': 1337,
             'password': password,
             'format': 1,
             'protocol': 0,
