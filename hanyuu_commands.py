@@ -666,16 +666,24 @@ lastfm_setuser.handler = ("on_text", r'[\-.@!]fma.*',
                           irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def favorite_list(server, nick, channel, text, hostmask):
-    match = re.match(r'[.!@]flist (.*)', text, re.I|re.U)
-    message = u''
-    if match:
-        fnick = match.group(1)
+    match = re.match(r'^(?P<mode>[.!@])fl(ist)?($|\s)(?P<fnick>.*)', text, re.I|re.U)
+
+    if (match):
+        mode, fnick = match.group('mode', 'fnick')
+        if (fnick == ''):
+            fnick = nick
     else:
-        fnick = nick
-    message = u'Favorites are at: http://r-a-d.io/favorites/?nick={nick}'.format(nick=fnick)
-    server.notice(nick, message)
-    
-favorite_list.handler = ('on_text', r'[.!@]flist',
+        server.notice(nick, 'Something went wrong')
+        return
+
+    message = u'Favorites are at: https://r-a-d.io/#/favorites/{nick}'.format(nick=fnick)
+
+    if (mode == '@'):
+        server.privmsg(channel, message)
+    else:
+        server.notice(nick, message)
+
+favorite_list.handler = ('on_text', r'[.!@]fl(ist)?',
                          irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 
