@@ -609,10 +609,10 @@ class Song(object):
     def lpd(self):
         """Returns lastplayed as datetime.datetime object."""
         with MySQLCursor() as cur:
-            query = "SELECT `lastrequested` FROM `tracks` WHERE id=%s;"
+            query = "SELECT `lastplayed` FROM `tracks` WHERE id=%s;"
             cur.execute(query, (self.id,))
             for row in cur:
-                return row['lastrequested']
+                return row['lastplayed']
             return None
     @property
     def lrd(self):
