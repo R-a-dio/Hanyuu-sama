@@ -298,7 +298,7 @@ shut_afk.handler = ("on_text", r'[.!@]cleankill',
                      irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
 
 
-spam = bootstrap.Switch(True, timeout=0) # side effect: hanyuu no longer spams as ferociously if that pesky race condition returns
+spam = bootstrap.Switch(True) # side effect: hanyuu no longer spams as ferociously if that pesky race condition returns
 def announce(server, spam=spam):
     np = manager.NP()
     status = manager.Status()
