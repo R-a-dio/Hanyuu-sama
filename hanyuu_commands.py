@@ -51,6 +51,7 @@ import manager
 import main
 import random as _random
 from datetime import timedelta, datetime
+import bootstrap
 
 def tokenize(text):
     return text.lower().split(" ")
