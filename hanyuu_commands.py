@@ -51,6 +51,7 @@ import manager
 import main
 import random as _random
 from datetime import timedelta, datetime
+import bootstrap
 
 def tokenize(text):
     return text.lower().split(" ")
@@ -297,10 +298,12 @@ def shut_afk(server, nick, channel, text, hostmask):
 shut_afk.handler = ("on_text", r'[.!@]cleankill',
                      irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
 
-def announce(server):
+
+spam = bootstrap.Switch(True) # side effect: hanyuu no longer spams as ferociously if that pesky race condition returns
+def announce(server, spam=spam):
     np = manager.NP()
     status = manager.Status()
-    if (len(np.faves) != 0 and np.length >= 30):
+    if not spam: # No more requiring a fave for a now starting announce. (Hiroto)
         message = u"Now starting:{c4} '{np}' {c}[{curtime}/{length}]({listeners}/{max_listener}), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
             np=np.metadata, curtime=np.positionf,
             length=np.lengthf, listeners=status.listeners,
@@ -311,6 +314,7 @@ def announce(server):
             lp=np.lpf,
             **irc_colours)
         server.privmsg("#r/a/dio", message)
+        spam.reset()
     for nick in np.faves:
         if (server.inchannel("#r/a/dio", nick)):
             server.notice(nick, u"Fave: {0} is playing."\
