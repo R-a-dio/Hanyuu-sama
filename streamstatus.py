@@ -14,7 +14,7 @@ def get_listener_count(server_name='stream'):
             row = cur.fetchone()
             port = row['port']
             mount = row['mount']
-            url = 'http://{server}.r-a-d.io:{port}'.format(server=server_name,port=port)
+            url = 'http://{server}.r-a-d.io:{port}/status.xsl'.format(server=server_name,port=port)
         else:
             raise KeyError("unknown relay \"" + server_name + "\"")
     try:
