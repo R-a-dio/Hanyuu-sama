@@ -117,34 +117,29 @@ def get_status(icecast_server):
             result[config.icecast_mount]['Current Listeners'] = str(total_count)
         return parser.result or {}
     return {}
-def get_listeners(icecast_host):
-    import socket
-    http_addr = 'http://'+icecast_host+':'+str(config.icecast_port)
-    
-    cur_addr = socket.gethostbyname(icecast_host)
-    rad_addr = socket.gethostbyname("r-a-d.io")
-    stream_addr = socket.gethostbyname("stream.r-a-d.io")
-    
-    if (cur_addr == rad_addr):
-        auth = config.radio_admin_auth
-    elif (cur_addr == stream_addr):
-        auth = config.stream_admin_auth
-    else:
-        raise ValueError("no known icecast host was specified")
-    
-    mounts = get_status(http_addr).keys()
+def get_listeners():
     listeners = {}
-    for mount in mounts:
-        result = urllib2.urlopen(urllib2.Request(http_addr+'/admin/listclients.xsl?mount='+mount,
-                                                headers={'User-Agent': 'Mozilla',
-                                                'Authorization': 'Basic ' + auth,
-                                                'Referer': http_addr+'/admin/'}))
-        
-        parser = ListenersParser()
-        for line in result:
-            parser.feed(line)
-        parser.close()
-        listeners[mount] = parser.result
+    with manager.MySQLCursor() as cur:
+        cur.execute("SELECT * FROM `relays` WHERE listeners > 0 AND admin_auth != '';")
+        for row in cur:
+            server = row['relay_name']
+            port = row['port']
+            mount= row['mount']
+            auth = row['admin_auth']
+            url = 'http://{server}.r-a-d.io:{port}'.format(server=server,port=port)
+            try:
+                result = urllib2.urlopen(urllib2.Request(url+'/admin/listclients.xsl?mount='+mount,
+                                                                    headers={'User-Agent': 'Mozilla',
+                                                                    'Authorization': 'Basic ' + auth,
+                                                                    'Referer': url+'/admin/'}))
+            except:
+                continue
+            parser = ListenersParser()
+            for line in result:
+                parser.feed(line)
+            parser.close()
+            listeners.update(dict((l['ip'], l) for l in parser.result))
+    listeners = listeners.values()
     return listeners
 
 class StatusParser(HTMLParser.HTMLParser):
