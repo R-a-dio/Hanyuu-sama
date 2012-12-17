@@ -1115,14 +1115,20 @@ def parse_lastplayed(seconds):
         day, hour = divmod(day, 86400)
         hour, minute = divmod(hour, 3600)
         minute, second = divmod(minute, 60)
-        result = ''
-        if (year): result += u'%d year(s) ' % year
-        if (month): result += u'%d month(s) ' % month
-        if (week): result += u'%d week(s) ' % week
-        if (day): result += u'%d day(s) ' % day
-        if (hour): result += u'%d hour(s) ' % hour
-        if (minute): result += u'%d minute(s) ' % minute
-        if (second): result += u'%d second(s) ' % second
-        return result.strip()
+        result = []
+        
+        def plurify(num, unit):
+            if num != 1:
+                unit += 's'
+            return u'%d %s' % (num, unit)
+        
+        if (year): result.append(plurify(year, u'year'))
+        if (month): result.append(plurify(month, u'month'))
+        if (week): result.append(plurify(week, u'week'))
+        if (day): result.append(plurify(day, u'day'))
+        if (hour): result.append(plurify(hour, u'hour'))
+        if (minute): result.append(plurify(minute, u'minute'))
+        if (second): result.append(plurify(second, u'second'))
+        return " ".join(result)
     else:
         return u'Never before'
