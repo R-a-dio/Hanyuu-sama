@@ -67,10 +67,10 @@ def np(server, nick, channel, text, hostmask):
     status = manager.Status()
     np = manager.NP()
     if (status.online):
-        message = u"Now playing:{c4} '{np}' {c}[{curtime}/{length}]({listeners}/{max_listener}), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
+        message = u"Now playing:{c4} '{np}' {c}[{curtime}/{length}]({listeners} listeners), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
             np=np.metadata, curtime=np.positionf,
             length=np.lengthf, listeners=status.listeners,
-            max_listener=config.listener_max, faves=np.favecount,
+            faves=np.favecount,
             fs="" if (np.favecount == 1) else "s", 
             times=np.playcount,
             ts="" if (np.playcount == 1) else "s",
