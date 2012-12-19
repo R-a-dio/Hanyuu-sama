@@ -304,9 +304,9 @@ def announce(server, spam=spam):
     np = manager.NP()
     status = manager.Status()
     if not spam: # No more requiring a fave for a now starting announce. (Hiroto)
-        message = u"Now starting:{c4} '{np}' {c}[{length}]({listeners}/{max_listener}), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
+        message = u"Now starting:{c4} '{np}' {c}[{length}]({listeners} listeners), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
             np=np.metadata, length=np.lengthf, listeners=status.listeners,
-            max_listener=config.listener_max, faves=np.favecount,
+            faves=np.favecount,
             fs="" if (np.favecount == 1) else "s", 
             times=np.playcount,
             ts="" if (np.playcount == 1) else "s",
