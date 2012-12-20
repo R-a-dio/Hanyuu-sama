@@ -608,7 +608,7 @@ def lastfm_listening(server, nick, channel, text, hostmask):
                 artist = track.artist.name
                 title = track.title
                 try:
-                    tags = [tag for tag in artist.get_top_tags()]
+                    tags = [tag for tag in track.artist.get_top_tags()]
                 except pylast.WSError:
                     tags = []
                 # Sort by weight
