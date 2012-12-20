@@ -6,10 +6,9 @@ import config
 from urllib2 import HTTPError
 import manager
 import xmltodict
-import bootstrap
+from bootstrap import Switch
 
-dns_spamfilter = bootstrap.Switch(True)
-
+dns_spamfilter = Switch(True)
 
 def get_listener_count(server_name, mount=None, port=None):
     if not mount or not port:
