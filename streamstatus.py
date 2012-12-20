@@ -34,7 +34,7 @@ def get_listener_count(server_name, mount, port):
     return -1
 
 timeout = {}
-dns_spamfilter = Switch(True)
+dns_spamfilter = bootstrap.Switch(True)
 def get_all_listener_count():
     import time
     counts = {}
@@ -101,17 +101,15 @@ def get_listeners():
             auth = row['admin_auth']
             url = 'http://{server}.r-a-d.io:{port}'.format(server=server,port=port)
             try:
-                result = urllib2.urlopen(urllib2.Request(url+'/admin/listclients.xsl?mount='+mount,
+                result = urllib2.urlopen(urllib2.Request(url+'/admin/listclients?mount='+mount,
                                                                     headers={'User-Agent': 'Mozilla',
                                                                     'Authorization': 'Basic ' + auth,
                                                                     'Referer': url+'/admin/'}))
             except:
                 continue
             parser = ListenersParser()
-            for line in result:
-                parser.feed(line)
-            parser.close()
-            listeners.update(dict((l['ip'], l) for l in parser.result))
+            parser.parse(result)
+            listeners.update(dict((l['ip'], l) for l in parser.result()))
     return listeners.values()
 
 class StatusParser(object):
@@ -125,7 +123,7 @@ class StatusParser(object):
             # cdata is a multiline block (Icecast)
             # fetch annotation
             xml_dict = xml_dict["playlist"]["trackList"]["track"] # remove the useless stuff
-            annotation = xml_dict["annotation"]["#text"].split("\n")
+            annotations = xml_dict["annotation"]["#text"].split("\n")
             self.result[server_name] = {}
             for annotation in annotations:
                 tmp = annotation.split(":", 1)
@@ -136,37 +134,29 @@ class StatusParser(object):
             raise
         return self.result       
         
-class ListenersParser(HTMLParser.HTMLParser):
+class ListenersParser(object):
     def __init__(self):
-        HTMLParser.HTMLParser.__init__(self)
+        """
+        value keys:
+        ['ip']
+        ['time']
+        ['player']
+        """
         self.result = []
-        self._values = {}
-        self._td = None
-        self._tablefound = False
-    def handle_starttag(self, tag, attrs):
-        attrs = MultiDict.OrderedMultiDict(attrs)
-        if (tag == "table" and "bordercolor" in attrs and attrs['bordercolor'] == "#C0C0C0"):
-            self._tablefound = True
-        elif (tag == "td"):
-            self._td = Tag(attrs)            
-    def handle_endtag(self, tag):
-        if tag == "td" and self._td:
-            self._td = None
-        elif tag == "table" and self._tablefound:
-            self._tablefound = False
-    def handle_data(self, data):
-        if self._tablefound and self._td:
-            if "align" in self._td.attr and "center" in self._td.getall("align"):
-                l = len(self._values)
-                if (l==0): # it's ip
-                    self._values['ip'] = str(data)
-                elif (l==1): # it's time
-                    self._values['time'] = int(data)
-                elif (l==2): # it's player
-                    self._values['player'] = str(data)
-                elif (l==3): # it's kick
-                    self.result.append(self._values)
-                    self._values = {}
+        seld._values = {}
+    def parse(self, xml):
+        try:
+            xml_dict = xmltodict(xml, xml_attribs=False)
+            xml_dict = xml_dict["icestats"]["source"]["listener"]
+            for listener in xml_dict:
+                self._values['ip'] = listener['IP']
+                self._values['player'] = listener['UserAgent']
+                self._values['time'] = listener['Connected']
+                self.result.append(self._values)
+        except:
+            logging.warning("Couldn't parse listener XML - ListenersParser")
+    def result(self):
+        return self.result
 
 class Tag(object):
     attr = MultiDict.OrderedMultiDict()
