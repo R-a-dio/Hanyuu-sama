@@ -333,7 +333,7 @@ class Status(object):
     @property
     def status(self):
         import streamstatus
-        self._status = streamstatus.get_status(config.icecast_server)
+        self._status = streamstatus.get_status(config.icecast_server, "stream0")
         self._timeout.reset(9)
         for handle in self._handlers:
             try:
