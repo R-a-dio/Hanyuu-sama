@@ -143,7 +143,7 @@ class ListenersParser(object):
         ['player']
         """
         self.result = []
-        seld._values = {}
+        self._values = {}
     def parse(self, xml):
         try:
             xml_dict = xmltodict(xml, xml_attribs=False)
