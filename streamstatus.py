@@ -8,7 +8,10 @@ import manager
 import xmltodict
 import bootstrap
 
-def _get_listener_count(server_name, mount=None, port=None):
+dns_spamfilter = bootstrap.Switch(True)
+
+
+def get_listener_count(server_name, mount=None, port=None):
     if not mount or not port:
         with manager.MySQLCursor() as cur:
             cur.execute("SELECT * FROM `relays` WHERE `relay_name`=%s;", (server_name,))
@@ -44,7 +47,6 @@ def _get_listener_count(server_name, mount=None, port=None):
     return -1
 
 timeout = {}
-dns_spamfilter = bootstrap.Switch(True)
 def get_all_listener_count():
     import time
     counts = {}
@@ -59,7 +61,7 @@ def get_all_listener_count():
                 if name in timeout:
                     del timeout[name]
                 try:
-                    count = _get_listener_count(name, row["mount"], row["port"])
+                    count = get_listener_count(name, row["mount"], row["port"])
                 except urllib2.HTTPError as err:
                     if err.code == 403: # incorrect login
                         if not dns_spamfilter:
@@ -94,7 +96,8 @@ def get_status(icecast_server, server_name):
         logging.exception("Can't connect to status page")
     else:
         parser = StatusParser()
-        result = parser.parse(result.read(), server_name)
+        parser.parse(result.read(), server_name)
+        result = parser.result
         all_listeners = get_all_listener_count()
         total_count = reduce(lambda x,y: x+y if x > 0 and y > 0 else x, all_listeners.values())
         result[server_name]['Current Listeners'] = str(total_count) # WHYYYYYYYYYYYYY DID YOU DO THIS
@@ -119,7 +122,7 @@ def get_listeners():
                 continue
             parser = ListenersParser()
             parser.parse(result)
-            listeners.update(dict((l['ip'], l) for l in parser.result()))
+            listeners.update(dict((l['ip'], l) for l in parser.result))
     return listeners.values()
 
 class StatusParser(object):
@@ -141,8 +144,7 @@ class StatusParser(object):
             self.result[server_name]["Current Song"] =  xml_dict["title"]["#text"] # unicode strings yay!
         except:
             logging.error("Failed to parse XML Status data.")
-            raise
-        return self.result       
+            raise       
         
 class ListenersParser(object):
     def __init__(self):
@@ -152,7 +154,7 @@ class ListenersParser(object):
         ['time']
         ['player']
         """
-        self._result = []
+        self.result = []
         self._values = {}
     def parse(self, xml):
         try:
@@ -165,6 +167,4 @@ class ListenersParser(object):
                 self.result.append(self._values)
         except:
             logging.warning("Couldn't parse listener XML - ListenersParser")
-    def result(self):
-        return self.result
 
