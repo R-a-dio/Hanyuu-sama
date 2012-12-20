@@ -18,8 +18,8 @@ def _get_listener_count(server_name, mount=None, port=None):
                 mount = row['mount']
             else:
                 raise KeyError("unknown relay \"" + server_name + "\"")
-    url = "http://" + server_name + ".r-a-d.io:" + str(port) + mount # HURR I LIKE TO DO 12 MYSQL QUERIES EVERY FEW SECONDS
-    # tip: you just did select * from relays;. You do not need to then individually query every server_name...
+    url = "http://" + server_name + ".r-a-d.io:" + str(port) + mount + ".xspf"
+    # tip: you just did select * from relays;.
     try:
         result = urllib2.urlopen(urllib2.Request(url,
                                             headers={'User-Agent': 'Mozilla'}), timeout=2)
