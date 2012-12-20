@@ -18,7 +18,8 @@ def _get_listener_count(server_name, mount=None, port=None):
                 mount = row['mount']
             else:
                 raise KeyError("unknown relay \"" + server_name + "\"")
-    url = "http://" + server_name + ".r-a-d.io:" + str(port) + mount + ".xspf"
+    url = "http://{name}.r-a-d.io:{port}{mount}.xspf".format(name=server_name,
+                                            port=port, mount=mount)
     # tip: you just did select * from relays;.
     try:
         result = urllib2.urlopen(urllib2.Request(url,
