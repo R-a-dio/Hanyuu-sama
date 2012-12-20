@@ -8,7 +8,7 @@ import manager
 import xmltodict
 import bootstrap
 
-def get_listener_count(server_name, mount, port):
+def _get_listener_count(server_name, mount, port):
     url = "http://" + server_name + ".r-a-d.io:" + str(port) + mount # HURR I LIKE TO DO 12 MYSQL QUERIES EVERY FEW SECONDS
     # tip: you just did select * from relays;. You do not need to then individually query every server_name...
     try:
@@ -49,7 +49,7 @@ def get_all_listener_count():
                 if name in timeout:
                     del timeout[name]
                 try:
-                    count = get_listener_count(name, row["mount"], row["port"])
+                    count = _get_listener_count(name, row["mount"], row["port"])
                 except urllib2.HTTPError as err:
                     if err.code == 403: # incorrect login
                         if not dns_spamfilter:
