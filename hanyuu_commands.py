@@ -578,7 +578,7 @@ request_help.handler = ("on_text", r'.*how.+request',
 def lastfm_listening(server, nick, channel, text, hostmask):
     import pylast
     message = u''
-    match = re.match(r"[\-.@!]fm?\s(?P<nick>.*)", text, re.I|re.U)
+    match = re.match(r"[.@!]fm?\s(?P<nick>.*)", text, re.I|re.U)
     if match and match.group('nick') != '':
         nick = match.group('nick')
         
@@ -607,7 +607,10 @@ def lastfm_listening(server, nick, channel, text, hostmask):
                                    u"recently.").format(**irc_colours)
                 artist = track.artist.name
                 title = track.title
-                tags = [tag for tag in track.get_top_tags()]
+                try:
+                    tags = [tag for tag in artist.get_top_tags()]
+                except pylast.WSError:
+                    tags = []
                 # Sort by weight
                 tags.sort(key=lambda tag: int(tag.weight), reverse=True)
                 tags = tags[:5] # Get top 5
@@ -632,12 +635,12 @@ def lastfm_listening(server, nick, channel, text, hostmask):
     
     server.privmsg(channel, message)
 
-lastfm_listening.handler = ("on_text", r'[\-.@!]fm(\s|$).*',
+lastfm_listening.handler = ("on_text", r'[.@!]fm(\s|$).*',
                           irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def lastfm_setuser(server, nick, channel, text, hostmask):
     import pylast
-    match = re.match(r"[\-.@!]fma?\s(?P<user>.*)", text, re.I|re.U)
+    match = re.match(r"[.@!]fma?\s(?P<user>.*)", text, re.I|re.U)
     message = u''
     if match and match.group('user') != '':
         username = match.group('user')
@@ -665,7 +668,7 @@ def lastfm_setuser(server, nick, channel, text, hostmask):
                 message = u"You are not known as any last.fm username."
     server.notice(nick, message)
 
-lastfm_setuser.handler = ("on_text", r'[\-.@!]fma.*',
+lastfm_setuser.handler = ("on_text", r'[.@!]fma.*',
                           irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def favorite_list(server, nick, channel, text, hostmask):
