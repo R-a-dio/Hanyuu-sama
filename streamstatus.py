@@ -142,7 +142,7 @@ class ListenersParser(object):
         ['time']
         ['player']
         """
-        self.result = []
+        self._result = []
         self._values = {}
     def parse(self, xml):
         try:
