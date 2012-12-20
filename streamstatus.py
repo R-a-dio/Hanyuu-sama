@@ -88,7 +88,7 @@ def get_status(icecast_server, server_name):
         all_listeners = get_all_listener_count()
         total_count = reduce(lambda x,y: x+y if x > 0 and y > 0 else x, all_listeners.values())
         result[server_name]['Current Listeners'] = str(total_count) # WHYYYYYYYYYYYYY DID YOU DO THIS
-        return result or {}
+        return result
     return {}
 def get_listeners():
     listeners = {}
@@ -158,17 +158,3 @@ class ListenersParser(object):
     def result(self):
         return self.result
 
-class Tag(object):
-    attr = MultiDict.OrderedMultiDict()
-    def __init__(self, attrs):
-        self.attr = attrs
-    def __getattr__(self, name):
-        return getattr(self.attr, name)
-    def __setitem__(self, name, value):
-        self.attr[name] = value
-
-"""
-    webcom.send_nowplaying(None, self.djid,
-    self.listeners, self.bitrate, self.isafk(),
-    self._start_time, ed_time)
-"""
