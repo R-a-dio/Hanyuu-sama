@@ -19,7 +19,7 @@ def get_listener_count(server_name, mount=None, port=None):
                 port = row['port']
                 mount = row['mount']
             else:
-                raise KeyError("unknown relay \"" + server_name + "\"")
+                raise KeyError("Unknown relay {}".format(server_name))
     url = "http://{name}.r-a-d.io:{port}{mount}.xspf".format(name=server_name,
                                             port=port, mount=mount)
     # tip: you just did select * from relays;.
