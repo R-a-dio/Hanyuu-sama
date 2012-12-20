@@ -8,7 +8,16 @@ import manager
 import xmltodict
 import bootstrap
 
-def _get_listener_count(server_name, mount, port):
+def _get_listener_count(server_name, mount=None, port=None):
+    if not mount or not port:
+        with manager.MySQLCursor() as cur:
+            cur.execute("SELECT * FROM `relays` WHERE `relay_name`=%s;", (server_name,))
+            if cur.rowcount == 1:
+                row = cur.fetchone()
+                port = row['port']
+                mount = row['mount']
+            else:
+                raise KeyError("unknown relay \"" + server_name + "\"")
     url = "http://" + server_name + ".r-a-d.io:" + str(port) + mount # HURR I LIKE TO DO 12 MYSQL QUERIES EVERY FEW SECONDS
     # tip: you just did select * from relays;. You do not need to then individually query every server_name...
     try:
