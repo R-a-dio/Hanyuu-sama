@@ -5,6 +5,7 @@ import logging
 import config
 from urllib2 import HTTPError
 import manager
+import xmltodict
 
 
 def get_listener_count(server_name, mount, port):
@@ -120,7 +121,7 @@ class StatusParser(object):
         self._mount = False
     def parse(self, xml, server_name):
         try:
-            xml_dict = xmltodict.parse(xml, xml_attribs=False, force_cdata=True, cdata_separator="\n")
+            xml_dict = xmltodict.parse(xml, xml_attribs=False, cdata_separator="\n")
             # cdata is a multiline block (Icecast)
             # fetch annotation
             xml_dict = xml_dict["playlist"]["trackList"]["track"] # remove the useless stuff
