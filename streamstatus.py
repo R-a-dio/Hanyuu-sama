@@ -112,7 +112,7 @@ def get_status(server_name):
             logging.exception("Can't connect to status page")
         else:
             parser = StatusParser()
-            parser.parse(result.text, server_name)
+            parser.parse(result.text)
             result = parser.result
             all_listeners = get_all_listener_count()
             total_count = sum(itertools.ifilter(lambda x: x>=0, all_listeners.values()))
@@ -135,8 +135,8 @@ def get_listeners():
             try:
                 result = requests.get('{url:s}/admin/listclients?mount={mount:s}'.format(url=url,
                                         mount=mount), headers={'User-Agent': 'Mozilla',
-                                        'Referer': '{url:s}/admin/'.format(url=url)},
-                                        auth={'Authorization': 'Basic {}'.format(auth)}, timeout=2)
+                                        'Referer': '{url:s}/admin/'.format(url=url)
+                                        'Authorization': 'Basic {}'.format(auth)}, timeout=2)
                 result.raise_for_status() # None if normal
             except:
                 continue
@@ -148,14 +148,13 @@ def get_listeners():
 class StatusParser(object):
     def __init__(self):
         self.result = {}
-    def parse(self, xml, server_name):
+    def parse(self, xml):
         try:
             xml_dict = xmltodict.parse(xml, xml_attribs=False, cdata_separator="\n")
             # cdata is a multiline block (Icecast)
             # fetch annotation
             xml_dict = xml_dict["playlist"]["trackList"]["track"] # remove the useless stuff
             annotations = xml_dict["annotation"].split("\n")
-            self.result[server_name] = {}
             for annotation in annotations:
                 tmp = annotation.split(":", 1)
                 self.result[tmp[0]] = tmp[1].strip() # herp
