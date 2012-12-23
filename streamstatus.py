@@ -145,8 +145,6 @@ def get_listeners():
 class StatusParser(object):
     def __init__(self):
         self.result = {}
-        self._current_mount = None
-        self._mount = False
     def parse(self, xml, server_name):
         try:
             xml_dict = xmltodict.parse(xml, xml_attribs=False, cdata_separator="\n")
