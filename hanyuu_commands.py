@@ -119,11 +119,11 @@ def queue(server, nick, channel, text, hostmask):
     p = tokenize(text)
     if len(p) > 1:
         if p[1] == u"length":
-            request_queue = regular_queue = requests = regulars = 0
+            request_queue = regular_queue = requests_ = regulars = 0
             for song in manager.Queue().iter(None):
                 if (song.type == manager.REQUEST):
                     request_queue += song.length
-                    requests += 1
+                    requests_ += 1
                 elif (song.type == manager.REGULAR):
                     regular_queue += song.length
                     regulars += 1
@@ -131,9 +131,9 @@ def queue(server, nick, channel, text, hostmask):
                     format(**{'req_time': timedelta(seconds=request_queue),
                     'norm_time': timedelta(seconds=regular_queue),
                     'total_time': timedelta(seconds=request_queue+regular_queue),
-                    'req': requests,
+                    'req': requests_,
                     'norm': regulars,
-                    'total': requests+regulars})
+                    'total': requests_+regulars})
     else:
         queue = list(manager.Queue())
         if (len(queue) > 0):
@@ -753,7 +753,7 @@ def nick_request_song(trackid, host=None):
     # TODO:
     # rewrite shit man
     import time
-    import requests
+    import requests_ # fixed import
     with manager.MySQLCursor() as cur:
         try:
             song = manager.Song(trackid)
@@ -787,11 +787,11 @@ def nick_request_song(trackid, host=None):
             row = cur.fetchone()
             song_lp = row['lp']
             song_lr = row['lr']
-            if int(time.time()) - song_lp < requests.songdelay(row['requestcount']) or int(time.time()) - song_lr < requests.songdelay(row['requestcount']):
+            if int(time.time()) - song_lp < requests_.songdelay(row['requestcount']) or int(time.time()) - song_lr < requests_.songdelay(row['requestcount']):
                 can_song = False
                 if delaytime == 0:
-                    lp_delay = requests.songdelay(row['requestcount']) - (int(time.time()) - song_lp)
-                    lr_delay = requests.songdelay(row['requestcount']) - (int(time.time()) - song_lr)
+                    lp_delay = requests_.songdelay(row['requestcount']) - (int(time.time()) - song_lp)
+                    lr_delay = requests_.songdelay(row['requestcount']) - (int(time.time()) - song_lr)
                     delaytime = max(lp_delay, lr_delay)
                         
         if (not can_request):

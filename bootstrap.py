@@ -4,7 +4,7 @@ import time
 
 logging.getLogger().setLevel(config.loglevel)
     
-installed = ["irc", "manager", "requests", "afkstreamer"]
+installed = ["irc", "manager", "requests_", "afkstreamer"]
 if __name__ == "__main__":
     for module in installed:
         try:
