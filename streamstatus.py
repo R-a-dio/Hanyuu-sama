@@ -19,7 +19,7 @@ def get_listener_count(server_name, mount=None, port=None):
                 mount = row['mount']
             else:
                 raise KeyError("Unknown relay {}".format(server_name))
-    url = "http://{name:s}.r-a-d.io:{port:d}{mount:s}.xspf".format(name=server_name,
+    url = "http://{name}.r-a-d.io:{port}{mount}.xspf".format(name=server_name,
                                             port=port, mount=mount)
     # tip: you just did select * from relays;.
     try:
@@ -99,7 +99,7 @@ def get_status(server_name):
         else:
             logging.critical("Master server is not in the config or database and get_status failed.")
         try:
-            result = requests.get("http://{server:s}.r-a-d.io:{port:d}{mount:s}.xspf".format(
+            result = requests.get("http://{server}.r-a-d.io:{port}{mount}.xspf".format(
                                     server=server_name, port=port, mount=mount),
                                                 headers={'User-Agent': 'Mozilla'}, timeout=2)
         except requests.HTTPError as e: # rare, mostly 403
@@ -132,11 +132,11 @@ def get_listeners():
             port = row['port']
             mount= row['mount']
             auth = row['admin_auth']
-            url = 'http://{server:s}.r-a-d.io:{port:d}'.format(server=server,port=port)
+            url = 'http://{server}.r-a-d.io:{port}'.format(server=server,port=port)
             try:
-                result = requests.get('{url:s}/admin/listclients?mount={mount:s}'.format(url=url,
+                result = requests.get('{url}/admin/listclients?mount={mount}'.format(url=url,
                                         mount=mount), headers={'User-Agent': 'Mozilla',
-                                        'Referer': '{url:s}/admin/'.format(url=url),
+                                        'Referer': '{url}/admin/'.format(url=url),
                                         'Authorization': 'Basic {}'.format(auth)}, timeout=2)
                 result.raise_for_status() # None if normal
             except:
