@@ -187,7 +187,7 @@ class ListenersParser(object):
                 _tmp['ip'] = listener['IP']
                 _tmp['player'] = listener['UserAgent']
                 _tmp['time'] = listener['Connected']
-                self.result.append(self._tmp)
+                self.result.append(_tmp)
 
         except:
             logging.exception("Couldn't parse listener XML - ListenersParser")
