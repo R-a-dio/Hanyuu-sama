@@ -116,7 +116,8 @@ def get_status(server_name):
             logging.exception("Can't connect to status page")
         else:
             parser = StatusParser()
-            parser.parse(result.text)
+            xml_data = result.text.encode('latin1').decode('utf-8').encode('latin1', 'ignore').decode('utf-8')
+            parser.parse(xml_data) # hacky...
             result = parser.result
             all_listeners = get_all_listener_count()
             total_count = sum(itertools.ifilter(lambda x: x>=0, all_listeners.values()))
