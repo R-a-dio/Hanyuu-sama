@@ -46,7 +46,7 @@ def get_listener_count(server_name, mount=None, port=None):
             with manager.MySQLCursor() as cur:
                 cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
                                                 (server_name,))
-    
+            logging.exception()
     logging.debug('Could not get listener count for server {}'.format(server_name))
     return -1
 
@@ -142,7 +142,7 @@ def get_listeners():
                                         'Authorization': 'Basic {}'.format(auth)}, timeout=2)
                 result.raise_for_status() # None if normal
             except:
-                continue
+                logging.exception()
             parser = ListenersParser()
             parser.parse(result.text)
             listeners.update(dict((l['ip'], l) for l in parser.result))
@@ -178,7 +178,7 @@ class ListenersParser(object):
         (while it supports filenames, it doesnt support urls)
         """
         try:
-            xml_dict = xmltodict(xml, xml_attribs=False)
+            xml_dict = xmltodict.parse(xml, xml_attribs=False)
             xml_dict = xml_dict["icestats"]["source"]["listener"]
             for listener in xml_dict:
                 self._values['ip'] = listener['IP']
