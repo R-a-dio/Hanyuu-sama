@@ -98,7 +98,7 @@ def get_status(server_name):
         else:
             logging.critical("Master server is not in the config or database and get_status failed.")
         try:
-            result = requests.get("{server:s}.r-a-d.io:{port:d}{mount:s}.xspf".format(
+            result = requests.get("http://{server:s}.r-a-d.io:{port:d}{mount:s}.xspf".format(
                                     server=server_name, port=port, mount=mount),
                                                 headers={'User-Agent': 'Mozilla'}, timeout=2)
         except requests.HTTPError as e: # rare, mostly 403
