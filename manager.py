@@ -328,8 +328,8 @@ class Status(object):
     @property
     def cached_status(self):
         if (not self._timeout):
-            return self.status.get(config.master_server, {})
-        return self._status.get(config.master_server, {})
+            return self.status
+        return self._status
     @property
     def status(self):
         import streamstatus
