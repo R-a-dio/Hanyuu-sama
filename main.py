@@ -60,7 +60,7 @@ class StatusUpdate(object):
                     logging.debug("Streaming trying to connect")
                     self.streamer.connect()
         elif (not self.streamer.connected):
-            self.debug("{server} is active and we aren't streaming; assume DJ".format(server=config.master_server)
+            self.debug("{server} is active and we aren't streaming; assume DJ".format(server=config.master_server))
             # No streamer is active, there is a DJ streaming
             if (not self.listener):
                 self.debug("Listener isn't active, starting it")
