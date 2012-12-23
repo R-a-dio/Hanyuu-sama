@@ -11,7 +11,8 @@ dns_spamfilter = Switch(True)
 def get_listener_count(server_name, mount=None, port=None):
     if not mount or not port:
         with manager.MySQLCursor() as cur:
-            cur.execute("SELECT port, mount FROM `relays` WHERE `relay_name`=%s;", (server_name,))
+            cur.execute("SELECT port, mount FROM `relays` WHERE `relay_name`=%s;",
+                            (server_name,))
             if cur.rowcount == 1:
                 row = cur.fetchone()
                 port = row['port']
@@ -25,9 +26,11 @@ def get_listener_count(server_name, mount=None, port=None):
         result = requests.get(url, headers={'User-Agent': 'Mozilla'}, timeout=2)
         result.raise_for_status() # raise exception if status code is abnormal
     except:
-        #logging.exception("Could not get listener count for server {server}".format(server=server_name))
+        #logging.exception("Could not get listener count for server {server}"
+        #.format(server=server_name))
         with manager.MySQLCursor() as cur:
-            cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;", (server_name,))
+            cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
+                                                (server_name,))
         raise
     else:
         parser = StatusParser()
@@ -35,11 +38,13 @@ def get_listener_count(server_name, mount=None, port=None):
             result = parser.parse(result.text, server_name)
             listeners = int(result[server_name]['Current Listeners'])
             with manager.MySQLCursor() as cur:
-                cur.execute("UPDATE `relays` SET listeners=%s, active=1 WHERE relay_name=%s;", (listeners, server_name))
+                cur.execute("UPDATE `relays` SET listeners=%s, active=1 WHERE relay_name=%s;",
+                                                (listeners, server_name))
             return listeners
         except:
             with manager.MySQLCursor() as cur:
-                cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;", (server_name,))
+                cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
+                                                (server_name,))
     logging.debug('Could not get listener count for server {}'.format(server_name))
     return -1
 
@@ -59,9 +64,12 @@ def get_all_listener_count():
                     del timeout[name]
                 try:
                     count = get_listener_count(name, row["mount"], row["port"])
-                except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError) as e: # rare
+                except (requests.exceptions.HTTPError,
+                        requests.exceptions.ConnectionError) as e: # rare
                     if not dns_spamfilter:
-                        logging.warning("Connection Error to {}. sudo rndc flush if it is correct, and update DNS".format(name))
+                        logging.warning(\
+                        "Connection Error to {}. sudo rndc flush if it is correct, and update DNS"\
+                        .format(name))
                         dns_spamfilter.reset()
                     else:
                         #logging.warning("HTTPError on {}".format(name))
