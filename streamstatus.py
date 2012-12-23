@@ -36,7 +36,7 @@ def get_listener_count(server_name, mount=None, port=None):
         parser = StatusParser()
         try:
             result = parser.parse(result.text, server_name)
-            listeners = int(result[server_name]['Current Listeners'])
+            listeners = int(result['Current Listeners'])
             with manager.MySQLCursor() as cur:
                 cur.execute("UPDATE `relays` SET listeners=%s, active=1 WHERE relay_name=%s;",
                                                 (listeners, server_name))
@@ -116,7 +116,7 @@ def get_status(server_name):
             result = parser.result
             all_listeners = get_all_listener_count()
             total_count = sum(itertools.ifilter(lambda x: x>=0, all_listeners.values()))
-            result[server_name]['Current Listeners'] = total_count # WHYYYYYYYYYYYYY DID YOU DO THIS
+            result['Current Listeners'] = total_count # WHYYYYYYYYYYYYY DID YOU DO THIS
             return result
     return {}
 def get_listeners():
@@ -158,8 +158,8 @@ class StatusParser(object):
             self.result[server_name] = {}
             for annotation in annotations:
                 tmp = annotation.split(":", 1)
-                self.result[server_name][tmp[0]] = tmp[1].strip() # herp
-            self.result[server_name]["Current Song"] =  xml_dict["title"]["#text"] # unicode strings yay!
+                self.result[tmp[0]] = tmp[1].strip() # herp
+            self.result["Current Song"] =  xml_dict["title"]["#text"] # unicode strings yay!
         except:
             logging.error("Failed to parse XML Status data.")
             raise       
