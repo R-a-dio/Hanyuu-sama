@@ -154,12 +154,12 @@ class StatusParser(object):
             # cdata is a multiline block (Icecast)
             # fetch annotation
             xml_dict = xml_dict["playlist"]["trackList"]["track"] # remove the useless stuff
-            annotations = xml_dict["annotation"]["#text"].split("\n")
+            annotations = xml_dict["annotation"].split("\n")
             self.result[server_name] = {}
             for annotation in annotations:
                 tmp = annotation.split(":", 1)
                 self.result[tmp[0]] = tmp[1].strip() # herp
-            self.result["Current Song"] =  xml_dict["title"]["#text"] # unicode strings yay!
+            self.result["Current Song"] =  xml_dict["title"] # unicode strings yay!
         except:
             logging.error("Failed to parse XML Status data.")
             raise       
