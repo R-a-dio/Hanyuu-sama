@@ -1,13 +1,10 @@
-import urllib2
-import HTMLParser
-import MultiDict
+import requests
 import logging
 import config
 import manager
 import xmltodict
 import itertools
 from bootstrap import Switch
-from urllib2 import HTTPError
 
 dns_spamfilter = Switch(True)
 
@@ -21,12 +18,12 @@ def get_listener_count(server_name, mount=None, port=None):
                 mount = row['mount']
             else:
                 raise KeyError("Unknown relay {}".format(server_name))
-    url = "http://{name}.r-a-d.io:{port}{mount}.xspf".format(name=server_name,
+    url = "http://{name:s}.r-a-d.io:{port:d}{mount:s}.xspf".format(name=server_name,
                                             port=port, mount=mount)
     # tip: you just did select * from relays;.
     try:
-        result = urllib2.urlopen(urllib2.Request(url,
-                                            headers={'User-Agent': 'Mozilla'}), timeout=2)
+        result = requests.get(url, headers={'User-Agent': 'Mozilla'}, timeout=2)
+        result.raise_for_status() # raise exception if status code is abnormal
     except:
         #logging.exception("Could not get listener count for server {server}".format(server=server_name))
         with manager.MySQLCursor() as cur:
@@ -35,7 +32,7 @@ def get_listener_count(server_name, mount=None, port=None):
     else:
         parser = StatusParser()
         try:
-            result = parser.parse(result.read(), server_name)
+            result = parser.parse(result.text, server_name)
             listeners = int(result[server_name]['Current Listeners'])
             with manager.MySQLCursor() as cur:
                 cur.execute("UPDATE `relays` SET listeners=%s, active=1 WHERE relay_name=%s;", (listeners, server_name))
@@ -62,17 +59,15 @@ def get_all_listener_count():
                     del timeout[name]
                 try:
                     count = get_listener_count(name, row["mount"], row["port"])
-                except urllib2.HTTPError as err:
-                    if err.code == 403: # incorrect login
-                        if not dns_spamfilter:
-                            logging.warning("HTTPError to {}. sudo rndc flush if it is correct, and update DNS".format(name))
-                            dns_spamfilter.reset()
+                except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError) as e: # rare
+                    if not dns_spamfilter:
+                        logging.warning("Connection Error to {}. sudo rndc flush if it is correct, and update DNS".format(name))
+                        dns_spamfilter.reset()
                     else:
                         #logging.warning("HTTPError on {}".format(name))
                         pass
-                except urllib2.URLError as err:
-                    if 'timed out' in err.reason:
-                        timeout[name] = time.time()
+                except requests.exceptions.Timeout:
+                    timeout[name] = time.time()
                     count = -1
                 except:
                     count = -1
@@ -95,14 +90,13 @@ def get_status(server_name):
         else:
             logging.critical("Master server is not in the config or database and get_status failed.")
         try:
-            result = urllib2.urlopen(urllib2.Request("{server}.r-a-d.io:{port}{mount}.xspf".format(
-                                    server=server_name, port=str(port), mount=mount),
-                                                headers={'User-Agent': 'Mozilla'}))
-        except HTTPError as e:
-            if e.code == 403: #assume it's a full server
-                if not dns_spamfilter:
-                    logging.warning("Can't connect to mountpoint; Assuming listener limit reached")
-                    dns_spamfilter.reset()
+            result = requests.get("{server:s}.r-a-d.io:{port:d}{mount:s}.xspf".format(
+                                    server=server_name, port=port, mount=mount),
+                                                headers={'User-Agent': 'Mozilla'}, timeout=2)
+        except requests.exceptions.HTTPError as e: # rare, mostly 403
+            if not dns_spamfilter:
+                logging.warning("Can't connect to mountpoint; Assuming listener limit reached")
+                dns_spamfilter.reset()
             else:
                 logging.exception("HTTPError occured in status retrieval")
         except:
@@ -129,16 +123,17 @@ def get_listeners():
             port = row['port']
             mount= row['mount']
             auth = row['admin_auth']
-            url = 'http://{server}.r-a-d.io:{port}'.format(server=server,port=port)
+            url = 'http://{server:s}.r-a-d.io:{port:d}'.format(server=server,port=port)
             try:
-                result = urllib2.urlopen(urllib2.Request(url+'/admin/listclients?mount='+mount,
-                                                                    headers={'User-Agent': 'Mozilla',
-                                                                    'Authorization': 'Basic ' + auth,
-                                                                    'Referer': url+'/admin/'}))
+                result = requests.get('{url:s}/admin/listclients?mount={mount:s}'.format(url=url,
+                                        mount=mount), headers={'User-Agent': 'Mozilla',
+                                        'Referer': '{url:s}/admin/'.format(url=url)},
+                                        auth={'Authorization': 'Basic {}'.format(auth)}, timeout=2)
+                result.raise_for_status() # None if normal
             except:
                 continue
             parser = ListenersParser()
-            parser.parse(result)
+            parser.parse(result.text)
             listeners.update(dict((l['ip'], l) for l in parser.result))
     return listeners.values()
 
