@@ -1020,8 +1020,7 @@ class NP(Song):
     def change(cls, song):
         """Changes the current playing song to 'song' which should be an
         manager.Song object"""
-        import urllib2
-        import urllib
+        import requests
         import re
         current = cls()
         # old stuff
@@ -1043,7 +1042,7 @@ class NP(Song):
         #tunein
         def tunein(song):
             try:
-                url = "http://air.radiotime.com/Playing.ashx?{params}"
+                url = "http://air.radiotime.com/Playing.ashx"
                 urlparams = {'partnerId':config.tunein_id, 'partnerKey':config.tunein_key, 'id':config.tunein_station}
                 if song.metadata != u'':
                     match = re.match(r"^((?P<artist>.*?) - )?(?P<title>.*)", song.metadata)
@@ -1053,10 +1052,10 @@ class NP(Song):
                         urlparams['artist'] = artist.encode('utf-8') if type(artist) == unicode else artist
                     if title:
                         urlparams['title'] = title.encode('utf-8') if type(title) == unicode else title
-                url = url.format(params=urllib.urlencode(urlparams))
-                urllib2.urlopen(url, timeout=8)
+                r = requests.get(url, params=urlparams, timeout=8)
+                r.raise_for_status()
             except:
-                logging.exception("Error when contacting tuneIn API")
+                logging.warning("Error when contacting tuneIn API")
         
         tunein_thread = Thread(target=tunein, args=(song,), name="TuneIn")
         tunein_thread.daemon = True
