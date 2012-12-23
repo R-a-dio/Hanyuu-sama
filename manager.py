@@ -280,9 +280,9 @@ class Status(object):
         return int(self.cached_status.get('Peak Listeners', 0))
     @property
     def online(self):
-        return config.icecast_mount in self.status
+        return config.master_server in self.status
     @property
-    def started(self):
+    def started(self): # NO LONGER RETURNED BY ICECAST. CHECK THIS.
         return self.cached_status.get("Mount started", "Unknown")
     @property
     def type(self):
@@ -328,12 +328,12 @@ class Status(object):
     @property
     def cached_status(self):
         if (not self._timeout):
-            return self.status.get(config.icecast_mount, {})
-        return self._status.get(config.icecast_mount, {})
+            return self.status.get(config.master_server, {})
+        return self._status.get(config.master_server, {})
     @property
     def status(self):
         import streamstatus
-        self._status = streamstatus.get_status(config.icecast_server, "stream0")
+        self._status = streamstatus.get_status(config.master_server)
         self._timeout.reset(9)
         for handle in self._handlers:
             try:
@@ -378,7 +378,7 @@ def stop_updater():
     
 def radvar(name, value="holy crap magical default value", default=None):
     with MySQLCursor() as cur:
-        if value != "holy crap magical default value":
+        if value != "holy crap magical default value": # ...really, now?
             cur.execute("INSERT INTO `radvars` (name, value) VALUES (%s, %s) \
                 ON DUPLICATE KEY UPDATE `value`=%s",
                         (name, value, value))

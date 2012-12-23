@@ -3,17 +3,18 @@ import HTMLParser
 import MultiDict
 import logging
 import config
-from urllib2 import HTTPError
 import manager
 import xmltodict
+import itertools
 from bootstrap import Switch
+from urllib2 import HTTPError
 
 dns_spamfilter = Switch(True)
 
 def get_listener_count(server_name, mount=None, port=None):
     if not mount or not port:
         with manager.MySQLCursor() as cur:
-            cur.execute("SELECT * FROM `relays` WHERE `relay_name`=%s;", (server_name,))
+            cur.execute("SELECT port, mount FROM `relays` WHERE `relay_name`=%s;", (server_name,))
             if cur.rowcount == 1:
                 row = cur.fetchone()
                 port = row['port']
@@ -34,7 +35,7 @@ def get_listener_count(server_name, mount=None, port=None):
     else:
         parser = StatusParser()
         try:
-            result = parser.parse(result.read(), mount)
+            result = parser.parse(result.read(), server_name)
             listeners = int(result[server_name]['Current Listeners'])
             with manager.MySQLCursor() as cur:
                 cur.execute("UPDATE `relays` SET listeners=%s, active=1 WHERE relay_name=%s;", (listeners, server_name))
@@ -42,7 +43,7 @@ def get_listener_count(server_name, mount=None, port=None):
         except:
             with manager.MySQLCursor() as cur:
                 cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;", (server_name,))
-    logging.debug('Could not get listener count for server ' + server_name)
+    logging.debug('Could not get listener count for server {}'.format(server_name))
     return -1
 
 timeout = {}
@@ -79,30 +80,47 @@ def get_all_listener_count():
     return counts
 
 
-def get_status(icecast_server, server_name):
-    try:
-        result = urllib2.urlopen(urllib2.Request(icecast_server,
-                                            headers={'User-Agent': 'Mozilla'}))
-    except HTTPError as e:
-        if e.code == 403: #assume it's a full server
-            if not dns_spamfilter:
-                logging.warning("Can't connect to mountpoint; Assuming listener limit reached")
-                dns_spamfilter.reset()
+def get_status(server_name):
+    """
+    Gets the current status of the master server, and the listener counts of all of the
+    slave relays, aggregating them, filtering negative, and summing them to give an
+    artificial Master server listener count used by Hanyuu in every StatusUpdate call.
+    """
+    with manager.MySQLCursor() as cur:
+        cur.execute("SELECT port, mount FROM `relays` WHERE relay_name=%s;", (server_name,))
+        if cur.rowcount == 1:
+                row = cur.fetchone()
+                port = row['port']
+                mount = row['mount']
         else:
-            logging.exception("HTTPError occured in status retrieval")
-    except:
-        # catching all why????
-        logging.exception("Can't connect to status page")
-    else:
-        parser = StatusParser()
-        parser.parse(result.read(), server_name)
-        result = parser.result
-        all_listeners = get_all_listener_count()
-        total_count = reduce(lambda x,y: x+y if x > 0 and y > 0 else x, all_listeners.values())
-        result[server_name]['Current Listeners'] = str(total_count) # WHYYYYYYYYYYYYY DID YOU DO THIS
-        return result
+            logging.critical("Master server is not in the config or database and get_status failed.")
+        try:
+            result = urllib2.urlopen(urllib2.Request("{server}.r-a-d.io:{port}{mount}.xspf".format(
+                                    server=server_name, port=str(port), mount=mount),
+                                                headers={'User-Agent': 'Mozilla'}))
+        except HTTPError as e:
+            if e.code == 403: #assume it's a full server
+                if not dns_spamfilter:
+                    logging.warning("Can't connect to mountpoint; Assuming listener limit reached")
+                    dns_spamfilter.reset()
+            else:
+                logging.exception("HTTPError occured in status retrieval")
+        except:
+            # catching all why????
+            logging.exception("Can't connect to status page")
+        else:
+            parser = StatusParser()
+            parser.parse(result.read(), server_name)
+            result = parser.result
+            all_listeners = get_all_listener_count()
+            total_count = sum(itertools.ifilter(lambda x: x>=0, all_listeners.values()))
+            result[server_name]['Current Listeners'] = total_count # WHYYYYYYYYYYYYY DID YOU DO THIS
+            return result
     return {}
 def get_listeners():
+    """
+    Used by player_stats (internal) to generate listener statistics and graphs
+    """
     listeners = {}
     with manager.MySQLCursor() as cur:
         cur.execute("SELECT * FROM `relays` WHERE listeners > 0 AND admin_auth != '';")
@@ -139,7 +157,7 @@ class StatusParser(object):
             self.result[server_name] = {}
             for annotation in annotations:
                 tmp = annotation.split(":", 1)
-                self.result[server_name][tmp[0]] = tmp[1] # herp
+                self.result[server_name][tmp[0]] = tmp[1].strip() # herp
             self.result[server_name]["Current Song"] =  xml_dict["title"]["#text"] # unicode strings yay!
         except:
             logging.error("Failed to parse XML Status data.")
@@ -147,15 +165,15 @@ class StatusParser(object):
         
 class ListenersParser(object):
     def __init__(self):
-        """
-        value keys:
-        ['ip']
-        ['time']
-        ['player']
-        """
         self.result = []
         self._values = {}
     def parse(self, xml):
+        """
+        parses the XML produced by icecast using xmltodict, acting like it is
+        really JSON, or a python dict, to make it much easier to handle.
+        xml should be a string, not a url!
+        (while it supports filenames, it doesnt support urls)
+        """
         try:
             xml_dict = xmltodict(xml, xml_attribs=False)
             xml_dict = xml_dict["icestats"]["source"]["listener"]
