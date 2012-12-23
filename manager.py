@@ -650,7 +650,7 @@ class Song(object):
             except:
                 logging.exception("Missing tracks entry")
                 return False #something went badly
-        songdelay = requests.songdelay(requestcount)
+        songdelay = requests_.songdelay(requestcount)
         now = time.time()
         if self.lp and songdelay > (now - self.lp):
             return False #the song delay has not passed for lp
@@ -1020,7 +1020,7 @@ class NP(Song):
     def change(cls, song):
         """Changes the current playing song to 'song' which should be an
         manager.Song object"""
-        import requests
+        import requests_
         import re
         current = cls()
         # old stuff

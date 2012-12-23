@@ -64,8 +64,8 @@ def get_all_listener_count():
                     del timeout[name]
                 try:
                     count = get_listener_count(name, row["mount"], row["port"])
-                except (requests.exceptions.HTTPError,
-                        requests.exceptions.ConnectionError) as e: # rare
+                except (requests.HTTPError,
+                        requests.ConnectionError) as e: # rare
                     if not dns_spamfilter:
                         logging.warning(\
                         "Connection Error to {}. sudo rndc flush if it is correct, and update DNS"\
@@ -101,7 +101,7 @@ def get_status(server_name):
             result = requests.get("{server:s}.r-a-d.io:{port:d}{mount:s}.xspf".format(
                                     server=server_name, port=port, mount=mount),
                                                 headers={'User-Agent': 'Mozilla'}, timeout=2)
-        except requests.exceptions.HTTPError as e: # rare, mostly 403
+        except requests.HTTPError as e: # rare, mostly 403
             if not dns_spamfilter:
                 logging.warning("Can't connect to mountpoint; Assuming listener limit reached")
                 dns_spamfilter.reset()
