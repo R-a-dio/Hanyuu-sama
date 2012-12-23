@@ -183,10 +183,12 @@ class ListenersParser(object):
             xml_dict = xmltodict.parse(xml, xml_attribs=False)
             xml_dict = xml_dict["icestats"]["source"]["listener"]
             for listener in xml_dict:
-                self._values['ip'] = listener['IP']
-                self._values['player'] = listener['UserAgent']
-                self._values['time'] = listener['Connected']
-                self.result.append(self._values)
+                _tmp = {}
+                _tmp['ip'] = listener['IP']
+                _tmp['player'] = listener['UserAgent']
+                _tmp['time'] = listener['Connected']
+                self.result.append(self._tmp)
+
         except:
             logging.exception("Couldn't parse listener XML - ListenersParser")
 
