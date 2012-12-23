@@ -46,7 +46,7 @@ def get_listener_count(server_name, mount=None, port=None):
             with manager.MySQLCursor() as cur:
                 cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
                                                 (server_name,))
-            logging.exception()
+            logging.exception("get listener count")
     logging.debug('Could not get listener count for server {}'.format(server_name))
     return -1
 
@@ -80,7 +80,7 @@ def get_all_listener_count():
                     timeout[name] = time.time()
                     count = -1
                 except:
-                    logging.exception()
+                    logging.exception("get all listener count")
                     count = -1
             counts[name] = count
     return counts
@@ -142,7 +142,7 @@ def get_listeners():
                                         'Authorization': 'Basic {}'.format(auth)}, timeout=2)
                 result.raise_for_status() # None if normal
             except:
-                logging.exception()
+                logging.exception("get_listeners")
             parser = ListenersParser()
             parser.parse(result.text)
             listeners.update(dict((l['ip'], l) for l in parser.result))
