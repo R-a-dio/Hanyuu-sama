@@ -9,7 +9,7 @@ from bootstrap import Switch
 dns_spamfilter = Switch(True)
 
 def get_listener_count(server_name, mount=None, port=None):
-    if not mount or not port:
+    if not mount: # assume not port, too. naivity at its best.
         with manager.MySQLCursor() as cur:
             cur.execute("SELECT port, mount FROM `relays` WHERE `relay_name`=%s;",
                             (server_name,))
@@ -135,7 +135,7 @@ def get_listeners():
             try:
                 result = requests.get('{url:s}/admin/listclients?mount={mount:s}'.format(url=url,
                                         mount=mount), headers={'User-Agent': 'Mozilla',
-                                        'Referer': '{url:s}/admin/'.format(url=url)
+                                        'Referer': '{url:s}/admin/'.format(url=url),
                                         'Authorization': 'Basic {}'.format(auth)}, timeout=2)
                 result.raise_for_status() # None if normal
             except:
