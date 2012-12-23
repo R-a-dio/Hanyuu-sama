@@ -9,7 +9,7 @@ from bootstrap import Switch
 dns_spamfilter = Switch(True)
 
 def get_listener_count(server_name, mount=None, port=None):
-    if not mount: # assume not port, too. naivity at its best.
+    if mount is None: # assume not port, too. naivity at its best.
         with manager.MySQLCursor() as cur:
             cur.execute("SELECT port, mount FROM `relays` WHERE `relay_name`=%s;",
                             (server_name,))
@@ -25,13 +25,14 @@ def get_listener_count(server_name, mount=None, port=None):
     try:
         result = requests.get(url, headers={'User-Agent': 'Mozilla'}, timeout=2)
         result.raise_for_status() # raise exception if status code is abnormal
-    except:
+    except requests.ConnectionError:
         #logging.exception("Could not get listener count for server {server}"
         #.format(server=server_name))
         with manager.MySQLCursor() as cur:
             cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
                                                 (server_name,))
-        raise
+    except requests.HTTPError:
+        logging.info("HTTP Error, L35, get_listener_count")
     else:
         parser = StatusParser()
         try:
@@ -45,7 +46,7 @@ def get_listener_count(server_name, mount=None, port=None):
             with manager.MySQLCursor() as cur:
                 cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
                                                 (server_name,))
-            raise
+    
     logging.debug('Could not get listener count for server {}'.format(server_name))
     return -1
 
@@ -79,6 +80,7 @@ def get_all_listener_count():
                     timeout[name] = time.time()
                     count = -1
                 except:
+                    logging.exception()
                     count = -1
             counts[name] = count
     return counts
@@ -161,7 +163,7 @@ class StatusParser(object):
                 self.result[tmp[0]] = tmp[1].strip() # herp
             self.result["Current Song"] =  xml_dict["title"] # unicode strings yay!
         except:
-            logging.error("Failed to parse XML Status data.")
+            logging.exception("Failed to parse XML Status data.")
             raise       
         
 class ListenersParser(object):
@@ -184,5 +186,5 @@ class ListenersParser(object):
                 self._values['time'] = listener['Connected']
                 self.result.append(self._values)
         except:
-            logging.warning("Couldn't parse listener XML - ListenersParser")
+            logging.exception("Couldn't parse listener XML - ListenersParser")
 
