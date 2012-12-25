@@ -52,6 +52,7 @@ import main
 import random as _random
 from datetime import timedelta, datetime
 import bootstrap
+import requests_
 
 def tokenize(text):
     return text.lower().split(" ")
