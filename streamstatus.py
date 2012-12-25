@@ -128,9 +128,7 @@ def get_status(server_name):
                     logging.warning("Failed decoding XML data.")
                     return {}
                     
-            # We assume to always have a unicode string here
-            # xmltodict expects a bytestring though, so encode it.
-            parser.parse(xml_data.encode('utf-8')) # hacky...
+            parser.parse(xml_data) # hacky...
             result = parser.result
             all_listeners = get_all_listener_count()
             total_count = sum(itertools.ifilter(lambda x: x>=0, all_listeners.values()))
@@ -167,6 +165,8 @@ class StatusParser(object):
     def __init__(self):
         self.result = {}
     def parse(self, xml):
+        if isinstance(xml, unicode):
+            xml = xml.encode('utf-8')
         try:
             xml_dict = xmltodict.parse(xml, xml_attribs=False, cdata_separator="\n")
             # cdata is a multiline block (Icecast)
@@ -204,6 +204,8 @@ class ListenersParser(object):
         xml should be a string, not a url!
         (while it supports filenames, it doesnt support urls)
         """
+        if isinstance(xml, unicode):
+            xml = xml.encode('utf-8')
         try:
             xml_dict = xmltodict.parse(xml, xml_attribs=False)
             xml_dict = xml_dict["icestats"]["source"]["listener"]
