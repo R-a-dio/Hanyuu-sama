@@ -116,19 +116,14 @@ def get_status(server_name):
             logging.exception("Can't connect to status page")
         else:
             parser = StatusParser()
-            try:
                 # Try our lovely fix for broken unicode
                 # Attempting to do nothing at all
-                xml_data = result.content
-            except (UnicodeDecodeError, UnicodeEncodeError) as err:
-                # We have correct unicode... most likely
-                try:
-                    xml_data = result.text.decode('utf-8')
-                except (UnicodeDecodeError) as err:
-                    # Failed both methods, just return empty and log it
-                    logging.warning("Failed decoding XML data.")
-                    return {}
-            parser.parse(xml_data) # hacky...
+            xml_data = result.content
+            try:
+                parser.parse(xml_data) # hacky...
+            except:
+                logging.exception("get_status:could not parse xml")
+                return {} # this will bite me in the ass later
             result = parser.result
             if result:
                 all_listeners = get_all_listener_count()
