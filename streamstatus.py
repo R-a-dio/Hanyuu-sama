@@ -38,7 +38,7 @@ def get_listener_count(server_name, mount=None, port=None):
         try:
             parser.parse(result.text)
             result = parser.result
-            listeners = int(result['Current Listeners'])
+            listeners = int(result.get('Current Listeners', 0))
             with manager.MySQLCursor() as cur:
                 cur.execute("UPDATE `relays` SET listeners=%s, active=1 WHERE relay_name=%s;",
                                                 (listeners, server_name))
