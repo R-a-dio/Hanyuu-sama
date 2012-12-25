@@ -36,7 +36,7 @@ def get_listener_count(server_name, mount=None, port=None):
     else:
         parser = StatusParser()
         try:
-            parser.parse(result.text)
+            parser.parse(result.content)
             result = parser.result
             listeners = int(result.get('Current Listeners', 0))
             with manager.MySQLCursor() as cur:
@@ -119,7 +119,7 @@ def get_status(server_name):
             try:
                 # Try our lovely fix for broken unicode
                 # Attempting to do nothing at all
-                xml_data = result.text
+                xml_data = result.content
             except (UnicodeDecodeError, UnicodeEncodeError) as err:
                 # We have correct unicode... most likely
                 try:
@@ -158,7 +158,7 @@ def get_listeners():
             except:
                 logging.exception("get_listeners")
             parser = ListenersParser()
-            parser.parse(result.text)
+            parser.parse(result.content)
             listeners.update(dict((l['ip'], l) for l in parser.result))
     return listeners.values()
 
