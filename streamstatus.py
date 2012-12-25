@@ -181,7 +181,7 @@ class StatusParser(object):
                     self.result = {}
                     return
                 
-            xml_dict = xml_dict["playlist"]["trackList"]["track"] # remove the useless stuff
+            #xml_dict = xml_dict["playlist"]["trackList"]["track"] # remove the useless stuff
             annotations = xml_dict["annotation"].split("\n")
             for annotation in annotations:
                 tmp = annotation.split(":", 1)
