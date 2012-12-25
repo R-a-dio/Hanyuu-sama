@@ -128,7 +128,9 @@ def get_status(server_name):
                     logging.warning("Failed decoding XML data.")
                     return {}
                     
-            parser.parse(xml_data) # hacky...
+            # We assume to always have a unicode string here
+            # xmltodict expects a bytestring though, so encode it.
+            parser.parse(xml_data.encode('utf-8')) # hacky...
             result = parser.result
             all_listeners = get_all_listener_count()
             total_count = sum(itertools.ifilter(lambda x: x>=0, all_listeners.values()))
