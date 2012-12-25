@@ -119,7 +119,7 @@ def get_status(server_name):
             try:
                 # Try our lovely fix for broken unicode
                 xml_data = result.text.encode('latin1').decode('utf-8').encode('latin1', 'ignore').decode('utf-8')
-            except (UnicodeEncodeError) as err:
+            except (UnicodeDecodeError, UnicodeEncodeError) as err:
                 # We have correct unicode... most likely
                 try:
                     xml_data = result.text.decode('utf-8')
