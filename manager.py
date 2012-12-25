@@ -13,6 +13,7 @@ import bootstrap
 from bootstrap import Switch
 import datetime
 import requests
+import requests_ # really now?
 
 bootstrap.logging_setup()
         
@@ -1020,7 +1021,6 @@ class NP(Song):
     def change(cls, song):
         """Changes the current playing song to 'song' which should be an
         manager.Song object"""
-        import requests_
         import re
         current = cls()
         # old stuff
