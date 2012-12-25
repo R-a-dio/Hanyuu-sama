@@ -116,7 +116,18 @@ def get_status(server_name):
             logging.exception("Can't connect to status page")
         else:
             parser = StatusParser()
-            xml_data = result.text.encode('latin1').decode('utf-8').encode('latin1', 'ignore').decode('utf-8')
+            try:
+                # Try our lovely fix for broken unicode
+                xml_data = result.text.encode('latin1').decode('utf-8').encode('latin1', 'ignore').decode('utf-8')
+            except (UnicodeEncodeError) as err:
+                # We have correct unicode... most likely
+                try:
+                    xml_data = result.text.decode('utf-8')
+                except (UnicodeDecodeError) as err:
+                    # Failed both methods, just return empty and log it
+                    logging.warning("Failed decoding XML data.")
+                    return {}
+                    
             parser.parse(xml_data) # hacky...
             result = parser.result
             all_listeners = get_all_listener_count()
@@ -158,6 +169,18 @@ class StatusParser(object):
             xml_dict = xmltodict.parse(xml, xml_attribs=False, cdata_separator="\n")
             # cdata is a multiline block (Icecast)
             # fetch annotation
+            try:
+                xml_dict = xml_dict.get('playlist', {}).get('trackList', {}).get('track', None)
+            except AttributeError:
+                # No mountpoint it seems, just ditch an empty result
+                self.result = {}
+                return
+            else:
+                if xml_dict is None:
+                    # We got none returned from the get anyway
+                    self.result = {}
+                    return
+                
             xml_dict = xml_dict["playlist"]["trackList"]["track"] # remove the useless stuff
             annotations = xml_dict["annotation"].split("\n")
             for annotation in annotations:
