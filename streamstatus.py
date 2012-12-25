@@ -130,9 +130,10 @@ def get_status(server_name):
                     
             parser.parse(xml_data) # hacky...
             result = parser.result
-            all_listeners = get_all_listener_count()
-            total_count = sum(itertools.ifilter(lambda x: x>=0, all_listeners.values()))
-            result['Current Listeners'] = total_count # WHYYYYYYYYYYYYY DID YOU DO THIS
+            if result:
+                all_listeners = get_all_listener_count()
+                total_count = sum(itertools.ifilter(lambda x: x>=0, all_listeners.values()))
+                result['Current Listeners'] = total_count # WHYYYYYYYYYYYYY DID YOU DO THIS
             return result
     return {}
 def get_listeners():
