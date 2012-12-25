@@ -36,7 +36,7 @@ def get_listener_count(server_name, mount=None, port=None):
     else:
         parser = StatusParser()
         try:
-            parser.parse(result.text)
+            parser.parse(result.content)
             result = parser.result
             listeners = int(result.get('Current Listeners', 0))
             with manager.MySQLCursor() as cur:
@@ -116,19 +116,14 @@ def get_status(server_name):
             logging.exception("Can't connect to status page")
         else:
             parser = StatusParser()
-            try:
                 # Try our lovely fix for broken unicode
-                xml_data = result.text.encode('latin1').decode('utf-8').encode('latin1', 'ignore').decode('utf-8')
-            except (UnicodeDecodeError, UnicodeEncodeError) as err:
-                # We have correct unicode... most likely
-                try:
-                    xml_data = result.text.decode('utf-8')
-                except (UnicodeDecodeError) as err:
-                    # Failed both methods, just return empty and log it
-                    logging.warning("Failed decoding XML data.")
-                    return {}
-                    
-            parser.parse(xml_data) # hacky...
+                # Attempting to do nothing at all
+            xml_data = result.content
+            try:
+                parser.parse(xml_data) # hacky...
+            except:
+                logging.exception("get_status:could not parse xml")
+                return {} # this will bite me in the ass later
             result = parser.result
             if result:
                 all_listeners = get_all_listener_count()
@@ -158,7 +153,7 @@ def get_listeners():
             except:
                 logging.exception("get_listeners")
             parser = ListenersParser()
-            parser.parse(result.text)
+            parser.parse(result.content)
             listeners.update(dict((l['ip'], l) for l in parser.result))
     return listeners.values()
 
@@ -188,11 +183,12 @@ class StatusParser(object):
             annotations = xml_dict["annotation"].split("\n")
             for annotation in annotations:
                 tmp = annotation.split(":", 1)
-                self.result[tmp[0]] = tmp[1].strip() # herp
-            self.result["Current Song"] =  xml_dict["title"] # unicode strings yay!
+                self.result[tmp[0]] = tmp[1].strip().encode('latin1').decode('utf-8') # herp
+            self.result["Current Song"] =  xml_dict["title"].encode('latin1').decode('utf-8') # unicode strings yay!
         except:
             logging.exception("Failed to parse XML Status data.")
-            raise       
+            #what's the point of catching everything and then reraising it? it will just break
+            self.result = {}       
         
 class ListenersParser(object):
     def __init__(self):
