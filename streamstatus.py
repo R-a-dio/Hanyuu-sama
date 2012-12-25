@@ -118,7 +118,8 @@ def get_status(server_name):
             parser = StatusParser()
             try:
                 # Try our lovely fix for broken unicode
-                xml_data = result.text.encode('latin1').decode('utf-8').encode('latin1', 'ignore').decode('utf-8')
+                # Attempting to do nothing at all
+                xml_data = result.text
             except (UnicodeDecodeError, UnicodeEncodeError) as err:
                 # We have correct unicode... most likely
                 try:
@@ -127,7 +128,6 @@ def get_status(server_name):
                     # Failed both methods, just return empty and log it
                     logging.warning("Failed decoding XML data.")
                     return {}
-                    
             parser.parse(xml_data) # hacky...
             result = parser.result
             if result:
@@ -188,11 +188,12 @@ class StatusParser(object):
             annotations = xml_dict["annotation"].split("\n")
             for annotation in annotations:
                 tmp = annotation.split(":", 1)
-                self.result[tmp[0]] = tmp[1].strip() # herp
-            self.result["Current Song"] =  xml_dict["title"] # unicode strings yay!
+                self.result[tmp[0]] = tmp[1].strip().encode('latin1').decode('utf-8') # herp
+            self.result["Current Song"] =  xml_dict["title"].encode('latin1').decode('utf-8') # unicode strings yay!
         except:
             logging.exception("Failed to parse XML Status data.")
-            raise       
+            #what's the point of catching everything and then reraising it? it will just break
+            self.result = {}       
         
 class ListenersParser(object):
     def __init__(self):
