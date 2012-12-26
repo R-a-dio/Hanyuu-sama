@@ -31,8 +31,6 @@ def relay_listeners(server_name, mount=None, port=None):
         result = requests.get(url, headers={'User-Agent': 'Mozilla'}, timeout=2)
         result.raise_for_status() # raise exception if status code is abnormal
     except requests.ConnectionError:
-        #logging.exception("Could not get listener count for server {server}"
-        #.format(server=server_name))
         with manager.MySQLCursor() as cur:
             cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
                                                 (server_name,))
@@ -40,11 +38,6 @@ def relay_listeners(server_name, mount=None, port=None):
         with manager.MySQLCursor() as cur:
             cur.execute("UPDATE `relays` SET active=0 WHERE relay_name=%s;",
                                                 (server_name,))
-        """
-        The logic behind this is that if we get a HTTPError from a relay, we can set it to
-        Inactive so that the loadbalancer stops sending it clients.
-        If it is a temporary 403, then this would make sure the loadbalancer no longer sent it clients.
-        """
     else:
         try:
             result = parse_status(result)
