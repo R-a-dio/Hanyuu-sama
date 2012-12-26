@@ -171,8 +171,11 @@ def parse_status(xml):
         xml_dict = xmltodict.parse(xml, xml_attribs=False, cdata_separator="\n") # CDATA required
         try:
             xml_dict = xml_dict.get('playlist', {}).get('trackList', {}).get('track', None)
-        if xml_dict is None: # We got none returned from the get anyway
+        except AttributeError: # No mountpoint it seems, just ditch an empty result
             return result
+        else:
+            if xml_dict is None: # We got none returned from the get anyway
+                return result
         annotations = xml_dict.get("annotation", False)
         if not annotations: # edge case for having nothing...
             return result
