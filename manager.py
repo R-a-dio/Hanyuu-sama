@@ -281,7 +281,7 @@ class Status(object):
         return int(self.cached_status.get('Peak Listeners', 0))
     @property
     def online(self):
-        return self.cached_status.get("Online", False)
+        return self.status.get("Online", False)
     @property
     def started(self): # NO LONGER RETURNED BY ICECAST. CHECK THIS.
         return self.cached_status.get("Mount started", "Unknown")
