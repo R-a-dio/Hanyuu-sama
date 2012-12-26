@@ -32,7 +32,7 @@ def get_listener_count(server_name, mount=None, port=None):
             cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
                                                 (server_name,))
     except requests.HTTPError:
-        logging.info("HTTP Error, L35, get_listener_count")
+        pass
     else:
         parser = StatusParser()
         try:
@@ -48,7 +48,6 @@ def get_listener_count(server_name, mount=None, port=None):
                 cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
                                                 (server_name,))
             logging.exception("get listener count")
-    logging.debug('Could not get listener count for server {}'.format(server_name))
     return -1
 
 timeout = {}
