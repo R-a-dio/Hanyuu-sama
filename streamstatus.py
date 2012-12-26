@@ -40,7 +40,7 @@ def relay_listeners(server_name, mount=None, port=None):
                                                 (server_name,))
     else:
         try:
-            result = parse_status(result)
+            result = parse_status(result.content)
             listeners = int(result.get('Current Listeners', 0))
             with manager.MySQLCursor() as cur:
                 cur.execute("UPDATE `relays` SET listeners=%s, active=1 WHERE relay_name=%s;",
@@ -92,7 +92,6 @@ def get_listener_count():
             counts[name] = count
     return counts
 
-
 def get_status(server_name):
     """
     Gets the current status of the master server, and the listener counts of all of the
@@ -128,10 +127,9 @@ def get_status(server_name):
                 all_listeners = get_listener_count()
                 total_count = sum(itertools.ifilter(lambda x: x>=0, all_listeners.values()))
                 result["Current Listeners"] = total_count
-            return result
-        return offline # returned in all of the things above that do not return.
-    logging.warning("Something just went horribly wrong in get_status; someone yell at Hiroto")
-    return offline # impossible event.
+                
+    return result
+
 def get_listeners():
     """
     Used by player_stats (internal) to generate listener statistics and graphs

@@ -120,6 +120,7 @@ class Queue(object):
             length) VALUES (%s, from_unixtime(%s), %s, %s, %s);",
                         (song.id, int(timestamp), REGULAR,
                           song.metadata, song.length))
+            
     def append_many(self, songlist):
         """queue should be an iterator containing
             Song objects
@@ -164,6 +165,7 @@ class Queue(object):
                 queuelist.append(Song(id=row['trackid']))
                 n -= 1
         self.append_many(queuelist)
+        
     def pop(self):
         # TODO:
         #     Adjust the estimated play time for old queues, i.e. update them
@@ -190,9 +192,11 @@ class Queue(object):
         finally:
             if (self.length < 20):
                 self.append_random(20 - self.length)
+                
     def clear_pops(self):
         with MySQLCursor(lock=self._lock) as cur:
             cur.execute("DELETE FROM `queue` WHERE `type`=2;")
+            
     def check_times(self):
         correct_time = NP().end
         with MySQLCursor(lock=self._lock) as cur:
@@ -205,6 +209,7 @@ class Queue(object):
                     cur2.execute("UPDATE `queue` SET `time`=from_unixtime\
                     (%s) WHERE id=%s;", (correct_time, id_))
                     correct_time += length
+                    
     def bump(self, song):
         if (not NP().afk):
             return
@@ -219,15 +224,19 @@ class Queue(object):
     def clear(self):
         with MySQLCursor(lock=self._lock) as cur:
             cur.execute("DELETE FROM `queue`;")
+            
     @property
     def length(self):
         return len(self)
+    
     def __len__(self):
         with MySQLCursor(lock=self._lock) as cur:
             cur.execute("SELECT COUNT(*) as count FROM `queue`;")
             return int(cur.fetchone()['count'])
+        
     def __iter__(self):
         return self.iter()
+    
     def iter(self, limit=5):
         with MySQLCursor(lock=self._lock) as cur:
             query = "SELECT * FROM `queue` ORDER BY `time` ASC"
@@ -243,6 +252,7 @@ class Queue(object):
                            length=row['length'],
                            type=row["type"],
                            time=row["time"])
+                
     @classmethod
     def get(cls, song):
         with MySQLCursor(cursortype=MySQLdb.cursors.Cursor) as cur:
@@ -257,6 +267,7 @@ class QueueError(Exception):
 class LP(object):
     def get(self, amount=5):
         return list(self.iter(amount))
+    
     def iter(self, amount=5):
         if (not isinstance(amount, int)):
             pass
@@ -266,6 +277,7 @@ class LP(object):
             (amount,))
             for row in cur:
                 yield Song(meta=row['meta'])
+                
     def __iter__(self):
         return self.iter()
 
@@ -273,31 +285,33 @@ class Status(object):
     __metaclass__ = bootstrap.Singleton
     _timeout = Switch(True, 0)
     _handlers = []
+    
     @property
     def listeners(self):
         return int(self.cached_status.get('Current Listeners', 0))
+    
     @property
     def peak_listeners(self):
         return int(self.cached_status.get('Peak Listeners', 0))
+    
     @property
     def online(self):
         return self.status.get("Online", False)
+    
     @property
     def started(self): # NO LONGER RETURNED BY ICECAST. CHECK THIS.
         return self.cached_status.get("Mount started", "Unknown")
+    
     @property
     def type(self): # This is never used.
         return self.cached_status.get("Content Type", None)
+    
     @property
     def current(self): # Not even needed. Hanyuu uses ICY-Metadata...
         return self.cached_status.get("Current Song", u"")
-    def s_thread(self, url):
-        """thread setter, use status.thread = thread"""
-        with MySQLCursor() as cur:
-            cur.execute("INSERT INTO `radvars` (name, value) VALUES \
-            ('curthread', %(thread)s) ON DUPLICATE KEY UPDATE \
-            `value`=%(thread)s;", {"thread": url})
-    def g_thread(self):
+    
+    @property
+    def thread(self):
         """thread getter, use status.thread"""
         with MySQLCursor() as cur:
             cur.execute("SELECT `value` FROM `radvars` WHERE \
@@ -305,8 +319,18 @@ class Status(object):
             if (cur.rowcount == 0):
                 return u""
             return cur.fetchone()['value']
-    thread = property(g_thread, s_thread)
-    def g_requests_enabled(self):
+        
+    @thread.setter
+    def thread(self, url):
+        """thread setter, use status.thread = thread"""
+        with MySQLCursor() as cur:
+            cur.execute("INSERT INTO `radvars` (name, value) VALUES \
+            ('curthread', %(thread)s) ON DUPLICATE KEY UPDATE \
+            `value`=%(thread)s;", {"thread": url})
+
+
+    @property
+    def requests_enabled(self):
         with MySQLCursor() as cur:
             cur.execute("SELECT * FROM radvars WHERE `name`='requesting';")
             if (cur.rowcount > 0):
@@ -316,7 +340,9 @@ class Status(object):
                 cur.execute("INSERT INTO radvars (name, value) VALUES \
                             ('requesting', 0);")
                 return False
-    def s_requests_enabled(self, value):
+    
+    @requests_enabled.setter
+    def requests_enabled(self, value):
         from types import BooleanType
         with MySQLCursor() as cur:
             current = self.requests_enabled
@@ -325,12 +351,13 @@ class Status(object):
                     value = 1 if value else 0
                     cur.execute("UPDATE `radvars` SET `value`=%s WHERE `name`\
                                 ='requesting';", (value,))
-    requests_enabled = property(g_requests_enabled, s_requests_enabled)
+
     @property
     def cached_status(self):
         if (not self._timeout):
             return self.status
         return self._status
+    
     @property
     def status(self):
         import streamstatus
@@ -342,8 +369,15 @@ class Status(object):
             except:
                 logging.exception("Status handler failed")
         return self._status
+    
     def add_handler(self, handle):
+        """Adds a handler to the status object.
+        
+        The handle is called every time the cached status dict is updated with
+        new values with the current dict as only argument.
+        """
         self._handlers.append(handle)
+        
     def update(self):
         """Updates the database with current collected info"""
         with MySQLCursor() as cur:
@@ -355,6 +389,7 @@ class Status(object):
                 `listeners`=%(listener)s;",
                         {"listener": self.listeners,
                          })
+            
 def start_updater():
     global updater_event, updater_thread
     updater_event = Event()
@@ -395,7 +430,8 @@ class DJError(Exception):
     pass
 class DJ(object):
     _cache = {}
-    def g_id(self):
+    @property
+    def id(self):
         user = self.user
         if (user in self._cache):
             return self._cache[user]
@@ -422,7 +458,8 @@ class DJ(object):
                     self._cache[user] = djid
                     return djid
             return 0
-    def s_id(self, value):
+    @id.setter
+    def id(self, value):
         if (not isinstance(value, (int, long, float))):
             raise TypeError("Expected integer")
         with MySQLCursor() as cur:
@@ -433,10 +470,12 @@ class DJ(object):
                 self._cache[user] = value
             else:
                 raise TypeError("Invalid ID, no such DJ")
-    id = property(g_id, s_id)
-    def g_name(self):
+
+    @property
+    def name(self):
         return radvar("djname", default="None")
-    def s_name(self, value):
+    @name.setter
+    def name(self, value):
         old_name = self.name
         radvar("djname", value)
         if (self.user == None):
@@ -446,7 +485,6 @@ class DJ(object):
             with MySQLCursor() as cur:
                 cur.execute("UPDATE streamstatus SET djid=%s",
                             (self.id if self.id else 18))
-    name = property(g_name, s_name)
     @property
     def user(self):
         from re import escape, search, IGNORECASE
@@ -505,7 +543,6 @@ class Song(object):
         elif (self.id != 0L):
             temp_filename, temp_meta = self.get_file(self.id)
             if (temp_filename == None) and (temp_meta == None):
-            if (temp_filename == None) and (temp_meta == None):
                 # No track with that ID sir
                 raise ValueError("ID does not exist")
             if (meta == None):
@@ -514,6 +551,7 @@ class Song(object):
                 filename = temp_filename
         self._filename = filename
         self._metadata = self.fix_encoding(meta)
+        
     def update(self, **kwargs):
         """Gives you the possibility to update the
             'lp', 'id', 'length', 'filename' and 'metadata'
@@ -546,6 +584,7 @@ class Song(object):
                         id=%s", (self.length, self.songid))
                     elif (key == "id"):
                         self._filename, temp = self.get_file(value)
+                        
     @staticmethod
     def create_digest(metadata):
         """Creates a digest of 'metadata'"""
@@ -553,24 +592,29 @@ class Song(object):
         if (type(metadata) == unicode):
             metadata = metadata.encode('utf-8', 'replace').lower().strip()
         return sha1(metadata).hexdigest()
+    
     @property
     def filename(self):
         """Filename, returns None if none found"""
         return self._filename if self._filename != None else None
+    
     @property
     def id(self):
         """Returns the trackid, as in tracks.id"""
         return self._id if self._id != None else 0L
+    
     @property
     def songid(self):
         """Returns the songid as in esong.id, efave.isong, eplay.isong"""
         if (not self._songid):
             self._songid = self.get_songid(self)
         return self._songid
+    
     @property
     def metadata(self):
         """Returns metadata or an empty unicode string"""
         return self._metadata if self._metadata != None else u''
+    
     @property
     def digest(self):
         """A sha1 digest of the metadata, can be changed by updating the
@@ -578,17 +622,20 @@ class Song(object):
         if (self._digest == None):
             self._digest = self.create_digest(self.metadata)
         return self._digest
+    
     @property
     def length(self):
         """Returns the length from song as integer, defaults to 0"""
         if (self._length == None):
             self._length = self.get_length(self)
         return int(self._length if self._length != None else 0)
+    
     @property
     def lengthf(self):
         """Returns the length formatted as mm:nn where mm is minutes and
         nn is seconds, defaults to 00:00. Returns an unicode string"""
         return u'%02d:%02d' % divmod(self.length, 60)
+    
     @property
     def lp(self):
         """Returns the unixtime of when this song was last played, defaults
@@ -601,12 +648,14 @@ class Song(object):
             if (cur.rowcount > 0):
                 return cur.fetchone()['ut']
             return None
+        
     @property
     def lpf(self):
         """Returns a unicode string of when this song was last played,
         looks like '5 years, 3 months, 1 week, 4 days, 2 hours,
          54 minutes, 20 seconds', defaults to 'Never before'"""
         return parse_lastplayed(0 if self.lp == None else self.lp)
+    
     @property
     def lpd(self):
         """Returns lastplayed as datetime.datetime object."""
@@ -616,6 +665,7 @@ class Song(object):
             for row in cur:
                 return row['lastplayed']
             return None
+        
     @property
     def lrd(self):
         """Return last requested time as datetime.datetime"""
@@ -625,6 +675,7 @@ class Song(object):
             for row in cur:
                 return row['lastrequested']
             return None
+        
     @property
     def lr(self):
         """Return last requested time in unix timestamp format"""
@@ -632,10 +683,12 @@ class Song(object):
             return time.mktime(self.lrd.timetuple())
         except AttributeError:
             return None
+        
     @property
     def lrf(self):
         """Return same format as lpf but for last requested."""
         return parse_lastplayed(0 if self.lr == None else self.lr)
+    
     @property
     def requestable(self):
         """Returns true if the song can be requested, false otherwise."""
@@ -659,11 +712,13 @@ class Song(object):
         if self.lr and songdelay > (now - self.lr):
             return False #the song delay has not passed for lr
         return True
+    
     @property
     def favecount(self):
         """Returns the amount of favorites on this song as integer,
         defaults to 0"""
         return len(self.faves)
+    
     @property
     def faves(self):
         """Returns a Faves instance, list-like object that allows editing of
@@ -821,11 +876,13 @@ class Song(object):
                 return cur.fetchone()['playcount']
             else:
                 return 0L
+            
     @property
     def afk(self):
         """Returns true if there is an self.id, which means there is an
         entry in the 'tracks' table for this song"""
         return False if self.id == 0L else True
+    
     @staticmethod
     def get_length(song):
         if (song.filename != None):
@@ -844,6 +901,7 @@ class Song(object):
                     return cur.fetchone()['len']
                 else:
                     return 0.0
+                
     @staticmethod
     def get_file(songid):
         """Retrieve song path and metadata from the track ID"""
@@ -860,6 +918,7 @@ class Song(object):
                 return (path, meta)
             else:
                 return (None, None)
+            
     @staticmethod
     def get_songid(song):
         with MySQLCursor() as cur:
@@ -873,6 +932,7 @@ class Song(object):
                 cur.execute("SELECT * FROM `esong` WHERE `hash`=%s LIMIT 1;",
                         (song.digest,))
                 return cur.fetchone()['id']
+            
     @staticmethod
     def fix_encoding(metadata):
         try:
@@ -882,6 +942,7 @@ class Song(object):
                 return unicode(metadata, 'shiftjis', 'replace').strip()
         except (TypeError):
             return metadata.strip()
+        
     @classmethod
     def search(cls, query, limit=5):
         """Searches the 'tracks' table in the database, returns a list of
@@ -917,6 +978,7 @@ class Song(object):
                                 else row['artist'] + u' - ' + row['track'],
                             filename=join(config.music_directory, row['path'])))
         return result
+    
     @classmethod
     def nick(cls, nick, limit=5, tracks=False):
         with MySQLCursor() as cur:
@@ -939,6 +1001,7 @@ class Song(object):
                                   meta=row['meta'],
                                   length=row['len']))
             return result
+        
     @classmethod
     def random(cls):
         from os.path import join
@@ -950,12 +1013,15 @@ class Song(object):
                            meta=row['track'] if row['artist'] == u'' \
                                 else row['artist'] + u' - ' + row['track'],
                             filename=join(config.music_directory, row['path']))
+                
     def __str__(self):
         return self.__repr__()
+    
     def __repr__(self):
         return (u"<Song [%s, %d, %s] at %s>" % (self.metadata, self.id,
                                              self.digest, hex(id(self))))\
                                              .encode("utf-8")
+                                             
     def __ne__(self, other):
         if (not isinstance(other, (Song, NP))):
             return False
@@ -963,6 +1029,7 @@ class Song(object):
             return True
         else:
             return False
+        
     def __eq__(self, other):
         if (not isinstance(other, (Song, NP))):
             return False
@@ -970,21 +1037,27 @@ class Song(object):
             return True
         else:
             return False
+        
     def __hash__(self):
         return hash(self.digest)
+    
     def __getstate__(self):
         return (self.id, self.metadata, self.length, self.filename)
+    
     def __setstate__(self, state):
         self.__init__(*state)
+        
         
 class QSong(Song):
     def __init__(self, id=None, meta=None, length=None, type=0, time=None):
         super(QSong, self).__init__(id=id, meta=meta, length=length)
         self.type = type
         self.time = time
+        
     @property
     def until(self):
         return get_hms((self.time - datetime.datetime.now()).total_seconds())
+    
     
 class NP(Song):
     def __init__(self):
@@ -999,25 +1072,38 @@ class NP(Song):
                 super(NP, self).__init__(meta=u"", length=0.0)
                 self._end = 0
                 self._start = int(time.time())
-    def s_start(self, value):
+    @property
+    def start(self):
+        return self._start
+    
+    @start.setter
+    def start(self, value):
         self._start = value
         with MySQLCursor() as cur:
             cur.execute("UPDATE `streamstatus` SET `start_time`=%s", (value,))
-    start = property(lambda self: self._start, s_start)
-    def s_end(self, value):
+
+    @property
+    def end(self):
+        return self._end
+    
+    @end.setter
+    def end(self, value):
         self._end = value
         with MySQLCursor() as cur:
             cur.execute("UPDATE `streamstatus` SET `end_time`=%s", (value,))
-    end = property(lambda self: self._end, s_end)
+
     def remaining(self, remaining):
         self.update(length=(time.time() + remaining) - self.start)
         self.end = time.time() + remaining
+        
     @property
     def position(self):
         return int(time.time() - self.start)
+    
     @property
     def positionf(self):
         return get_ms(self.position)
+    
     @classmethod
     def change(cls, song):
         """Changes the current playing song to 'song' which should be an
@@ -1085,10 +1171,13 @@ class NP(Song):
             irc.connect().announce()
         except (AttributeError, RemoteError, IOError):
             logging.exception("IRC Announcing error")
+            
     def __repr__(self):
         return "<Playing " + Song.__repr__(self)[1:]
+    
     def __str__(self):
         return self.__repr__()
+    
     
 # GENERAL TOOLS GO HERE
 def get_hms(seconds):
@@ -1103,9 +1192,12 @@ def get_hms(seconds):
     else:
         return u"%02d:%02d:%02d" % (h, m ,s)
     
+    
 def get_ms(seconds):
         m, s = divmod(seconds, 60)
         return u"%02d:%02d" % (m, s)
+    
+    
 def parse_lastplayed(seconds):
     if (seconds > 0):
         difference = int(time.time()) - seconds
