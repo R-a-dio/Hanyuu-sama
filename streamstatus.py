@@ -7,6 +7,7 @@ import itertools
 from bootstrap import Switch
 
 dns_spamfilter = Switch(True) # 15 second resetting spamfilter
+timeout = {}
 
 def relay_listeners(server_name, mount=None, port=None):
     """
@@ -59,7 +60,6 @@ def relay_listeners(server_name, mount=None, port=None):
             logging.exception("get listener count")
     return -1
 
-timeout = {}
 def get_listener_count():
     """
     Gets a list of all current relay's listeners and filters inactive relays.
@@ -130,7 +130,7 @@ def get_status(server_name):
         except:
             logging.exception("Can't connect to master status page. Is Icecast running?")
         else:
-            result = parse_data(result.content) # bytestring
+            result = parse_status(result.content) # bytestring
             if result:
                 all_listeners = get_listener_count()
                 total_count = sum(itertools.ifilter(lambda x: x>=0, all_listeners.values()))
