@@ -130,32 +130,6 @@ def get_status(server_name):
                 
     return result
 
-def get_listeners():
-    """
-    Used by player_stats (internal) to generate listener statistics and graphs
-    """
-    listeners = {}
-    with manager.MySQLCursor() as cur:
-        cur.execute("SELECT * FROM `relays` WHERE listeners > 0 AND admin_auth != '';")
-        for row in cur:
-            server = row['relay_name']
-            port = row['port']
-            mount= row['mount']
-            auth = row['admin_auth']
-            url = 'http://{server}.r-a-d.io:{port}'.format(server=server,port=port)
-            try:
-                result = requests.get('{url}/admin/listclients?mount={mount}'.format(url=url,
-                                        mount=mount), headers={'User-Agent': 'Mozilla',
-                                        'Referer': '{url}/admin/'.format(url=url),
-                                        'Authorization': 'Basic {}'.format(auth)}, timeout=2)
-                result.raise_for_status() # None if normal
-            except:
-                logging.exception("get_listeners")
-            parser = ListenersParser()
-            parser.parse(result.content)
-            listeners.update(dict((l['ip'], l) for l in parser.result))
-    return listeners.values()
-
 def parse_status(xml):
     """
     Function to parse the XML returned from a mountpoint.
@@ -215,4 +189,27 @@ def parse_listeners(xml):
     except:
         logging.exception("Couldn't parse listener XML - ListenersParser")
         return []
-
+        
+def get_listeners():
+    """
+    Used by player_stats (internal) to generate listener statistics and graphs
+    """
+    listeners = {}
+    with manager.MySQLCursor() as cur:
+        cur.execute("SELECT * FROM `relays` WHERE listeners > 0 AND admin_auth != '';")
+        for row in cur:
+            server = row['relay_name']
+            port = row['port']
+            mount= row['mount']
+            auth = row['admin_auth']
+            url = 'http://{server}.r-a-d.io:{port}'.format(server=server,port=port)
+            try:
+                result = requests.get('{url}/admin/listclients?mount={mount}'.format(url=url,
+                                        mount=mount), headers={'User-Agent': 'Mozilla',
+                                        'Referer': '{url}/admin/'.format(url=url),
+                                        'Authorization': 'Basic {}'.format(auth)}, timeout=2)
+                result.raise_for_status() # None if normal
+            except:
+                logging.exception("get_listeners")
+            listeners.update(dict((l['ip'], l) for l in parse_listeners(result.content)))
+    return listeners.values()
