@@ -281,15 +281,15 @@ class Status(object):
         return int(self.cached_status.get('Peak Listeners', 0))
     @property
     def online(self):
-        return self.status != {}
+        return self.cached_status.get("Online", False)
     @property
     def started(self): # NO LONGER RETURNED BY ICECAST. CHECK THIS.
         return self.cached_status.get("Mount started", "Unknown")
     @property
-    def type(self):
+    def type(self): # This is never used.
         return self.cached_status.get("Content Type", None)
     @property
-    def current(self):
+    def current(self): # Not even needed. Hanyuu uses ICY-Metadata...
         return self.cached_status.get("Current Song", u"")
     def s_thread(self, url):
         """thread setter, use status.thread = thread"""
@@ -504,6 +504,7 @@ class Song(object):
             raise TypeError("Require either 'id' or 'meta' argument")
         elif (self.id != 0L):
             temp_filename, temp_meta = self.get_file(self.id)
+            if (temp_filename == None) and (temp_meta == None):
             if (temp_filename == None) and (temp_meta == None):
                 # No track with that ID sir
                 raise ValueError("ID does not exist")
