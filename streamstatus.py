@@ -6,10 +6,16 @@ import xmltodict
 import itertools
 from bootstrap import Switch
 
-dns_spamfilter = Switch(True)
+dns_spamfilter = Switch(True) # 15 second resetting spamfilter
+timeout = {}
 
-def get_listener_count(server_name, mount=None, port=None):
+def relay_listeners(server_name, mount=None, port=None):
+    """
+    Gets the individual listener count for each given relay.
+    If given just a name, looks up details using the name
+    """
     if mount is None: # assume not port, too. naivity at its best.
+    # (if you dont have one, it's useless anyway)
         with manager.MySQLCursor() as cur:
             cur.execute("SELECT port, mount FROM `relays` WHERE `relay_name`=%s;",
                             (server_name,))
@@ -21,23 +27,20 @@ def get_listener_count(server_name, mount=None, port=None):
                 raise KeyError("Unknown relay {}".format(server_name))
     url = "http://{name}.r-a-d.io:{port}{mount}.xspf".format(name=server_name,
                                             port=port, mount=mount)
-    # tip: you just did select * from relays;.
     try:
         result = requests.get(url, headers={'User-Agent': 'Mozilla'}, timeout=2)
         result.raise_for_status() # raise exception if status code is abnormal
     except requests.ConnectionError:
-        #logging.exception("Could not get listener count for server {server}"
-        #.format(server=server_name))
         with manager.MySQLCursor() as cur:
             cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
                                                 (server_name,))
     except requests.HTTPError:
-        pass
+        with manager.MySQLCursor() as cur:
+            cur.execute("UPDATE `relays` SET active=0 WHERE relay_name=%s;",
+                                                (server_name,))
     else:
-        parser = StatusParser()
         try:
-            parser.parse(result.content)
-            result = parser.result
+            result = parse_status(result)
             listeners = int(result.get('Current Listeners', 0))
             with manager.MySQLCursor() as cur:
                 cur.execute("UPDATE `relays` SET listeners=%s, active=1 WHERE relay_name=%s;",
@@ -50,8 +53,12 @@ def get_listener_count(server_name, mount=None, port=None):
             logging.exception("get listener count")
     return -1
 
-timeout = {}
-def get_all_listener_count():
+def get_listener_count():
+    """
+    Gets a list of all current relay's listeners and filters inactive relays.
+    It then returns the total number of listeners on all relays combined.
+    This is reported to manager.Status().listeners
+    """
     import time
     counts = {}
     with manager.MySQLCursor() as cur:
@@ -65,7 +72,7 @@ def get_all_listener_count():
                 if name in timeout:
                     del timeout[name]
                 try:
-                    count = get_listener_count(name, row["mount"], row["port"])
+                    count = relay_listeners(name, row["mount"], row["port"])
                 except (requests.HTTPError,
                         requests.ConnectionError) as e: # rare
                     if not dns_spamfilter:
@@ -92,6 +99,7 @@ def get_status(server_name):
     slave relays, aggregating them, filtering negative, and summing them to give an
     artificial Master server listener count used by Hanyuu in every StatusUpdate call.
     """
+    result = { "Online" : False } # Pointless but easier to type. Also makes more sense.
     with manager.MySQLCursor() as cur:
         cur.execute("SELECT port, mount FROM `relays` WHERE relay_name=%s;", (server_name,))
         if cur.rowcount == 1:
@@ -110,26 +118,20 @@ def get_status(server_name):
                 dns_spamfilter.reset()
             else:
                 logging.exception("HTTPError occured in status retrieval")
+        except requests.ConnectionError:
+            logging.exception("Connection interrupted to master server")
         except:
-            # catching all why????
-            logging.exception("Can't connect to status page")
+            logging.exception("Can't connect to master status page. Is Icecast running?")
         else:
-            parser = StatusParser()
-                # Try our lovely fix for broken unicode
-                # Attempting to do nothing at all
-            xml_data = result.content
-            try:
-                parser.parse(xml_data) # hacky...
-            except:
-                logging.exception("get_status:could not parse xml")
-                return {} # this will bite me in the ass later
-            result = parser.result
+            result = parse_status(result.content) # bytestring
             if result:
-                all_listeners = get_all_listener_count()
+                all_listeners = get_listener_count()
                 total_count = sum(itertools.ifilter(lambda x: x>=0, all_listeners.values()))
-                result['Current Listeners'] = total_count # WHYYYYYYYYYYYYY DID YOU DO THIS
+                result["Current Listeners"] = total_count
             return result
-    return {}
+        return offline # returned in all of the things above that do not return.
+    logging.warning("Something just went horribly wrong in get_status; someone yell at Hiroto")
+    return offline # impossible event.
 def get_listeners():
     """
     Used by player_stats (internal) to generate listener statistics and graphs
@@ -156,62 +158,63 @@ def get_listeners():
             listeners.update(dict((l['ip'], l) for l in parser.result))
     return listeners.values()
 
-class StatusParser(object):
-    def __init__(self):
-        self.result = {}
-    def parse(self, xml):
-        if isinstance(xml, unicode):
-            xml = xml.encode('utf-8')
+def parse_status(xml):
+    """
+    Function to parse the XML returned from a mountpoint.
+    Input must be a bytestring as to avoid UnicodeDecodeError from stopping
+    Parsing. The only meaningful result is "Current Listeners".
+    
+    Logic behind returning an explicit "Online" key is readability
+    """
+    result = { "Online" : False } # Assume False by default
+    try:
+        xml_dict = xmltodict.parse(xml, xml_attribs=False, cdata_separator="\n") # CDATA required
         try:
-            xml_dict = xmltodict.parse(xml, xml_attribs=False, cdata_separator="\n")
-            # cdata is a multiline block (Icecast)
-            # fetch annotation
-            try:
-                xml_dict = xml_dict.get('playlist', {}).get('trackList', {}).get('track', None)
-            except AttributeError:
-                # No mountpoint it seems, just ditch an empty result
-                self.result = {}
-                return
-            else:
-                if xml_dict is None:
-                    # We got none returned from the get anyway
-                    self.result = {}
-                    return
-                
-            #xml_dict = xml_dict["playlist"]["trackList"]["track"] # remove the useless stuff
-            annotations = xml_dict["annotation"].split("\n")
-            for annotation in annotations:
-                tmp = annotation.split(":", 1)
-                self.result[tmp[0]] = tmp[1].strip().encode('latin1').decode('utf-8') # herp
-            self.result["Current Song"] =  xml_dict["title"].encode('latin1').decode('utf-8') # unicode strings yay!
-        except:
-            logging.exception("Failed to parse XML Status data.")
-            #what's the point of catching everything and then reraising it? it will just break
-            self.result = {}       
+            xml_dict = xml_dict.get('playlist', {}).get('trackList', {}).get('track', None)
+        except AttributeError: # No mountpoint it seems, just ditch an empty result
+            return result
+        else:
+            if xml_dict is None: # We got none returned from the get anyway
+                return result
+        annotations = xml_dict.get("annotation", False)
+        if not annotations: # edge case for having nothing...
+            return result
+        annotations = annotations.split("\n")
+        for annotation in annotations:
+            tmp = annotation.split(":", 1)
+            result[tmp[0]] = tmp[1].strip() # no need whatsoever to decode anything here. It's not needed by NP()
+        result["Online"] = True
+        if xml_dict["title"] is None:
+            result["Current Song"] = u"" # /shrug
+        else:
+            result["Current Song"] = xml_dict.get("title", u"")
+    except UnicodeDecodeError: # we have runes, but we know we are online. This should not even be possible (requests.get.content)
+        result["Online"] = True
+        result["Current Song"] = u"" # Erase the bad stuff. However, keep in mind stream title can do this (anything user input...)
+    except:
+        logging.exception("Failed to parse XML Status data.") 
+    return result # cleaner and easier to read falling back to original function scope (instead of 5 returns)
         
-class ListenersParser(object):
-    def __init__(self):
-        self.result = []
-        self._values = {}
-    def parse(self, xml):
-        """
-        parses the XML produced by icecast using xmltodict, acting like it is
-        really JSON, or a python dict, to make it much easier to handle.
-        xml should be a string, not a url!
-        (while it supports filenames, it doesnt support urls)
-        """
-        if isinstance(xml, unicode):
-            xml = xml.encode('utf-8')
-        try:
-            xml_dict = xmltodict.parse(xml, xml_attribs=False)
-            xml_dict = xml_dict["icestats"]["source"]["listener"]
-            for listener in xml_dict:
-                _tmp = {}
-                _tmp['ip'] = listener['IP']
-                _tmp['player'] = listener['UserAgent']
-                _tmp['time'] = listener['Connected']
-                self.result.append(_tmp)
 
-        except:
-            logging.exception("Couldn't parse listener XML - ListenersParser")
+def parse_listeners(xml):
+    """
+    parses the XML produced by icecast using xmltodict, acting like it is
+    really JSON, or a python dict, to make it much easier to handle.
+    xml should be a string, not a url!
+    (while it supports filenames, it doesnt support urls)
+    """
+    result = []
+    try:
+        xml_dict = xmltodict.parse(xml, xml_attribs=False)
+        xml_dict = xml_dict["icestats"]["source"]["listener"]
+        for listener in xml_dict:
+            _tmp = {}
+            _tmp['ip'] = listener['IP']
+            _tmp['player'] = listener['UserAgent']
+            _tmp['time'] = listener['Connected']
+            result.append(_tmp)
+        return result
+    except:
+        logging.exception("Couldn't parse listener XML - ListenersParser")
+        return []
 
