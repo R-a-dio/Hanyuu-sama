@@ -99,7 +99,7 @@ def get_status(server_name):
     slave relays, aggregating them, filtering negative, and summing them to give an
     artificial Master server listener count used by Hanyuu in every StatusUpdate call.
     """
-    offline = { "Online" : False } # Pointless but easier to type. Also makes more sense.
+    result = { "Online" : False } # Pointless but easier to type. Also makes more sense.
     with manager.MySQLCursor() as cur:
         cur.execute("SELECT port, mount FROM `relays` WHERE relay_name=%s;", (server_name,))
         if cur.rowcount == 1:
@@ -173,10 +173,18 @@ def parse_status(xml):
             xml_dict = xml_dict.get('playlist', {}).get('trackList', {}).get('track', None)
         if xml_dict is None: # We got none returned from the get anyway
             return result
-        annotations = xml_dict["annotation"].split("\n")
+        annotations = xml_dict.get("annotation", False)
+        if not annotations: # edge case for having nothing...
+            return result
+        annotations = annotations.split("\n")
         for annotation in annotations:
+            tmp = annotation.split(":", 1)
             result[tmp[0]] = tmp[1].strip() # no need whatsoever to decode anything here. It's not needed by NP()
         result["Online"] = True
+        if xml_dict["title"] is None:
+            result["Current Song"] = u"" # /shrug
+        else:
+            result["Current Song"] = xml_dict.get("title", u"")
     except UnicodeDecodeError: # we have runes, but we know we are online. This should not even be possible (requests.get.content)
         result["Online"] = True
         result["Current Song"] = u"" # Erase the bad stuff. However, keep in mind stream title can do this (anything user input...)
