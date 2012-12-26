@@ -112,7 +112,7 @@ class Icecast(object):
         
         Creates a libshout object and puts the configuration to use.
         """
-        shout = pylibshout.Shout()
+        shout = pylibshout.Shout(tag_fix=False)
         self.config.setup(shout)
         return shout
         
