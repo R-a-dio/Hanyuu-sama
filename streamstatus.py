@@ -171,11 +171,8 @@ def parse_status(xml):
         xml_dict = xmltodict.parse(xml, xml_attribs=False, cdata_separator="\n") # CDATA required
         try:
             xml_dict = xml_dict.get('playlist', {}).get('trackList', {}).get('track', None)
-        except AttributeError: # No mountpoint it seems, just ditch an empty result
+        if xml_dict is None: # We got none returned from the get anyway
             return result
-        else:
-            if xml_dict is None: # We got none returned from the get anyway
-                return result
         annotations = xml_dict["annotation"].split("\n")
         for annotation in annotations:
             result[tmp[0]] = tmp[1].strip() # no need whatsoever to decode anything here. It's not needed by NP()
@@ -187,27 +184,26 @@ def parse_status(xml):
         logging.exception("Failed to parse XML Status data.") 
     return result # cleaner and easier to read falling back to original function scope (instead of 5 returns)
         
-class ListenersParser(object): # NB: Not converting this to a function because it would break the thing that uses it.
-    def __init__(self):
-        self.result = []
-    def parse(self, xml):
-        """
-        parses the XML produced by icecast using xmltodict, acting like it is
-        really JSON, or a python dict, to make it much easier to handle.
-        xml should be a string, not a url!
-        (while it supports filenames, it doesnt support urls)
-        """
-        if isinstance(xml, unicode):
-            xml = xml.encode('utf-8') # This line shouldnt be called, because the input should be a bytestring anyway...
-        try:
-            xml_dict = xmltodict.parse(xml, xml_attribs=False)
-            xml_dict = xml_dict["icestats"]["source"]["listener"]
-            for listener in xml_dict:
-                _tmp = {}
-                _tmp['ip'] = listener['IP']
-                _tmp['player'] = listener['UserAgent']
-                _tmp['time'] = listener['Connected']
-                self.result.append(_tmp)
-        except:
-            logging.exception("Couldn't parse listener XML - ListenersParser")
+
+def parse_listeners(xml):
+    """
+    parses the XML produced by icecast using xmltodict, acting like it is
+    really JSON, or a python dict, to make it much easier to handle.
+    xml should be a string, not a url!
+    (while it supports filenames, it doesnt support urls)
+    """
+    result = []
+    try:
+        xml_dict = xmltodict.parse(xml, xml_attribs=False)
+        xml_dict = xml_dict["icestats"]["source"]["listener"]
+        for listener in xml_dict:
+            _tmp = {}
+            _tmp['ip'] = listener['IP']
+            _tmp['player'] = listener['UserAgent']
+            _tmp['time'] = listener['Connected']
+            result.append(_tmp)
+        return result
+    except:
+        logging.exception("Couldn't parse listener XML - ListenersParser")
+        return []
 
