@@ -18,10 +18,10 @@ setup(
                   "requests >= 1.0",
                   "mutagen >= 1.19",
                   "flup >= 1.0.2",
-                  "MySQL-python >= 1.2.3",
+                  "pymysql",
                   "xmltodict >= 0.4",
                   #"audiotools >= 2.19alpha3",
                           ],
       keywords = "streaming icecast fastcgi irc",
-      
+      packages = ['hanyuu'],
       )
