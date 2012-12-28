@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 from __future__ import print_function
-from __future__ import absolute_import
-from .. import utils, config
+from __future__ import absolute_imports
+from . import encapsulations
 import logging
 import pylibmc
 import ConfigParser
@@ -11,9 +11,10 @@ import contextlib
 logger = logging.getLogger('status')
 
 
-def memcache_client():
+def memcache_servers():
     """
-    Returns a :class:`pylibmc.Client` object.
+    Returns a list of memcache servers from the supplied
+    configuration file.
     """
     try:
         options = config.get('memcache', 'servers')
@@ -32,7 +33,17 @@ def memcache_client():
     servers = []
     for server in options.split(','):
         servers.append(server.strip())
-    return pylibmc.Client(servers)
+    return servers
+
+
+def instance_decorator(cls):
+    """
+    Decorator for a class that returns an instance of the class.
+    
+    This is used to create a singleton of a class that lives forever
+    in the process.
+    """
+    return cls()
 
 
 class Base(object):
@@ -42,7 +53,7 @@ class Base(object):
     """
     def __init__(self):
         super(Base, self).__init__()
-        client = memcache_client()
+        client = memcache.Client(memcache_servers())
         self._mem_pool = pylibmc.ClientPool(client, 4)
         
     @property
@@ -51,10 +62,10 @@ class Base(object):
         def locked_client():
             with self._mem_pool.reserve() as client:
                 yield client
-        return locked_client()
+        return locked_client
         
         
-@utils.instance_decorator
+@instance_decorator
 class Stream(Base):
     """
     Wrapping class around the memcache server and variables relevant to
@@ -69,7 +80,7 @@ class Stream(Base):
         This is the listeners combined from all relay servers.
         """
         with self.cache as client:
-            return client.get(b'status.current_listeners') or 0
+            return client.get('status.current_listeners') or 0
     
     @listeners.setter
     def listeners(self, value):
@@ -79,12 +90,12 @@ class Stream(Base):
         :obj:value should be an integer type.
         """
         with self.cache as client:
-            client.set(b'status.current_listeners', value)
+            client.set('status.current_listeners', value)
         
     @property
     def peak_listeners(self):
         with self.cache as client:
-            return client.get(b'status.peak_listeners') or 0
+            return client.get('status.peak_listeners') or 0
     
     @peak_listeners.setter
     def peak_listeners(self, value):
@@ -94,7 +105,7 @@ class Stream(Base):
         :obj:value should be an integer type.
         """
         with self.cache as client:
-            client.set(b'status.peak_listeners', value)
+            client.set('status.peak_listeners', value)
         
     @property
     def online(self):
@@ -104,7 +115,7 @@ class Stream(Base):
         Returns a boolean type.
         """
         with self.cache as client:
-            return bool(client.get(b'status.online')) or False
+            return bool(client.get('status.online')) or False
     
     @online.setter
     def online(self, value):
@@ -114,7 +125,7 @@ class Stream(Base):
         :obj:value is passed to :func:bool
         """
         with self.cache as client:
-         client.set(b'status.online', bool(value))
+         client.set('status.online', bool(value))
         
     @property
     def current(self):
@@ -124,7 +135,7 @@ class Stream(Base):
         Returns a unicode object.
         """
         with self.cache as client:
-            value = client.get(b'status.current')
+            value = client.get('status.current')
         if value:
             value = value.decode('utf-8')
         else:
@@ -142,10 +153,10 @@ class Stream(Base):
         if isinstance(value, unicode):
             value = value.encode('utf-8', 'replace')
         with self.cache as client:
-            client.set(b'status.current', value)
+            client.set('status.current', value)
     
     
-@utils.instance_decorator
+@instance_decorator
 class Site(Base):
     """
     Object that encapsulates state of the website.
@@ -159,7 +170,7 @@ class Site(Base):
         Returns a unicode string or None
         """
         with self.cache as client:
-            return client.get(b'site.thread').decode('utf-8') or None
+            return client.get('site.thread').decode('utf-8') or None
         
     @thread.setter
     def thread(self, value):
@@ -172,7 +183,7 @@ class Site(Base):
         if isinstance(value, unicode):
             value = value.encode('utf-8', 'replace')
         with self.cache as client:
-            client.set(b'site.thread', value)
+            client.set('site.thread', value)
 
     @property
     def dj(self):
@@ -182,7 +193,7 @@ class Site(Base):
         Returns a :class:encapsulations.DJ object.
         """
         with self.cache as client:
-            return encapsulations.DJ(client.get(b'site.dj'))
+            return encapsulations.DJ(client.get('site.dj'))
         
     @dj.setter
     def dj(self, value):
@@ -201,10 +212,10 @@ class Site(Base):
         else:
             value = int(value)
         with self.cache as client:
-            client.set(b'site.dj', value)
+            client.set('site.dj', value)
             
             
-@utils.instance_decorator
+@instance_decorator
 class Streamer(Base):
     """
     Object that encapsulates state of the AFK streamer.
@@ -218,7 +229,7 @@ class Streamer(Base):
         the AFK streamer is not streaming at the moment.
         """
         with self.cache as client:
-            return bool(client.get(b'streamer.requests_enabled')) or False
+            return bool(client.get('streamer.requests_enabled')) or False
     
     @requests_enabled.setter
     def requests_enabled(self, value):
@@ -228,4 +239,4 @@ class Streamer(Base):
         :obj:value is passed to :func:bool before updating.
         """
         with self.cache as client:
-            client.set(b'streamer.requests_enabled', bool(value))
+            client.set('streamer.requests_enabled', bool(value))
