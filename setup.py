@@ -20,6 +20,8 @@ setup(
                   "flup >= 1.0.2",
                   "pymysql",
                   "xmltodict >= 0.4",
+                  "peewee >= 2.0",
+                  "pylibmc >= 1.2.3",
                   #"audiotools >= 2.19alpha3",
                           ],
       keywords = "streaming icecast fastcgi irc",
