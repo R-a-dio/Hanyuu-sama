@@ -1,0 +1,4 @@
+# Configuration of the memcache servers
+[memcache]
+# A list of comma separated servers to use as memcache servers
+servers = localhost:11211
