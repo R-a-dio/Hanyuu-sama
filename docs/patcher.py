@@ -22,7 +22,8 @@ class Mock(object):
         else:
             return Mock()
 
-MOCK_MODULES = ['flup.server.fcgi', 'pylibshout', 'pylibmc']
+MOCK_MODULES = ['flup', 'flup.server', 'flup.server.fcgi',
+                'pylibshout', 'pylibmc']
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = Mock()
     
