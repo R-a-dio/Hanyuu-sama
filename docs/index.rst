@@ -9,7 +9,12 @@ Welcome to Hanyuu-sama's documentation!
 Contents:
 
 .. toctree::
-   :maxdepth: 2
+    :glob:
+    
+    intro
+    known_issues
+    modules
+    
 
 Indices and tables
 ==================
