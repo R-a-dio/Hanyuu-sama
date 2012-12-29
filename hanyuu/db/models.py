@@ -71,7 +71,7 @@ class Radvar(Base):
         db_table = 'radvars'
 
 
-class Nickrequest(Base):
+class NickRequest(Base):
     """
     Models the legacy `nickrequesttime` table.
     """
@@ -186,7 +186,8 @@ class Track(Base):
     # also i love how the columns in db are NOT NULL DEFAULT NULL
     artist = peewee.CharField(max_length=500)
     
-    title = peewee.CharField(max_length=200, db_column='track')
+    title = peewee.CharField(max_length=200,
+                             db_column='track')
     
     album = peewee.CharField(max_length=200)
     
@@ -200,11 +201,15 @@ class Track(Base):
     
     usable = peewee.IntegerField()
     
-    acceptor = peewee.CharField(max_length=200, db_column='accepter')
+    acceptor = peewee.CharField(max_length=200,
+                                db_column='accepter')
     
-    last_editor = peewee.CharField(max_length=200, db_column='lasteditor')
+    last_editor = peewee.CharField(max_length=200,
+                                   db_column='lasteditor')
     
-    hash = peewee.ForeignKeyField(Song, related_name='track')
+    # "FK" to Song
+    hash = peewee.CharField(max_length=40,
+                            unique=True)
     
     request_count = peewee.IntegerField(db_column='requestcount')
     
@@ -213,3 +218,67 @@ class Track(Base):
     
     class Meta:
         db_table = 'tracks'
+
+
+class Queue(Base):
+    """
+    Models the new design `queue` table.
+    """
+    id = peewee.PrimaryKeyField(primary_key=True)
+    
+    type = peewee.IntegerField(default=0)
+    
+    time = peewee.DateTimeField()
+    
+    song = peewee.ForeignKeyField(Song, related_name='queued')
+    
+    track = peewee.ForeignKeyField(Track, related_name='queued',
+                                          null=True)
+    
+    ip = peewee.TextField(null=True)
+    
+    dj = peewee.ForeignKeyField(DJ, related_name='queue')
+    
+    class Meta:
+        db_table='queue'
+
+
+class Status(Base):
+    """
+    Models the legacy `streamstatus` table.
+    """
+    id = peewee.PrimaryKeyField(primary_key=True,
+                                default=0)
+    
+    dj = peewee.ForeignKeyField(DJ, related_name='status',
+                                    default=0,
+                                    db_column='djid')
+    
+    # this could do with a length increase
+    now_playing = peewee.CharField(max_length=200,
+                                   default='',
+                                   db_column='np')
+    
+    listeners = peewee.IntegerField(default=0)
+    
+    # this isn't used
+    bitrate = peewee.IntegerField(default=192)
+    
+    is_afk_stream = peewee.IntegerField(default=0,
+                                        db_column='isafkstream')
+    
+    # lol
+    is_streamdesk = peewee.IntegerField(default=0,
+                                        db_column='isstreamdesk')
+    
+    start_time = peewee.IntegerField(default=0)
+    
+    end_time = peewee.IntegerField(default=0)
+    
+    last_set = peewee.DateTimeField(default=datetime.datetime.now(),
+                                    db_table='lastset')
+    
+    track = peewee.ForeignKeyField(Track, related_name='status',
+                                   null=True,
+                                   default=None)
+    
