@@ -3,7 +3,7 @@
 import asyncore
 from asynchat import async_chat
 import socket
-import config
+from .. import config
 from threading import Thread
 import manager
 import logging

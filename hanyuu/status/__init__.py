@@ -76,7 +76,7 @@ class Stream(Base):
         """
         Sets the current listeners value.
         
-        :obj:value should be an integer type.
+        :obj:`value` should be an integer type.
         """
         with self.cache as client:
             client.set(b'status.current_listeners', value)
@@ -91,7 +91,7 @@ class Stream(Base):
         """
         Sets the current peak listeners value.
         
-        :obj:value should be an integer type.
+        :obj:`value` should be an integer type.
         """
         with self.cache as client:
             client.set(b'status.peak_listeners', value)
@@ -111,7 +111,7 @@ class Stream(Base):
         """
         Sets the status of the master server.
         
-        :obj:value is passed to :func:bool
+        :obj:`value` is passed to :func:`bool`
         """
         with self.cache as client:
          client.set(b'status.online', bool(value))
@@ -121,7 +121,7 @@ class Stream(Base):
         """
         Gets the current song metadata playing on the master server.
         
-        Returns a unicode object.
+        Returns a :obj:`unicode` object.
         """
         with self.cache as client:
             value = client.get(b'status.current')
@@ -156,7 +156,7 @@ class Site(Base):
         """
         Returns the current thread URL.
         
-        Returns a unicode string or None
+        Returns a :obj:`unicode` string or None
         """
         with self.cache as client:
             return client.get(b'site.thread').decode('utf-8') or None
@@ -166,7 +166,7 @@ class Site(Base):
         """
         Sets the current thread URL.
         
-        :obj:value should be a bytestring, an unicode string will be encoded
+        :obj:`value` should be a bytestring, an unicode string will be encoded
         with ('utf-8', 'replace') as arguments.
         """
         if isinstance(value, unicode):
@@ -179,21 +179,21 @@ class Site(Base):
         """
         Returns the current DJ that is live.
         
-        Returns a :class:encapsulations.DJ object.
+        Returns a :class:`abstractions.users.DJ` object.
         """
         with self.cache as client:
-            return encapsulations.DJ(client.get(b'site.dj'))
+            return abstractions.users.DJ(client.get(b'site.dj'))
         
     @dj.setter
     def dj(self, value):
         """
         Sets the current DJ that is live.
         
-        :obj:value should be an :class:`encapsulations.DJ` object.
+        :obj:`value` should be an :class:`abstractions.users.DJ` object.
         
         or
         
-        :obj:value is required to be an object that supports casting to an
+        :obj:`value` is required to be an object that supports casting to an
             integer as the value will be passed to :func:`int`
         """
         if isinstance(value, encapsulations.DJ):
@@ -225,7 +225,7 @@ class Streamer(Base):
         """
         Sets the requests capability to :obj:value
         
-        :obj:value is passed to :func:bool before updating.
+        :obj:`value` is passed to :func:bool before updating.
         """
         with self.cache as client:
             client.set(b'streamer.requests_enabled', bool(value))

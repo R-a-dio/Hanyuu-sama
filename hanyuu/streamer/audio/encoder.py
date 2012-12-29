@@ -7,7 +7,7 @@ import decimal
 import time
 import select
 import logging
-import garbage
+from . import garbage
 from . import logger
 
 

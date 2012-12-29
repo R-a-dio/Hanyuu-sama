@@ -4,7 +4,7 @@ from __future__ import absolute_import
 from .. import config
 from threading import Thread, Event
 import logging
-import config
+from .. import config
 import re
 import irclib
 from multiprocessing.managers import BaseManager

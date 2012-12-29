@@ -1,14 +1,16 @@
+from .. import logger
+logger = logger.getChild('audio')
+
 import threading
 import encoder
 import files
 import icecast
 import logging
-import garbage
 import audiotools
-from .. import logger
+import garbage
 
 
-logger = logger.getChild('audio')
+
 
 
 class Manager(object):

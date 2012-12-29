@@ -2,4 +2,5 @@
 servers = localhost:11211
 
 [database]
+type = sqlite
 server = test.db

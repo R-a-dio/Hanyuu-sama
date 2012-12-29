@@ -6,7 +6,7 @@ import os
 
 
 # Search path monkey patch for our source code.
-sys.path.insert(0, '..')
+sys.path.insert(0, os.path.abspath('..'))
 import hanyuu
 
 # Mock the configuration file
@@ -19,3 +19,9 @@ config.load_configuration(
 
 
 # More mocking to do
+def sphinx_documentation_mock():
+    """
+    Mocks the environment and configure files to allow auto documentation.
+    """
+    sys.path.pop(0)
+    
