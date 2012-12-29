@@ -1,4 +1,8 @@
 from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import absolute_import
-import hanyuu.db
+import hanyuu.db.common as db
+import peewee
+
+
+db.radio_database = peewee.SqliteDatabase('test.db')

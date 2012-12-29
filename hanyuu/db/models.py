@@ -1,20 +1,20 @@
 from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import absolute_import
+from . import common
 import logging
 import peewee
 import datetime
-import __init__ as db
 
 
-logger = db.logger.getChild('models')
+logger = common.logger.getChild('models')
 
 
 class Base(peewee.Model):
     """Simple base class to inherit from so all the other models
     inherit the database connection used."""
     class Meta:
-        database = radio_database        
+        database = common.radio_database
         
 class DJ(Base):
     """
@@ -210,3 +210,6 @@ class Track(Base):
     
     # hanyuu needs to obey this when picking songs/giving search results!
     needs_reupload = peewee.IntegerField(db_column='need_reupload')
+    
+    class Meta:
+        db_table = 'tracks'

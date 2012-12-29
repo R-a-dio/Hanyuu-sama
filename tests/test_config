@@ -1,2 +1,5 @@
 [memcache]
 servers = localhost:11211
+
+[database]
+server = test.db
