@@ -8,7 +8,7 @@ import ConfigParser
 import contextlib
 
 
-logger = logging.getLogger('status')
+logger = logging.getLogger('hanyuu.status')
 
 
 def memcache_client():

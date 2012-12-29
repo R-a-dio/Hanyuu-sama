@@ -6,6 +6,10 @@ from __future__ import print_function
 from __future__ import absolute_import
 from ..db import models
 from .. import utils, config
+import logging
+
+
+logger = logging.getLogger('hanyuu.abstractions.user')
 
 
 @utils.instance_decorator

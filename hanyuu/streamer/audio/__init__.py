@@ -5,14 +5,10 @@ import icecast
 import logging
 import garbage
 import audiotools
+from .. import logger
 
 
-# Remove this 
-logging.basicConfig(level=logging.DEBUG)
-# Remove that ^
-
-
-logger = logging.getLogger('audio')
+logger = logger.getChild('audio')
 
 
 class Manager(object):

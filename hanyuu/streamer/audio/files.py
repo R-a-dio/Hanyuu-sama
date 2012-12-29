@@ -1,8 +1,8 @@
 """Module that handles file access and decoding to PCM.
 
 It uses python-audiotools for the majority of the work done."""
+from . import garbage
 import audiotools
-import garbage
 
 
 class AudioError(Exception):

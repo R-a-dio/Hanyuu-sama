@@ -6,10 +6,14 @@ servers = localhost:11211
 # Configuration for the SQL database
 [database]
 # Database type, can either be 'mysql', 'postgresql' or 'sqlite'
-type = 'mysql'
+type = mysql
 # Server host or filename if SQLite
 server = 127.0.0.1
 # Server port for MySQL or PostgreSQL, ignored for SQLite
 port = 3306
 # Database name to use in MySQL or PostgreSQL, ignored for SQLite
-name = 'radiosite'
+name = radiosite
+# Database user to use
+user = wessie
+# Database password
+password = hackme

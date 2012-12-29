@@ -1,10 +1,11 @@
 import threading
 import time
 import pylibshout
-import logging
+from . import logger
 
 
-logger = logging.getLogger('audio.icecast')
+logger = logger.getChild('icecast')
+
 
 class Icecast(object):
     connecting_timeout = 5.0

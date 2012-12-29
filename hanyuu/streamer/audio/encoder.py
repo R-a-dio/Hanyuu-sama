@@ -1,3 +1,6 @@
+from __future__ import unicode_literals
+from __future__ import print_function
+from __future__ import absolute_import
 import subprocess
 import threading
 import decimal
@@ -5,10 +8,11 @@ import time
 import select
 import logging
 import garbage
+from . import logger
 
 
 LAME_BIN = 'lame'
-logger = logging.getLogger('audio.encoder')
+logger = logger.getChild('encoder')
 
 
 class EncodingError(Exception):
