@@ -1,51 +1,64 @@
-import urllib2
-import HTMLParser
-import MultiDict
+import requests
 import logging
 import config
-from urllib2 import HTTPError
 import manager
+import xmltodict
+import itertools
+from bootstrap import Switch
 
+dns_spamfilter = Switch(True) # 15 second resetting spamfilter
+timeout = {}
 
-def get_listener_count(server_name='stream'):
-    with manager.MySQLCursor() as cur:
-        cur.execute("SELECT * FROM `relays` WHERE `relay_name`=%s;", (server_name,))
-        if cur.rowcount == 1:
-            row = cur.fetchone()
-            port = row['port']
-            mount = row['mount']
-            url = 'http://{server}.r-a-d.io:{port}'.format(server=server_name,port=port)
-        else:
-            raise KeyError("unknown relay \"" + server_name + "\"")
-    try:
-        result = urllib2.urlopen(urllib2.Request(url,
-                                            headers={'User-Agent': 'Mozilla'}), timeout=2)
-    except:
-        #logging.exception("Could not get listener count for server {server}".format(server=server_name))
+def relay_listeners(server_name, mount=None, port=None):
+    """
+    Gets the individual listener count for each given relay.
+    If given just a name, looks up details using the name
+    """
+    if mount is None: # assume not port, too. naivity at its best.
+    # (if you dont have one, it's useless anyway)
         with manager.MySQLCursor() as cur:
-            cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;", (server_name,))
-        raise
+            cur.execute("SELECT port, mount FROM `relays` WHERE `relay_name`=%s;",
+                            (server_name,))
+            if cur.rowcount == 1:
+                row = cur.fetchone()
+                port = row['port']
+                mount = row['mount']
+            else:
+                raise KeyError("Unknown relay {}".format(server_name))
+    url = "http://{name}.r-a-d.io:{port}{mount}.xspf".format(name=server_name,
+                                            port=port, mount=mount)
+    try:
+        result = requests.get(url, headers={'User-Agent': 'Mozilla'}, timeout=2)
+        result.raise_for_status() # raise exception if status code is abnormal
+    except requests.ConnectionError:
+        with manager.MySQLCursor() as cur:
+            cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
+                                                (server_name,))
+    except requests.HTTPError:
+        with manager.MySQLCursor() as cur:
+            cur.execute("UPDATE `relays` SET active=0 WHERE relay_name=%s;",
+                                                (server_name,))
     else:
-        parser = StatusParser()
-        for line in result:
-            parser.feed(line)
-        parser.close()
-        result = parser.result
-        if mount in result:
-            if 'Current Listeners' in result[mount]:
-                listeners = int(result[mount]['Current Listeners'])
-                with manager.MySQLCursor() as cur:
-                    cur.execute("UPDATE `relays` SET listeners=%s, active=1 WHERE relay_name=%s;", (listeners, server_name))
-                return listeners
-        else:
+        try:
+            result = parse_status(result.content)
+            listeners = int(result.get('Current Listeners', 0))
             with manager.MySQLCursor() as cur:
-                cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;", (server_name,))
-            return -1
-    logging.debug('Could not get listener count for server ' + server_name)
+                cur.execute("UPDATE `relays` SET listeners=%s, active=1 WHERE relay_name=%s;",
+                                                (listeners, server_name))
+            return listeners
+        except:
+            with manager.MySQLCursor() as cur:
+                cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
+                                                (server_name,))
+            logging.exception("get listener count")
     return -1
 
-timeout = {}
-def get_all_listener_count():
+def get_listener_count():
+    """
+    Gets a list of all current relay's listeners and filters inactive relays.
+    It then returns the total number of listeners on all relays combined.
+    This is reported to manager.Status().listeners
+    """
     import time
     counts = {}
     with manager.MySQLCursor() as cur:
@@ -59,171 +72,144 @@ def get_all_listener_count():
                 if name in timeout:
                     del timeout[name]
                 try:
-                    count = get_listener_count(name)
-                except urllib2.URLError as err:
-                    if str(err.reason) == 'timed out':
-                        timeout[name] = time.time()
+                    count = relay_listeners(name, row["mount"], row["port"])
+                except (requests.HTTPError,
+                        requests.ConnectionError) as e: # rare
+                    if not dns_spamfilter:
+                        logging.warning(\
+                        "Connection Error to {}. sudo rndc flush if it is correct, and update DNS"\
+                        .format(name))
+                        dns_spamfilter.reset()
+                    else:
+                        #logging.warning("HTTPError on {}".format(name))
+                        pass
+                except requests.exceptions.Timeout:
+                    timeout[name] = time.time()
                     count = -1
                 except:
+                    logging.exception("get all listener count")
                     count = -1
             counts[name] = count
     return counts
 
-
-def get_status(icecast_server):
-    try:
-        result = urllib2.urlopen(urllib2.Request(icecast_server,
-                                            headers={'User-Agent': 'Mozilla'}))
-    except HTTPError as e:
-        if e.code == 403: #assume it's a full server
-            logging.warning("Can't connect to status page; Assuming listener limit reached")
-            f_fallback = MultiDict.OrderedMultiDict()
-            f_fallback['Stream Title'] = 'Fallback at R/a/dio'
-            f_fallback['Stream Description'] = 'Sorry we are currently down'
-            f_fallback['Content Type'] = 'audio/mpeg'
-            f_fallback['Mount started'] = 'Thu, 08 Mar 2012 00:20:07 +0100'
-            f_fallback['Bitrate'] = '192'
-            f_fallback['Current Listeners'] = '0'
-            f_fallback['Peak Listeners'] = '200'
-            f_fallback['Stream Genre'] = 'ZTS'
-            f_fallback['Stream URL'] = 'http://r-a-d.io'
-            f_fallback['Current Song'] = 'fallback'
-            f_main = MultiDict.OrderedMultiDict()
-            f_main['Stream Title'] = 'r/a/dio'
-            f_main['Stream Description'] = 'listener maxed, placeholder'
-            f_main['Content Type'] = 'audio/mpeg'
-            f_main['Mount started'] = 'Thu, 08 Mar 2012 00:20:07 +0100'
-            f_main['Bitrate'] = '192'
-            f_main['Current Listeners'] = '500'
-            f_main['Peak Listeners'] = '500'
-            f_main['Stream Genre'] = 'Weeaboo'
-            f_main['Stream URL'] = 'http://r-a-d.io'
-            f_main['Current Song'] = 'Unknown'
-            return {'/fallback.mp3': f_fallback, '/main.mp3': f_main}
+def get_status(server_name):
+    """
+    Gets the current status of the master server, and the listener counts of all of the
+    slave relays, aggregating them, filtering negative, and summing them to give an
+    artificial Master server listener count used by Hanyuu in every StatusUpdate call.
+    """
+    result = { "Online" : False } # Pointless but easier to type. Also makes more sense.
+    with manager.MySQLCursor() as cur:
+        cur.execute("SELECT port, mount FROM `relays` WHERE relay_name=%s;", (server_name,))
+        if cur.rowcount == 1:
+                row = cur.fetchone()
+                port = row['port']
+                mount = row['mount']
         else:
-            logging.exception("HTTPError occured in status retrieval")
+            logging.critical("Master server is not in the config or database and get_status failed.")
+        try:
+            result = requests.get("http://{server}.r-a-d.io:{port}{mount}.xspf".format(
+                                    server=server_name, port=port, mount=mount),
+                                                headers={'User-Agent': 'Mozilla'}, timeout=2)
+        except requests.HTTPError as e: # rare, mostly 403
+            if not dns_spamfilter:
+                logging.warning("Can't connect to mountpoint; Assuming listener limit reached")
+                dns_spamfilter.reset()
+            else:
+                logging.exception("HTTPError occured in status retrieval")
+        except requests.ConnectionError:
+            logging.exception("Connection interrupted to master server")
+        except:
+            logging.exception("Can't connect to master status page. Is Icecast running?")
+        else:
+            result = parse_status(result.content) # bytestring
+            if result:
+                all_listeners = get_listener_count()
+                total_count = sum(itertools.ifilter(lambda x: x>=0, all_listeners.values()))
+                result["Current Listeners"] = total_count
+                
+    return result
+
+def parse_status(xml):
+    """
+    Function to parse the XML returned from a mountpoint.
+    Input must be a bytestring as to avoid UnicodeDecodeError from stopping
+    Parsing. The only meaningful result is "Current Listeners".
+    
+    Logic behind returning an explicit "Online" key is readability
+    """
+    result = { "Online" : False } # Assume False by default
+    try:
+        xml_dict = xmltodict.parse(xml, xml_attribs=False, cdata_separator="\n") # CDATA required
+        try:
+            xml_dict = xml_dict.get('playlist', {}).get('trackList', {}).get('track', None)
+        except AttributeError: # No mountpoint it seems, just ditch an empty result
+            return result
+        else:
+            if xml_dict is None: # We got none returned from the get anyway
+                return result
+        annotations = xml_dict.get("annotation", False)
+        if not annotations: # edge case for having nothing...
+            return result
+        annotations = annotations.split("\n")
+        for annotation in annotations:
+            tmp = annotation.split(":", 1)
+            result[tmp[0]] = tmp[1].strip() # no need whatsoever to decode anything here. It's not needed by NP()
+        result["Online"] = True
+        if xml_dict["title"] is None:
+            result["Current Song"] = u"" # /shrug
+        else:
+            result["Current Song"] = xml_dict.get("title", u"")
+    except UnicodeDecodeError: # we have runes, but we know we are online. This should not even be possible (requests.get.content)
+        result["Online"] = True
+        result["Current Song"] = u"" # Erase the bad stuff. However, keep in mind stream title can do this (anything user input...)
     except:
-        # catching all why????
-        logging.exception("Can't connect to status page")
-    else:
-        parser = StatusParser()
-        for line in result:
-            parser.feed(line)
-        parser.close()
-        result = parser.result
-        if config.icecast_mount in result:
-            all_listeners = get_all_listener_count()
-            total_count = reduce(lambda x,y: x+y if x > 0 and y > 0 else x, all_listeners.values())
-            result[config.icecast_mount]['Current Listeners'] = str(total_count)
-        return parser.result or {}
-    return {}
-def get_listeners(icecast_host):
-    import socket
-    http_addr = 'http://'+icecast_host+':'+str(config.icecast_port)
-    
-    cur_addr = socket.gethostbyname(icecast_host)
-    rad_addr = socket.gethostbyname("r-a-d.io")
-    stream_addr = socket.gethostbyname("stream.r-a-d.io")
-    
-    if (cur_addr == rad_addr):
-        auth = config.radio_admin_auth
-    elif (cur_addr == stream_addr):
-        auth = config.stream_admin_auth
-    else:
-        raise ValueError("no known icecast host was specified")
-    
-    mounts = get_status(http_addr).keys()
-    listeners = {}
-    for mount in mounts:
-        result = urllib2.urlopen(urllib2.Request(http_addr+'/admin/listclients.xsl?mount='+mount,
-                                                headers={'User-Agent': 'Mozilla',
-                                                'Authorization': 'Basic ' + auth,
-                                                'Referer': http_addr+'/admin/'}))
+        logging.exception("Failed to parse XML Status data.") 
+    return result # cleaner and easier to read falling back to original function scope (instead of 5 returns)
         
-        parser = ListenersParser()
-        for line in result:
-            parser.feed(line)
-        parser.close()
-        listeners[mount] = parser.result
-    return listeners
 
-class StatusParser(HTMLParser.HTMLParser):
-    def __init__(self):
-        HTMLParser.HTMLParser.__init__(self)
-        self._current_mount = None
-        self.result = {}
-        self._td = False
-        self._mount = False
-        self._enter = False
-    def handle_starttag(self, tag, attrs):
-        attrs = MultiDict.OrderedMultiDict(attrs)
-        if (tag == "td"):
-            self._td = Tag(attrs)
-            self._td['class'] = None
-        elif (tag == "h3") and (self._td):
-            self._mount = Tag(attrs)
-    def handle_endtag(self, tag):
-        if (tag == "td"):
-            self._td = None
-        elif (tag == "h3") and (self._td):
-            self._mount = None
-        elif (tag == "table") and (self._current_mount):
-            if (self._enter):
-                self._enter = False
-            else:
-                self._enter = True
-    def handle_data(self, data):
-        if (self._mount) and (self._td):
-            self._current_mount = data.split(" ")[2]
-            self.result[self._current_mount] = MultiDict.OrderedMultiDict()
-        elif (self._enter) and (self._td) and (self._current_mount):
-            if ("streamdata" in self._td.getall("class")):
-                self.result[self._current_mount][self._type] = data
-            else:
-                self._type = data[:-1]
-
-class ListenersParser(HTMLParser.HTMLParser):
-    def __init__(self):
-        HTMLParser.HTMLParser.__init__(self)
-        self.result = []
-        self._values = {}
-        self._td = None
-        self._tablefound = False
-    def handle_starttag(self, tag, attrs):
-        attrs = MultiDict.OrderedMultiDict(attrs)
-        if (tag == "table" and "bordercolor" in attrs and attrs['bordercolor'] == "#C0C0C0"):
-            self._tablefound = True
-        elif (tag == "td"):
-            self._td = Tag(attrs)            
-    def handle_endtag(self, tag):
-        if tag == "td" and self._td:
-            self._td = None
-        elif tag == "table" and self._tablefound:
-            self._tablefound = False
-    def handle_data(self, data):
-        if self._tablefound and self._td:
-            if "align" in self._td.attr and "center" in self._td.getall("align"):
-                l = len(self._values)
-                if (l==0): # it's ip
-                    self._values['ip'] = str(data)
-                elif (l==1): # it's time
-                    self._values['time'] = int(data)
-                elif (l==2): # it's player
-                    self._values['player'] = str(data)
-                elif (l==3): # it's kick
-                    self.result.append(self._values)
-                    self._values = {}
-
-
-class Tag(object):
-    attr = MultiDict.OrderedMultiDict()
-    def __init__(self, attrs):
-        self.attr = attrs
-    def __getattr__(self, name):
-        return getattr(self.attr, name)
-    def __setitem__(self, name, value):
-        self.attr[name] = value
-"""
-                    webcom.send_nowplaying(None, self.djid,
-                    self.listeners, self.bitrate, self.isafk(),
-                    self._start_time, ed_time)"""
+def parse_listeners(xml):
+    """
+    parses the XML produced by icecast using xmltodict, acting like it is
+    really JSON, or a python dict, to make it much easier to handle.
+    xml should be a string, not a url!
+    (while it supports filenames, it doesnt support urls)
+    """
+    result = []
+    try:
+        xml_dict = xmltodict.parse(xml, xml_attribs=False)
+        xml_dict = xml_dict["icestats"]["source"]["listener"]
+        for listener in xml_dict:
+            _tmp = {}
+            _tmp['ip'] = listener['IP']
+            _tmp['player'] = listener['UserAgent']
+            _tmp['time'] = listener['Connected']
+            result.append(_tmp)
+        return result
+    except:
+        logging.exception("Couldn't parse listener XML - ListenersParser")
+        return []
+        
+def get_listeners():
+    """
+    Used by player_stats (internal) to generate listener statistics and graphs
+    """
+    listeners = {}
+    with manager.MySQLCursor() as cur:
+        cur.execute("SELECT * FROM `relays` WHERE listeners > 0 AND admin_auth != '';")
+        for row in cur:
+            server = row['relay_name']
+            port = row['port']
+            mount= row['mount']
+            auth = row['admin_auth']
+            url = 'http://{server}.r-a-d.io:{port}'.format(server=server,port=port)
+            try:
+                result = requests.get('{url}/admin/listclients?mount={mount}'.format(url=url,
+                                        mount=mount), headers={'User-Agent': 'Mozilla',
+                                        'Referer': '{url}/admin/'.format(url=url),
+                                        'Authorization': 'Basic {}'.format(auth)}, timeout=2)
+                result.raise_for_status() # None if normal
+            except:
+                logging.exception("get_listeners")
+            listeners.update(dict((l['ip'], l) for l in parse_listeners(result.content)))
+    return listeners.values()

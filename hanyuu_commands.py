@@ -52,6 +52,7 @@ import main
 import random as _random
 from datetime import timedelta, datetime
 import bootstrap
+import requests_
 
 def tokenize(text):
     return text.lower().split(" ")
@@ -67,10 +68,10 @@ def np(server, nick, channel, text, hostmask):
     status = manager.Status()
     np = manager.NP()
     if (status.online):
-        message = u"Now playing:{c4} '{np}' {c}[{curtime}/{length}]({listeners}/{max_listener}), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
+        message = u"Now playing:{c4} '{np}' {c}[{curtime}/{length}]({listeners} listeners), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
             np=np.metadata, curtime=np.positionf,
             length=np.lengthf, listeners=status.listeners,
-            max_listener=config.listener_max, faves=np.favecount,
+            faves=np.favecount,
             fs="" if (np.favecount == 1) else "s", 
             times=np.playcount,
             ts="" if (np.playcount == 1) else "s",
@@ -119,11 +120,11 @@ def queue(server, nick, channel, text, hostmask):
     p = tokenize(text)
     if len(p) > 1:
         if p[1] == u"length":
-            request_queue = regular_queue = requests = regulars = 0
+            request_queue = regular_queue = requests_ = regulars = 0
             for song in manager.Queue().iter(None):
                 if (song.type == manager.REQUEST):
                     request_queue += song.length
-                    requests += 1
+                    requests_ += 1
                 elif (song.type == manager.REGULAR):
                     regular_queue += song.length
                     regulars += 1
@@ -131,9 +132,9 @@ def queue(server, nick, channel, text, hostmask):
                     format(**{'req_time': timedelta(seconds=request_queue),
                     'norm_time': timedelta(seconds=regular_queue),
                     'total_time': timedelta(seconds=request_queue+regular_queue),
-                    'req': requests,
+                    'req': requests_,
                     'norm': regulars,
-                    'total': requests+regulars})
+                    'total': requests_+regulars})
     else:
         queue = list(manager.Queue())
         if (len(queue) > 0):
@@ -304,10 +305,9 @@ def announce(server, spam=spam):
     np = manager.NP()
     status = manager.Status()
     if not spam: # No more requiring a fave for a now starting announce. (Hiroto)
-        message = u"Now starting:{c4} '{np}' {c}[{curtime}/{length}]({listeners}/{max_listener}), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
-            np=np.metadata, curtime=np.positionf,
-            length=np.lengthf, listeners=status.listeners,
-            max_listener=config.listener_max, faves=np.favecount,
+        message = u"Now starting:{c4} '{np}' {c}[{length}]({listeners} listeners), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
+            np=np.metadata, length=np.lengthf, listeners=status.listeners,
+            faves=np.favecount,
             fs="" if (np.favecount == 1) else "s", 
             times=np.playcount,
             ts="" if (np.playcount == 1) else "s",
@@ -579,7 +579,7 @@ request_help.handler = ("on_text", r'.*how.+request',
 def lastfm_listening(server, nick, channel, text, hostmask):
     import pylast
     message = u''
-    match = re.match(r"[\-.@!]fm?\s(?P<nick>.*)", text, re.I|re.U)
+    match = re.match(r"[.@!]fm?\s(?P<nick>.*)", text, re.I|re.U)
     if match and match.group('nick') != '':
         nick = match.group('nick')
         
@@ -608,7 +608,10 @@ def lastfm_listening(server, nick, channel, text, hostmask):
                                    u"recently.").format(**irc_colours)
                 artist = track.artist.name
                 title = track.title
-                tags = [tag for tag in track.get_top_tags()]
+                try:
+                    tags = [tag for tag in track.artist.get_top_tags()]
+                except pylast.WSError:
+                    tags = []
                 # Sort by weight
                 tags.sort(key=lambda tag: int(tag.weight), reverse=True)
                 tags = tags[:5] # Get top 5
@@ -633,12 +636,12 @@ def lastfm_listening(server, nick, channel, text, hostmask):
     
     server.privmsg(channel, message)
 
-lastfm_listening.handler = ("on_text", r'[\-.@!]fm(\s|$).*',
+lastfm_listening.handler = ("on_text", r'[.@!]fm(\s|$).*',
                           irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def lastfm_setuser(server, nick, channel, text, hostmask):
     import pylast
-    match = re.match(r"[\-.@!]fma?\s(?P<user>.*)", text, re.I|re.U)
+    match = re.match(r"[.@!]fma?\s(?P<user>.*)", text, re.I|re.U)
     message = u''
     if match and match.group('user') != '':
         username = match.group('user')
@@ -666,7 +669,7 @@ def lastfm_setuser(server, nick, channel, text, hostmask):
                 message = u"You are not known as any last.fm username."
     server.notice(nick, message)
 
-lastfm_setuser.handler = ("on_text", r'[\-.@!]fma.*',
+lastfm_setuser.handler = ("on_text", r'[.@!]fma.*',
                           irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def favorite_list(server, nick, channel, text, hostmask):
@@ -751,7 +754,7 @@ def nick_request_song(trackid, host=None):
     # TODO:
     # rewrite shit man
     import time
-    import requests
+    import requests_ # fixed import
     with manager.MySQLCursor() as cur:
         try:
             song = manager.Song(trackid)
@@ -785,11 +788,11 @@ def nick_request_song(trackid, host=None):
             row = cur.fetchone()
             song_lp = row['lp']
             song_lr = row['lr']
-            if int(time.time()) - song_lp < requests.songdelay(row['requestcount']) or int(time.time()) - song_lr < requests.songdelay(row['requestcount']):
+            if int(time.time()) - song_lp < requests_.songdelay(row['requestcount']) or int(time.time()) - song_lr < requests_.songdelay(row['requestcount']):
                 can_song = False
                 if delaytime == 0:
-                    lp_delay = requests.songdelay(row['requestcount']) - (int(time.time()) - song_lp)
-                    lr_delay = requests.songdelay(row['requestcount']) - (int(time.time()) - song_lr)
+                    lp_delay = requests_.songdelay(row['requestcount']) - (int(time.time()) - song_lp)
+                    lr_delay = requests_.songdelay(row['requestcount']) - (int(time.time()) - song_lr)
                     delaytime = max(lp_delay, lr_delay)
                         
         if (not can_request):

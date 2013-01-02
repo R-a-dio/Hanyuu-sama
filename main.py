@@ -9,6 +9,8 @@ import bootstrap
 from bootstrap import Switch
 import config
 import logging
+import threading
+import os
 
         
 class StatusUpdate(object):
@@ -35,27 +37,21 @@ class StatusUpdate(object):
         # Call shutdown
         self.streamer.shutdown(force)
     def __call__(self, info):
-        if (config.icecast_mount not in info):
-            self.debug("No {mount} mountpoint found.".format(mount=config.icecast_mount))
-            # There is no mountpoint right now
-            # Create afk streamer
-            if (self.streamer.connected):
-                self.debug("Streamer is already connected")
-                # The streamer is already up? but no mountpoint?
-                # close it
-                self.streamer.shutdown(force=True)
-                # are we switching DJ?
-                if (not self.switching):
-                    self.debug("Streamer trying to reconnect")
-                    self.streamer.connect()
-            else:
+        """
+        If info does not contain anything, then the call to the master server
+        failed, and hence there is no mountpoint or DJ active.
+        info is a dictionary from streamstatus.get_status(server_name)
+        """
+        if (not info['Online']):
+            self.debug("No mountpoint for {server} found.".format(server=config.master_server))
+            if not self.streamer.connected:
                 # no streamer up, and no mountpoint
                 self.debug("Streamer is not connected")
                 if (not self.switching):
                     logging.debug("Streaming trying to connect")
                     self.streamer.connect()
         elif (not self.streamer.connected):
-            self.debug("We have a /main.mp3 mountpoint and no streamer, must be DJ")
+            self.debug("{server} is active and we aren't streaming; assume DJ".format(server=config.master_server))
             # No streamer is active, there is a DJ streaming
             if (not self.listener):
                 self.debug("Listener isn't active, starting it")
@@ -118,7 +114,7 @@ def main():
     watcher.start()
     
     # Start request server
-    #requests.launch_server()
+    #requests_.launch_server()
     
 if __name__ == "__main__":
     main()
