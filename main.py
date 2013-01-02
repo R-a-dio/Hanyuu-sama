@@ -40,20 +40,9 @@ class StatusUpdate(object):
         failed, and hence there is no mountpoint or DJ active.
         info is a dictionary from streamstatus.get_status(server_name)
         """
-        if (not info):
+        if (not info['Online']):
             self.debug("No mountpoint for {server} found.".format(server=config.master_server))
-            # There is no mountpoint right now
-            # Create afk streamer
-            if (self.streamer.connected):
-                self.debug("Streamer is already connected")
-                # The streamer is already up? but no mountpoint?
-                # close it
-                self.streamer.shutdown(force=True)
-                # are we switching DJ?
-                if (not self.switching):
-                    self.debug("Streamer trying to reconnect")
-                    self.streamer.connect()
-            else:
+            if not self.streamer.connected:
                 # no streamer up, and no mountpoint
                 self.debug("Streamer is not connected")
                 if (not self.switching):
