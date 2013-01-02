@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import absolute_import
 from . import logger
+from ..db import models
 
 
 logger = logger.getChild('tracks')
@@ -82,3 +83,25 @@ class Track(object):
                 else:
                     raise AttributeError(("Unknown argument '{key:s}' passed "
                                          "to Track.").format(key=key))
+
+    def _load_from_database(self, metadata):
+        """
+        Internal method to load a track from the database.
+        
+        This checks if there is a matching record in the database and sets
+        all known information on the instance :obj:`self`.
+        
+        :param unicode metadata: A string of metadata.
+        :returns: Boolean indicating if there was a matching record or not.
+        """
+        try:
+            song = models.Song.from_meta(metadata)
+        except models.Song.DoesNotExist:
+            return False
+
+        try:
+            track = models.Track.from_meta(metadata)
+        except models.Track.DoesNotExist:
+            track = None
+
+        return True
