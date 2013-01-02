@@ -9,6 +9,14 @@ abstractions Package
     :undoc-members:
     :show-inheritance:
 
+:mod:`tracks` Module
+--------------------
+
+.. automodule:: hanyuu.abstractions.tracks
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 :mod:`users` Module
 -------------------
 
