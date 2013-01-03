@@ -29,7 +29,6 @@ class Track(object):
     # can thus be a sequence of types.
     _accepted_keywords = {
                           'length': (int, long, float),
-                          'last_played': datetime.datetime,
                           'last_requested': datetime.datetime,
                           'filename': unicode,
                           'change': bool,
@@ -51,7 +50,6 @@ class Track(object):
         
         Extra keyword arguments are:
             :param integer length: Defines the length of the track.
-            :param last_played: :class:`datetime.datetime` object of when this was last played.
             :param last_requested: Same as `last_played` but then for last requested.
             :param unicode filename: A filename that points to an audio file for this Track.
             :param bool change: Flag if you want to force update the storage with your extra arguments.
@@ -97,10 +95,16 @@ class Track(object):
         :returns: Boolean indicating if there was a matching record or not.
         :rtype: bool
         """
+        import peewee
+        song_query = models.Song.query_from_meta(metadata)
+        song_query.join(Play, peewee.JOIN_LEFT_OUTER).annotate(
+                                models.Song,
+                                peewee.fn.Max(Play.time).alias('last_played')
+                                )
         try:
-            self._song = models.Song.from_meta(metadata,
-                                               plays=True, faves=True)
+            self._song = song_query.get()
         except models.Song.DoesNotExist:
+            self._song = models.Song()
             return False
 
         try:
@@ -113,14 +117,18 @@ class Track(object):
     @property
     def length(self):
         """
-        :returns: :class:`Length` object that is the length of the song.
+        :returns: Length of the song or 0 if none available.
+        :rtype: :class:`Length`
         
         .. note::
             The song length is only 100% accurate if the song has an audio
             file available. Otherwise it's an approximation from when it was
             last played.
         """
-        return Length(self._song.length)
+        length = self._song.length
+        if length:
+            return Length(length)
+        return Length(0)
 
     @length.setter
     def length(self, value):
@@ -133,36 +141,29 @@ class Track(object):
             :class:`Length` is a subclass of :const:`int` and can also be
             used as value.
         """
-        self._song.length = value
+        self._song.length = int(value)
 
     @property
-    def last_played(self):
-        return self._song.last_played
+    def plays(self):
+        """
+        :returns: A mutable object with all the playing data in it.
+        :rtype: :class:`Plays`
+        """
+        if self._plays is None:
+            self._plays = Plays(self._song.plays)
+        return self._plays
 
     @property
     @requires_track
-    def last_requested(self):
+    def requests(self):
         """
-        :returns: The time of when this Song was last requested.
-        :rtype: :class:`datetime.datetime`
+        :returns: A mutable objects with all request data in it.
+        :rtype: :class:`Requests`
         :raises: :class:`NoTrackEntry` if the song has no audio file.
         """
-        return self._track.last_requested
-
-    @last_requested.setter
-    @requires_track
-    def last_requested(self, value):
-        """
-        Sets the new last requested time.
-        
-        :type value: :class:`datetime.datetime`
-        :raises: :class:`NoTrackEntry` if the song has no audio file.
-        :raises: :class:`TypeError` if the argument is not a :class:`datetime.datetime` object.
-        """
-        if not isinstance(value, datetime.datetime):
-            raise TypeError("Expected `datetime.datetime` object, got "
-                            "'{0!r}' object.".format(type(value)))
-        self._track.last_requested = value
+        if self._requests is None:
+            self._requests = Requests([self._track.last_requested])
+        return self._requests
 
     @property
     @requires_track
@@ -174,7 +175,7 @@ class Track(object):
         .. note::
             This is relative to the configured media.directory configuration.
         """
-        return self._track.path
+        return self._track.filename
 
     @filename.setter
     @requires_track
@@ -183,7 +184,16 @@ class Track(object):
         :params unicode value: A new filename to set.
         :raises: :class:`NoTrackEntry` if the song has no audio file.
         """
-        self._track.path = value
+        self._track.filename = value
+
+    @property
+    @requires_track
+    def filepath(self):
+        """
+        :returns unicode: The full path to the audio file.
+        :raises: :class:`NoTrackEntry` if the song has no audio file.
+        """
+        return os.path.join(config.get('media', 'directory'), self.filename)
 
     @requires_track
     def open(self, mode='rb'):
@@ -196,8 +206,20 @@ class Track(object):
         :returns: An open file object.
         :raises: :class:`NoTrackEntry` if the song has no audio file.
         """
-        return open(os.path.join(config.get('media', 'path'), self.filename),
-                    mode)
+        return open(self.filepath, mode)
+
+    def save(self):
+        """
+        Saves all the changes done so far on this object into the database.
+        
+        .. note::
+            Depending on the object this translates into between 0 and 2
+            database queries.
+        """
+        if self._track:
+            self._track.save()
+        if self._song:
+            self._song.save()
 
 
 def requires_track(func):

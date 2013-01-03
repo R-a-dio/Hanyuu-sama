@@ -208,7 +208,7 @@ class Track(Base):
 
     album = peewee.CharField(max_length=200)
 
-    path = peewee.TextField()
+    filename = peewee.TextField(db_column='path')
 
     search_tags = peewee.TextField(db_column='tags')
 
