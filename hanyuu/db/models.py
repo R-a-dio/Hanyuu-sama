@@ -228,6 +228,8 @@ class Track(Base):
     hash = peewee.CharField(max_length=40,
                             unique=True)
 
+    priority = peewee.IntegerField()
+    
     request_count = peewee.IntegerField(db_column='requestcount')
 
     # hanyuu needs to obey this when picking songs/giving search results!
@@ -259,14 +261,17 @@ class Queue(Base):
 
     time = peewee.DateTimeField()
 
-    song = peewee.ForeignKeyField(Song, related_name='queued')
+    song = peewee.ForeignKeyField(Song, related_name='queued',
+                                        db_column='song')
 
     track = peewee.ForeignKeyField(Track, related_name='queued',
-                                          null=True)
+                                          null=True,
+                                          db_column='track')
 
     ip = peewee.TextField(null=True)
 
-    dj = peewee.ForeignKeyField(DJ, related_name='queue')
+    dj = peewee.ForeignKeyField(DJ, related_name='queue',
+                                    db_column='dj')
 
     class Meta:
         db_table = 'queue'
