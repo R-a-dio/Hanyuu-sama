@@ -136,11 +136,29 @@ class Song(Base):
         
         :params unicode metadata: A string of metadata.
         :returns: :class:`Song` instance.
+        :raises: :class:`Song.DoesNotExist` if no result was found.
+        
+        .. note::
+            This currently does no pre-fetching of the faves and plays
+        """
+        return cls.query_from_meta(metadata).get()
+
+    @classmethod
+    def query_from_meta(cls, metadata):
+        """
+        Returns the first match found of :obj:`metadata`
+        
+        :params unicode metadata: A string of metadata.
+        :returns: :class:`peewee.SelectQuery` instance.
+        
+        .. note::
+            This currently does no pre-fetching of the faves and plays
         """
         metadata = metadata.lower()  # consistency
         import hashlib
         hash = hashlib.sha1(metadata.encode('utf-8')).hexdigest()
-        return cls.get(cls.hash == hash)
+
+        return cls.select().where(cls.hash == hash)
 
 
 class Play(Base):
