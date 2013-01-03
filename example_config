@@ -17,3 +17,7 @@ name = radiosite
 user = wessie
 # Database password
 password = hackme
+
+[media]
+# A path to the directory containing music
+directory = /my/music/directory
