@@ -18,5 +18,8 @@ try:
     adaptor = adapters[db_type]
 except KeyError:
     raise ValueError("Unknown database type '{:s}' given.".format(db_type))
-
-radio_database = peewee.SqliteDatabase('test.db')
+except NoSectionError:
+    if config.sphinx:
+        pass
+    else:
+        raise

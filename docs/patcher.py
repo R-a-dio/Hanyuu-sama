@@ -26,14 +26,18 @@ MOCK_MODULES = ['flup', 'flup.server', 'flup.server.fcgi',
                 'pylibshout', 'pylibmc', 'audiotools']
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = Mock()
-    
-    
-import tests # This patches the configuration module
+
+
+import tests  # This patches the configuration module
 
 # Pop the first path value because the `tests` import adds something.
 sys.path.pop(0)
 
 import hanyuu.utils
+
+# Make the rest of the program know sphinx is running.
+import hanyuu.config
+hanyuu.config.sphinx = True
 
 # Monkey patch the instance decorator to just return the class.
 # This prevents the actual class objects to disappear from the
