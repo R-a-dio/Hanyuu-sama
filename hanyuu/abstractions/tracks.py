@@ -105,6 +105,30 @@ class Track(object):
                     raise AttributeError(("Unknown argument '{key:s}' passed "
                                          "to Track.").format(key=key))
 
+    @classmethod
+    def from_track_id(cls, id):
+        """
+        Returns an instance based on the `tracks` table ID.
+        
+        .. warning::
+            Don't use this method in production code.
+        """
+        result = models.Track.get(models.Track.id == id)
+
+        return cls(create_metadata_string(result))
+
+    @classmethod
+    def from_esong_id(cls, id):
+        """
+        Returns an instance based on the `esong` table ID.
+        
+        .. warning::
+            Don't use this method in production code.
+        """
+        result = models.Song.get(models.Song.id == id)
+
+        return cls(result.meta)
+
     def _load_from_database(self, metadata):
         """
         Internal method to load a track from the database.
@@ -246,7 +270,7 @@ class Track(object):
         :rtype: :class:`Plays`
         """
         if self._plays is None:
-            self._plays = Plays((play.time for play in self._song.plays))
+            self._plays = Plays(self, (play.time for play in self._song.plays))
         return self._plays
 
     @property
@@ -269,7 +293,7 @@ class Track(object):
         :raises: :class:`NoTrackEntry` if the song has no audio file.
         
         .. note::
-            This is relative to the configured media.directory configuration.
+            This is relative to the configured `media.directory` configuration.
         """
         return self._track.filename
 
@@ -309,8 +333,8 @@ class Track(object):
         Saves all the changes done so far on this object into the database.
         
         .. note::
-            Depending on the object this translates into between 0 and 2
-            database queries.
+            This method can do multiple queries to the database depending on
+            the changes done on the object.
         """
         if self._track:
             self._track.save()
@@ -348,11 +372,72 @@ class Plays(list):
     """
     A simple subclass of :const:`list` to support some extra attributes.
     
+    This class is returned when you access :attr:`Track.plays` and is a
+    collection of play times of the :class:`Track` in question.
+    
+    The collection contains :class:`datetime.datetime` objects or objects that
+    act the same as such with extra methods (for future additions).
     """
+    def __init__(self, song, sequence):
+        super(Plays, self).__init__(sequence)
+
+        self.new_values = list()
+        self.deleted_values = list()
+
+        self.song = song
+
     @property
     def last(self):
+        """
+        :returns: The time that last occured.
+        :rtype: :class:`datetime.datetime` object.
+        """
         return max(self)
 
+    def add(self, time, dj=None):
+        """
+        Adds a played entry to the :class:`Track` object.
+        
+        The exact time it was played at.
+        :params time: A :class:`datetime.datetime` instance.
+        
+        The DJ that played this track at the time.
+        :params dj: A :class:`hanyuu.abstractions.users.DJ` instance.
+        
+        :returns None:
+        
+        .. note::
+            It's good practice to add the DJ argument to all the code already.
+            
+            The current database however ignores this argument.
+        """
+        self.new_values.append(time)
+        self.append(time)
+
+    def remove(self, time, dj=None):
+        """
+        Removes a played entry from the :class:`Track` object.
+        
+        The time this was played at.
+        :params time: A :class:`datetime.datetime` instance.
+        
+        The DJ that played this track at the time.
+        If this is :const:`None` it will be ignored otherwise it will be used
+        for exact matching.
+        :params dj: A :class:`hanyuu.abstractions.users.DJ` instance.
+        
+        :returns None:
+        
+        .. note::
+            Currently the `dj` argument is completely ignored.
+        """
+        self.deleted_values.append(time)
+        self.remove(time)
+
+    def save(self):
+        """
+        Saves changes to the database.
+        """
 
 class Requests(list):
     """
@@ -365,3 +450,17 @@ class Requests(list):
         :rtype: :class:`datetime.datetime` object.
         """
         return max(self)
+
+
+def create_metadata_string(track):
+    """
+    Creates a '[artist -] title' string of the :class:`hanyuu.db.models.Track`
+    instance.
+    """
+    artist = track.artist
+    title = track.title
+    if artist:
+        metadata = "{0:s} - {1:s}".format(artist, title)
+    else:
+        metadata = title
+    return metadata

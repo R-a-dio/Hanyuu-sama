@@ -22,4 +22,4 @@ except ImportError:
     print("WARNING: Using mocked pylibmc with reduced functionality instead.")
 
 # Since we mock both the real and the already mocked Client class we do it here.
-pylibmc.Client = mock.MockMemcacheClient
+pylibmc.Client = memcache.MockMemcacheClient
