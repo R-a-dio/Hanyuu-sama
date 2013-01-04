@@ -6,9 +6,25 @@ from ..db import models
 from .. import config
 import os
 import functools
+import datetime
 
 
 logger = logger.getChild('tracks')
+
+
+def requires_track(func):
+    """
+    Decorator that raises :class:`NoTrackEntry` if the song instance has no
+    associated audio file in the database.
+    
+    Currently this only checks if `self._track` is falsy.
+    """
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if not self._track:
+            raise NoTrackEntry()
+        return func(self, *args, **kwargs)
+    return wrapper
 
 
 class Track(object):
@@ -56,6 +72,10 @@ class Track(object):
         """
         super(Track, self).__init__()
 
+        self._plays = None
+        self._requests = None
+
+
         # Try loading from the database first.
         if self._load_from_database(meta):
             # If we have a force change flag we shouldn't return right away.
@@ -97,22 +117,58 @@ class Track(object):
         """
         import peewee
         song_query = models.Song.query_from_meta(metadata)
-        song_query.join(Play, peewee.JOIN_LEFT_OUTER).annotate(
-                                models.Song,
-                                peewee.fn.Max(Play.time).alias('last_played')
-                                )
+        song_query.join(models.Play, peewee.JOIN_LEFT_OUTER).annotate(
+                            models.Song,
+                            peewee.fn.Max(models.Play.time).alias('last_played')
+                            )
         try:
             self._song = song_query.get()
         except models.Song.DoesNotExist:
             self._song = models.Song()
-            return False
+            result = False
+        else:
+            result = True
 
         try:
             self._track = models.Track.from_meta(metadata)
         except models.Track.DoesNotExist:
             self._track = None
 
-        return True
+        return result
+
+    @property
+    def metadata(self):
+        """
+        :returns: A metadata string of '[artist -] title' where artist is optional
+        :rtype: unicode
+        
+        .. note::
+            This uses the `tracks` table if available before trying the other
+            table.
+        """
+        if self._track:
+            artist = self._track.artist
+            title = self._track.title
+            if artist:
+                metadata = "{0:s} - {1:s}".format(artist, title)
+            else:
+                metadata = title
+            return metadata
+        return self._song.meta or ''
+
+    @metadata.setter
+    def metadata(self, value):
+        """
+        Sets the metadata of the song.
+        
+        :params unicode value: A metadata string in form '[artist -] title'
+        
+        .. note::
+            The setter only changes the value on the `esong` table. If you
+            want to change both values you should set to :attr:`artist` and
+            :attr:`title` instead.
+        """
+        self._song.meta = value
 
     @property
     def length(self):
@@ -222,21 +278,6 @@ class Track(object):
             self._song.save()
 
 
-def requires_track(func):
-    """
-    Decorator that raises :class:`NoTrackEntry` if the song instance has no
-    associated audio file in the database.
-    
-    Currently this only checks if `self._track` is falsy.
-    """
-    @functools.wraps(func)
-    def wrapper(self, *args, **kwargs):
-        if not self._track:
-            raise NoTrackEntry()
-        return func(self, *args, **kwargs)
-    return wrapper
-
-
 class NoTrackEntry(Exception):
     """
     Raised when a :class:`Song` instance accesses Track only attributes
@@ -252,12 +293,12 @@ class Length(int):
     """
     def format(self):
         """
-        :returns unicode: A formatted hh:mm:nn string of the integer.
+        :returns unicode: A formatted [hh:]mm:nn string of the integer.
         """
         if self <= 3600:
             # the divmod is equal to 'minutes, seconds = divmod(self, 60)'
-            return '{0:02d}:{0:02d}'.format(*divmod(self, 60))
+            return '{0:02d}:{1:02d}'.format(*divmod(self, 60))
         else:
             hours, minutes = divmod(self, 3600)
             minutes, seconds = divmod(minutes, 60)
-            return '{0:02d}:{0:02d}:{0:02d}'.format(hours, minutes, seconds)
+            return '{0:02d}:{1:02d}:{2:02d}'.format(hours, minutes, seconds)
