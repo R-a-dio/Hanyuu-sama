@@ -2,3 +2,6 @@
 /.pydevproject
 /.settings
 *.pyc
+/build
+/dist
+/Hanyuu_sama.egg-info

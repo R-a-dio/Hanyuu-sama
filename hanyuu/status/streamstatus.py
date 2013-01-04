@@ -1,133 +1,130 @@
+from __future__ import unicode_literals
+from __future__ import print_function
+from __future__ import absolute_import
 import requests
-import logging
-import config
-import manager
 import xmltodict
 import itertools
-from bootstrap import Switch
+import pylibmc
+from . import logger
+from .. import utils
+from ..db import models
 
-dns_spamfilter = Switch(True) # 15 second resetting spamfilter
+
+dns_spamfilter = utils.Switch(True) # 15 second resetting spamfilter
 timeout = {}
+
+
 
 def relay_listeners(server_name, mount=None, port=None):
     """
-    Gets the individual listener count for each given relay.
+    Gets the individual listener count for a given relay.
     If given just a name, looks up details using the name
     """
-    if mount is None: # assume not port, too. naivity at its best.
-    # (if you dont have one, it's useless anyway)
-        with manager.MySQLCursor() as cur:
-            cur.execute("SELECT port, mount FROM `relays` WHERE `relay_name`=%s;",
-                            (server_name,))
-            if cur.rowcount == 1:
-                row = cur.fetchone()
-                port = row['port']
-                mount = row['mount']
-            else:
-                raise KeyError("Unknown relay {}".format(server_name))
+    if mount is None:
+        result = models.Relay.select().where(models.Relay.subdomain == server_name)
+        if result.count() == 1:
+            port = result[0].port
+            mount = result[0].mountpoint
+        else:
+            raise KeyError("Unknown relay {}".format(server_name))
     url = "http://{name}.r-a-d.io:{port}{mount}.xspf".format(name=server_name,
                                             port=port, mount=mount)
     try:
         result = requests.get(url, headers={'User-Agent': 'Mozilla'}, timeout=2)
         result.raise_for_status() # raise exception if status code is abnormal
     except requests.ConnectionError:
-        with manager.MySQLCursor() as cur:
-            cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
-                                                (server_name,))
+        models.Relay.update(listeners=0, active=0)\
+                    .where(models.Relay.subdomain == server_name)
+        models.Relay.save()
     except requests.HTTPError:
-        with manager.MySQLCursor() as cur:
-            cur.execute("UPDATE `relays` SET active=0 WHERE relay_name=%s;",
-                                                (server_name,))
+        # why not listeners here too?
+        models.Relay.update(active=0)\
+                    .where(models.Relay.subdomain == server_name)
+        models.Relay.save()
     else:
         try:
             result = parse_status(result.content)
             listeners = int(result.get('Current Listeners', 0))
-            with manager.MySQLCursor() as cur:
-                cur.execute("UPDATE `relays` SET listeners=%s, active=1 WHERE relay_name=%s;",
-                                                (listeners, server_name))
+            models.Relay.update(listeners=listeners, active=1)\
+                        .where(models.Relay.subdomain == server_name)
+            models.Relay.save()
             return listeners
         except:
-            with manager.MySQLCursor() as cur:
-                cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
-                                                (server_name,))
-            logging.exception("get listener count")
+            models.Relay.update(listeners=0, active=0)\
+                        .where(models.Relay.subdomain == server_name)
+            models.Relay.save()
+            logger.exception("Could not parse listener count for {}")\
+                .format(server_name)
     return -1
 
 def get_listener_count():
     """
     Gets a list of all current relay's listeners and filters inactive relays.
     It then returns the total number of listeners on all relays combined.
-    This is reported to manager.Status().listeners
     """
     import time
     counts = {}
-    with manager.MySQLCursor() as cur:
-        cur.execute("SELECT * FROM `relays`;")
-        for row in cur:
-            name = row['relay_name']
-            count = 0
-            if name in timeout and (time.time() - timeout[name]) < 10*60:
+    result = models.Relay.select()
+    for relay in result:
+        name = relay.subdomain
+        count = 0
+        if name in timeout and (time.time() - timeout[name]) < 10*60:
+            count = -1
+        else:
+            if name in timeout:
+                del timeout[name]
+            try:
+                count = relay_listeners(name, relay.mountpoint, relay.port)
+            except (requests.HTTPError,
+                    requests.ConnectionError) as e: # rare
+                if not dns_spamfilter:
+                    logger.warning(\
+                    "Connection error to {}. sudo rndc flush if it is correct, and update DNS"\
+                    .format(name))
+                    dns_spamfilter.reset()
+            except requests.exceptions.Timeout:
+                timeout[name] = time.time()
                 count = -1
-            else:
-                if name in timeout:
-                    del timeout[name]
-                try:
-                    count = relay_listeners(name, row["mount"], row["port"])
-                except (requests.HTTPError,
-                        requests.ConnectionError) as e: # rare
-                    if not dns_spamfilter:
-                        logging.warning(\
-                        "Connection Error to {}. sudo rndc flush if it is correct, and update DNS"\
-                        .format(name))
-                        dns_spamfilter.reset()
-                    else:
-                        #logging.warning("HTTPError on {}".format(name))
-                        pass
-                except requests.exceptions.Timeout:
-                    timeout[name] = time.time()
-                    count = -1
-                except:
-                    logging.exception("get all listener count")
-                    count = -1
-            counts[name] = count
+            except:
+                logger.exception("Unknown exception when getting all listeners")
+                count = -1
+        counts[name] = count
     return counts
 
-def get_status(server_name):
+def get_status(server_name='stream0'):
     """
     Gets the current status of the master server, and the listener counts of all of the
     slave relays, aggregating them, filtering negative, and summing them to give an
     artificial Master server listener count used by Hanyuu in every StatusUpdate call.
     """
     result = { "Online" : False } # Pointless but easier to type. Also makes more sense.
-    with manager.MySQLCursor() as cur:
-        cur.execute("SELECT port, mount FROM `relays` WHERE relay_name=%s;", (server_name,))
-        if cur.rowcount == 1:
-                row = cur.fetchone()
-                port = row['port']
-                mount = row['mount']
+    master = models.Relay.select()\
+                         .where(models.Relay.subdomain == server_name)
+    if master.count() == 1:
+        port = master[0].port
+        mount = master[0].mountpoint
+    else:
+        logger.critical("Master server is not in the config or database and get_status failed.")
+    try:
+        result = requests.get("http://{server}.r-a-d.io:{port}{mount}.xspf".format(
+                                server=server_name, port=port, mount=mount),
+                                            headers={'User-Agent': 'Mozilla'}, timeout=2)
+    except requests.HTTPError as e: # rare, mostly 403
+        if not dns_spamfilter:
+            logger.warning("Can't connect to mountpoint; Assuming listener limit reached")
+            dns_spamfilter.reset()
         else:
-            logging.critical("Master server is not in the config or database and get_status failed.")
-        try:
-            result = requests.get("http://{server}.r-a-d.io:{port}{mount}.xspf".format(
-                                    server=server_name, port=port, mount=mount),
-                                                headers={'User-Agent': 'Mozilla'}, timeout=2)
-        except requests.HTTPError as e: # rare, mostly 403
-            if not dns_spamfilter:
-                logging.warning("Can't connect to mountpoint; Assuming listener limit reached")
-                dns_spamfilter.reset()
-            else:
-                logging.exception("HTTPError occured in status retrieval")
-        except requests.ConnectionError:
-            logging.exception("Connection interrupted to master server")
-        except:
-            logging.exception("Can't connect to master status page. Is Icecast running?")
-        else:
-            result = parse_status(result.content) # bytestring
-            if result:
-                all_listeners = get_listener_count()
-                total_count = sum(itertools.ifilter(lambda x: x>=0, all_listeners.values()))
-                result["Current Listeners"] = total_count
-                
+            logger.exception("HTTPError occured in status retrieval")
+    except requests.ConnectionError:
+        logger.exception("Connection interrupted to master server")
+    except:
+        logger.exception("Can't connect to master status page. Is Icecast running?")
+    else:
+        result = parse_status(result.content) # bytestring
+        if result:
+            all_listeners = get_listener_count()
+            total_count = sum(itertools.ifilter(lambda x: x>=0, all_listeners.values()))
+            result["Current Listeners"] = total_count
     return result
 
 def parse_status(xml):
@@ -164,7 +161,7 @@ def parse_status(xml):
         result["Online"] = True
         result["Current Song"] = u"" # Erase the bad stuff. However, keep in mind stream title can do this (anything user input...)
     except:
-        logging.exception("Failed to parse XML Status data.") 
+        logger.exception("Failed to parse XML Status data.") 
     return result # cleaner and easier to read falling back to original function scope (instead of 5 returns)
         
 
@@ -187,7 +184,7 @@ def parse_listeners(xml):
             result.append(_tmp)
         return result
     except:
-        logging.exception("Couldn't parse listener XML - ListenersParser")
+        logger.exception("Couldn't parse listener XML - ListenersParser")
         return []
         
 def get_listeners():
@@ -195,21 +192,22 @@ def get_listeners():
     Used by player_stats (internal) to generate listener statistics and graphs
     """
     listeners = {}
-    with manager.MySQLCursor() as cur:
-        cur.execute("SELECT * FROM `relays` WHERE listeners > 0 AND admin_auth != '';")
-        for row in cur:
-            server = row['relay_name']
-            port = row['port']
-            mount= row['mount']
-            auth = row['admin_auth']
-            url = 'http://{server}.r-a-d.io:{port}'.format(server=server,port=port)
-            try:
-                result = requests.get('{url}/admin/listclients?mount={mount}'.format(url=url,
-                                        mount=mount), headers={'User-Agent': 'Mozilla',
-                                        'Referer': '{url}/admin/'.format(url=url),
-                                        'Authorization': 'Basic {}'.format(auth)}, timeout=2)
-                result.raise_for_status() # None if normal
-            except:
-                logging.exception("get_listeners")
-            listeners.update(dict((l['ip'], l) for l in parse_listeners(result.content)))
+    result = models.Relay.select()\
+                         .where(models.Relay.listeners > 0,
+                                models.Relay.passcode != '')
+    for relay in result:
+        server = relay.subdomain
+        port = relay.port
+        mount= relay.mountpoint
+        auth = relay.passcode
+        url = 'http://{server}.r-a-d.io:{port}'.format(server=server,port=port)
+        try:
+            result = requests.get('{url}/admin/listclients?mount={mount}'.format(url=url,
+                                    mount=mount), headers={'User-Agent': 'Mozilla',
+                                    'Referer': '{url}/admin/'.format(url=url),
+                                    'Authorization': 'Basic {}'.format(auth)}, timeout=2)
+            result.raise_for_status() # None if normal
+        except:
+            logger.exception("get_listeners")
+        listeners.update(dict((l['ip'], l) for l in parse_listeners(result.content)))
     return listeners.values()

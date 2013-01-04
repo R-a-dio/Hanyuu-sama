@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import absolute_import
-from .. import utils, config
+from .. import utils, config, abstractions
 import logging
 import pylibmc
 import ConfigParser
@@ -196,7 +196,7 @@ class Site(Base):
         :obj:`value` is required to be an object that supports casting to an
             integer as the value will be passed to :func:`int`
         """
-        if isinstance(value, encapsulations.DJ):
+        if isinstance(value, abstractions.users.DJ):
             value = value.id
         else:
             value = int(value)

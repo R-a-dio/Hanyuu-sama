@@ -275,3 +275,53 @@ class Queue(Base):
 
     class Meta:
         db_table = 'queue'
+
+class Relay(Base):
+    """
+    Models the legacy `relays` table.
+    """
+    id = peewee.PrimaryKeyField(primary_key=True)
+    
+    subdomain = peewee.CharField(max_length=200,
+                                 db_column='relay_name',
+                                 default='')
+    
+    owner = peewee.CharField(max_length=200,
+                             db_column='relay_owner',
+                             default='')
+    
+    #in lack of a better name for it
+    base_name = peewee.CharField(max_length=200,
+                                 default='')
+    
+    port = peewee.IntegerField(default=1130)
+    
+    mountpoint = peewee.CharField(max_length=200,
+                                  db_column='mount',
+                                  default='/main.mp3')
+    
+    bitrate = peewee.IntegerField(default=192)
+    
+    format = peewee.CharField(max_length=14,
+                              default='mp3')
+    
+    priority = peewee.IntegerField(null=True, # why is this nullable?
+                                   default=0)
+    
+    listeners = peewee.IntegerField(default=0)
+    
+    listener_limit = peewee.IntegerField(null=True,
+                                         default=None)
+    
+    active = peewee.IntegerField(default=0)
+    
+    passcode = peewee.CharField(max_length=200,
+                                default='')
+    
+    country = peewee.CharField(max_length=20,
+                               default='us')
+    
+    disabled = peewee.IntegerField(default=0)
+    
+    class Meta:
+        db_table = 'relays'
