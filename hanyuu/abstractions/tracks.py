@@ -171,6 +171,46 @@ class Track(object):
         self._song.meta = value
 
     @property
+    @requires_track
+    def artist(self):
+        """
+        :returns: The artist of this song.
+        :rtype: unicode
+        """
+        return self._track.artist
+
+    @artist.setter
+    @requires_track
+    def artist(self, value):
+        """
+        Sets the new artist of this song
+        
+        :params unicode value: The artist
+        """
+        # TODO: This doesn't change the `esong` table.
+        self._track.artist = value
+
+    @property
+    @requires_track
+    def title(self):
+        """
+        :returns: The title of this song.
+        :rtype: unicode
+        """
+        return self._track.title
+
+    @title.setter
+    @requires_track
+    def title(self, value):
+        """
+        Sets the new title of this song.
+        
+        :params unicode value: The new title.
+        """
+        # TODO: This doesn't change the `esong` table.
+        self._track.title = value
+
+    @property
     def length(self):
         """
         :returns: Length of the song or 0 if none available.
@@ -206,7 +246,7 @@ class Track(object):
         :rtype: :class:`Plays`
         """
         if self._plays is None:
-            self._plays = Plays(self._song.plays)
+            self._plays = Plays((play.time for play in self._song.plays))
         return self._plays
 
     @property
@@ -302,3 +342,26 @@ class Length(int):
             hours, minutes = divmod(self, 3600)
             minutes, seconds = divmod(minutes, 60)
             return '{0:02d}:{1:02d}:{2:02d}'.format(hours, minutes, seconds)
+
+
+class Plays(list):
+    """
+    A simple subclass of :const:`list` to support some extra attributes.
+    
+    """
+    @property
+    def last(self):
+        return max(self)
+
+
+class Requests(list):
+    """
+    A simple subclass of :const:`list` to support some extra attributes.
+    """
+    @property
+    def last(self):
+        """
+        :returns: The time that last occured.
+        :rtype: :class:`datetime.datetime` object.
+        """
+        return max(self)

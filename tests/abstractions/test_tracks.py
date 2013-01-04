@@ -43,23 +43,31 @@ class TestLength(unittest.TestCase):
         self.assertEqual(length.format(), '01:40:00',
                          "Formatting string is invalid.")
 
-class TestTrackGetters(unittest.TestCase):
+class TestTrackGettersGood(unittest.TestCase):
     def setUp(self):
         self.song = test_track_with_all()
 
     def test_length(self):
         self.assertEqual(self.song.length, 252)
 
+        self.assertIsInstance(self.song.length, int)
+
     def test_length_format(self):
         self.assertEqual(self.song.length.format(), '04:12')
 
+        self.assertIsInstance(self.song.length.format(), unicode)
+
     def test_filename(self):
         self.assertEqual(self.song.filename, '3gi8bnvaonc.mp3')
+
+        self.assertIsInstance(self.song.filename, unicode)
 
     def test_filepath(self):
         # TODO: We just check for None here because the path can't be accurately
         #         transmitted to this code.
         self.assertIsNot(self.song.filepath, None)
+
+        self.assertIsInstance(self.song.filepath, unicode)
 
     def test_plays(self):
         self.assertIsNot(self.song.plays, None)
@@ -69,3 +77,46 @@ class TestTrackGetters(unittest.TestCase):
 
     def test_metadata(self):
         self.assertEqual(self.song.metadata, 'Izaya Orihara - Renai Circulation')
+
+        self.assertIsInstance(self.song.metadata, unicode)
+
+    def test_artist(self):
+        self.assertEqual(self.song.artist, 'Izaya Orihara')
+
+        self.assertIsInstance(self.song.artist, unicode)
+
+    def test_title(self):
+        self.assertEqual(self.song.title, 'Renai Circulation')
+
+        self.assertIsInstance(self.song.title, unicode)
+
+
+class TestTrackRequests(unittest.TestCase):
+    def setUp(self):
+        self.song = test_track_with_all()
+        self.requests = self.song.requests
+
+    def test_sequence(self):
+        self.assertListEqual(list(self.requests), self.requests)
+
+    def test_last(self):
+        import datetime
+        self.assertEqual(self.requests.last,
+                         datetime.datetime(2012, 12, 27, 7, 12, 3))
+
+        self.assertIsInstance(self.requests.last, datetime.datetime)
+
+class TestTrackPlayed(unittest.TestCase):
+    def setUp(self):
+        self.song = test_track_with_all()
+        self.plays = self.song.plays
+
+    def test_sequence(self):
+        self.assertListEqual(list(self.plays), self.plays)
+
+    def test_last(self):
+        import datetime
+        self.assertEqual(self.plays.last,
+                         datetime.datetime(2012, 12, 27, 11, 1, 2))
+
+        self.assertIsInstance(self.plays.last, datetime.datetime)
