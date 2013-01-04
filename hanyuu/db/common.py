@@ -18,7 +18,7 @@ try:
     adaptor = adapters[db_type]
 except KeyError:
     raise ValueError("Unknown database type '{:s}' given.".format(db_type))
-except NoSectionError:
+except config.NoSectionError:
     if config.sphinx:
         pass
     else:

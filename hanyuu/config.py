@@ -18,7 +18,7 @@ def reload_configuration():
     global configuration
     configuration = ConfigParser.SafeConfigParser()
     configuration.read(configuration_files)
-    
+
 def load_configuration(filepaths):
     """
     Creates a new :class:`ConfigParser.SafeConfigParser` and tries parsing
@@ -37,7 +37,7 @@ def load_configuration(filepaths):
 def get(*args, **kwargs):
     """See :class:`ConfigParser.RawConfigParser`"""
     return configuration.get(*args, **kwargs)
-    
+
 def getint(*args, **kwargs):
     """See :class:`ConfigParser.RawConfigParser`"""
     return configuration.getint(*args, **kwargs)
@@ -65,3 +65,6 @@ def has_section(*args, **kwargs):
 def items(*args, **kwargs):
     """See :class:`ConfigParser.RawConfigParser`"""
     return configuration.items(*args, **kwargs)
+
+NoSectionError = ConfigParser.NoSectionError
+NoOptionError = ConfigParser.NoOptionError
