@@ -29,6 +29,7 @@ for mod_name in MOCK_MODULES:
 
 
 import tests  # This patches the configuration module
+import tests.db
 
 # Pop the first path value because the `tests` import adds something.
 sys.path.pop(0)
