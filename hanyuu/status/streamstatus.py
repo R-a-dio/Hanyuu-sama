@@ -5,7 +5,7 @@ import requests
 import xmltodict
 import itertools
 import pylibmc
-from . import logger
+from . import logger, Status
 from .. import utils
 from ..db import models
 
@@ -211,3 +211,19 @@ def get_listeners():
             logger.exception("get_listeners")
         listeners.update(dict((l['ip'], l) for l in parse_listeners(result.content)))
     return listeners.values()
+
+def main():
+    """
+    Main method for the status updater.
+    """
+    import time
+    #TODO this probably needs some kind of aborting function
+    while(True):
+        status = get_status('stream0')
+        Status.online = status.get('Online', False)
+        Status.listeners = status.get('Current Listeners', 0)
+        Status.peak_listeners = status.get('Peak Listeners', 0)
+        
+        time.sleep(8)
+        
+            
