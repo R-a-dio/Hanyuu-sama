@@ -17,7 +17,6 @@
 # keltus <keltus@users.sourceforge.net>
 #
 # $Id: irclib.py,v 1.47 2008/09/25 22:00:59 keltus Exp $
-from Queue import Full
 
 """irclib -- Internet Relay Chat (IRC) protocol client library.
 
@@ -73,6 +72,7 @@ import types
 import codecs
 import Queue
 import sqlite3
+import collections
 
 VERSION = 0, 4, 8
 DEBUG = 0
@@ -357,7 +357,7 @@ class IRC:
                        incoming data will be split in newline-separated
                        chunks. If "raw", incoming data is not touched.
         """
-        c = DCCConnection(self, dcctype, dccinfo)
+        c = dcc.DCCConnection(self, dcctype, dccinfo)
         self.connections.append(c)
         return c
 
@@ -417,7 +417,7 @@ class ServerConnection(Connection):
 
     def __init__(self, irclibobj):
         Connection.__init__(self, irclibobj)
-        self.sqlite = SqliteConnection()
+        #self.sqlite = tracker.SqliteConnection()
         self.connected = 0  # Not connected yet.
         self.socket = None
         self.ssl = None
@@ -954,7 +954,7 @@ class ServerConnection(Connection):
             raise ServerNotConnectedError, "Not connected."
         try:
             self.message_queue.put(string)
-        except (Full):
+        except (Queue.Full):
             # Ouch!
             self.disconnect("Queue is full.")
 
@@ -1015,460 +1015,13 @@ class ServerConnection(Connection):
                                          max and (u" " + max),
                                          server and (u" " + server)))
 
-class SqliteCursor:
-    def __init__(self, conn):
-        if isinstance(conn, SqliteConnection):
-            self.__conn = conn._conn
-        elif isinstance(conn, sqlite3.Connection):
-            self.__conn = conn
-    def __enter__(self):
-        self.__cur = self.__conn.cursor()
-        return self.__cur
-    def __exit__(self, type, value, traceback):
-        self.__cur.close()
-        self.__conn.commit()
-        return
 
-class SqliteConnection:
-    def __init__(self):
-        self._conn = sqlite3.connect(":memory:", check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        with SqliteCursor(self) as cur:
-            cur.execute("create table nicks (id integer primary key autoincrement, nick varchar(50) collate nocase);")
-            cur.execute("create table channels (id integer primary key autoincrement, chan varchar(100) collate nocase, topic text);")
-            cur.execute("create table nick_chan_link (id integer primary key autoincrement, nick_id integer not null constraint fk_n_c REFERENCES nicks(id), chan_id integer not null constraint fk_c_n REFERENCES channels(id), modes varchar(20));")
-            
-            #cur.execute("insert into nicks (nick, lastrequested) values ('Vin', datetime('now'))")
-            #cur.execute("insert into nicks (nick, lastrequested) values ('Wessie', datetime('now'))")
-            #cur.execute("insert into channels (chan, topic) values ('#r/a/dio', 'radio topic')")
-            #cur.execute("insert into nick_chan_link (nick_id, chan_id, modes) values (1, 1, 'ov')")
-        self.nickmodes = ''
-        self.nickchars = ''
-        self.argmodes = '' #lol i'm lazy. just assuming that bkl are all argument modes
-
-    def join(self, chan, nick):
-        chan_id = self.__get_chan_id(chan)
-        nick_id = self.__get_nick_id(nick)
-        with SqliteCursor(self) as cur:
-            if not nick_id:
-                cur.execute("INSERT INTO nicks (nick) VALUES (?)", (nick,))
-                nick_id = self.__get_nick_id(nick)
-            if not chan_id:
-                cur.execute("INSERT INTO channels (chan, topic) VALUES (?, '')", (chan,))
-                chan_id = self.__get_chan_id(chan)
-            if not self.in_chan(chan, nick):
-                cur.execute("INSERT INTO nick_chan_link (nick_id, chan_id, modes) VALUES (?, ?, '')", (nick_id, chan_id))
-        pass
     
-    def part(self, chan, nick):
-        if self.in_chan(chan, nick):
-            chan_id = self.__get_chan_id(chan)
-            nick_id = self.__get_nick_id(nick)
-            with SqliteCursor(self) as cur:
-                cur.execute("DELETE FROM nick_chan_link WHERE nick_id=? AND chan_id=?", (nick_id, chan_id))
-                
-                cur.execute("SELECT * FROM nick_chan_link WHERE nick_id=?", (nick_id,))
-                res = cur.fetchall()
-                if len(res) == 0:
-                    cur.execute("DELETE FROM nicks WHERE id=?", (nick_id,))
-                cur.execute("SELECT * FROM nick_chan_link WHERE chan_id=?", (chan_id,))
-                res = cur.fetchall()
-                if len(res) == 0:
-                    cur.execute("DELETE FROM channels WHERE id=?", (chan_id,))
-    
-    def quit(self, nick):
-        if self.has_nick(nick):
-            nick_id = self.__get_nick_id(nick)
-            with SqliteCursor(self) as cur:
-                cur.execute("SELECT chan_id FROM nick_chan_link WHERE nick_id=?", (nick_id,))
-                res = cur.fetchall()
-                for row in res:
-                    chan_id = row[0]
-                    cur.execute("SELECT chan FROM channels WHERE id=?", (chan_id,))
-                    chan = cur.fetchone()[0]
-                    self.part(chan, nick)
-    
-    def nick(self, nick, newnick):
-        if self.has_nick(nick):
-            nick_id = self.__get_nick_id(nick)
-            with SqliteCursor(self) as cur:
-                cur.execute("UPDATE nicks SET nick=? WHERE id=?", (newnick, nick_id))
-    
-    def add_mode(self, chan, nick, mode):
-        if self.in_chan(chan, nick) and not self.has_modes(chan, nick, mode):
-            chan_id = self.__get_chan_id(chan)
-            nick_id = self.__get_nick_id(nick)
-            with SqliteCursor(self) as cur:
-                cur.execute("UPDATE nick_chan_link SET modes=modes||? WHERE nick_id=? AND chan_id=?", (mode, nick_id, chan_id))
-    
-    def rem_mode(self, chan, nick, mode):
-        if self.in_chan(chan, nick) and self.has_modes(chan, nick, mode):
-            chan_id = self.__get_chan_id(chan)
-            nick_id = self.__get_nick_id(nick)
-            with SqliteCursor(self) as cur:
-                cur.execute("UPDATE nick_chan_link SET modes=replace(modes, ?, '') WHERE nick_id=? AND chan_id=?", (mode, nick_id, chan_id))
-    
-    def topic(self, chan, topic=None):
-        if self.has_chan(chan):
-            if topic == None:
-                with SqliteCursor(self) as cur:
-                    cur.execute("SELECT topic FROM channels WHERE chan=?", (chan,))
-                    return cur.fetchone()[0]
-            else:
-                with SqliteCursor(self) as cur:
-                    cur.execute("UPDATE channels SET topic=? WHERE chan=?", (topic, chan))
-                    return
-        return None
-    
-    
-    def has_nick(self, nick):
-        with SqliteCursor(self) as cur:
-            cur.execute("SELECT * FROM nicks WHERE nick=? LIMIT 1", (nick,))
-            res = cur.fetchall()
-            if len(res) == 1:
-                return True
-        return False
 
-    def has_chan(self, chan):
-        with SqliteCursor(self) as cur:
-            cur.execute("select * from channels where chan=? limit 1", (chan,))
-            res = cur.fetchall()
-            if len(res) == 1:
-                return True
-        return False 
-    
-    def in_chan(self, chan, nick):
-        if self.has_chan(chan) and self.has_nick(nick):
-            with SqliteCursor(self) as cur:
-                chan_id = self.__get_chan_id(chan)
-                nick_id = self.__get_nick_id(nick)
-                cur.execute("SELECT * FROM nick_chan_link WHERE nick_id=? AND chan_id=?", (nick_id, chan_id))
-                res = cur.fetchall()
-                if len(res) == 1:
-                    return True
-        return False
-    
-    def has_modes(self, chan, nick, modes, operator='and'):
-        if self.in_chan(chan, nick):
-            chan_id = self.__get_chan_id(chan)
-            nick_id = self.__get_nick_id(nick)
-            with SqliteCursor(self) as cur:
-                cur.execute("SELECT modes FROM nick_chan_link WHERE nick_id=? AND chan_id=?", (nick_id, chan_id))
-                nick_modes = cur.fetchone()[0]
-                for mode in modes:
-                    if (operator == 'and'):
-                        if not mode in nick_modes:
-                            return False
-                    elif (operator == 'or'):
-                        if mode in nick_modes:
-                            return True
-                return True if operator == 'and' else False
-        return False
-    
-    def __get_nick_id(self, nick):
-        with SqliteCursor(self) as cur:
-            cur.execute("select * from nicks where nick=? limit 1", (nick,))
-            res = cur.fetchall()
-            if len(res) == 1:
-                return res[0][0]
-        return None
-    
-    def __get_chan_id(self, chan):
-        with SqliteCursor(self) as cur:
-            cur.execute("select * from channels where chan=? limit 1", (chan,))
-            res = cur.fetchall()
-            if len(res) == 1:
-                return res[0][0]
-            return None
-    
-    def execute(self, query):
-        with SqliteCursor(self) as cur:
-            cur.execute(query)
-            return cur.fetchall()
-    
-    def close(self):
-        self._conn.close()
-    
-class DCCConnectionError(IRCError):
-    pass
+Event = collections.namedtuple('Event', ('eventtype', 'source',
+                                         'target', 'argument'))
 
-
-class DCCConnection(Connection):
-    """This class represents a DCC connection.
-
-    DCCConnection objects are instantiated by calling the dcc
-    method on an IRC object.
-    """
-    def __init__(self, irclibobj, dcctype, dccinfo=(None, None)):
-        Connection.__init__(self, irclibobj)
-        self.connected = 0
-        self.passive = 0
-        self.dcctype = dcctype
-        self.dccfile = dccinfo[0]
-        self.total = long(dccinfo[1])
-        self.peeraddress = None
-        self.peerport = None
-
-    def connect(self, address, port):
-        """Connect/reconnect to a DCC peer.
-
-        Arguments:
-            address -- Host/IP address of the peer.
-
-            port -- The port number to connect to.
-
-        Returns the DCCConnection object.
-        """
-        if (self.dcctype == "send"):
-            self.fileobj = open(self.dccfile, "wb")
-            self.current = 0
-        self.peeraddress = socket.gethostbyname(address)
-        self.peerport = port
-        self.socket = None
-        self.previous_buffer = ""
-        self.handlers = {}
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.passive = 0
-        try:
-            self.socket.connect((self.peeraddress, self.peerport))
-        except socket.error, x:
-            raise DCCConnectionError, "Couldn't connect to socket: %s" % x
-        self.connected = 1
-        if self.irclibobj.fn_to_add_socket:
-            self.irclibobj.fn_to_add_socket(self.socket)
-        return self
-
-    def listen(self):
-        """Wait for a connection/reconnection from a DCC peer.
-
-        Returns the DCCConnection object.
-
-        The local IP address and port are available as
-        self.localaddress and self.localport.  After connection from a
-        peer, the peer address and port are available as
-        self.peeraddress and self.peerport.
-        """
-        self.previous_buffer = ""
-        self.handlers = {}
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.passive = 1
-        try:
-            self.socket.bind((socket.gethostbyname(socket.gethostname()), 0))
-            self.localaddress, self.localport = self.socket.getsockname()
-            self.socket.listen(10)
-        except socket.error, x:
-            raise DCCConnectionError, "Couldn't bind socket: %s" % x
-        return self
-
-    def disconnect(self, message=""):
-        """Hang up the connection and close the object.
-
-        Arguments:
-
-            message -- Quit message.
-        """
-        if not self.connected:
-            return
-
-        self.connected = 0
-        try:
-            self.socket.close()
-        except socket.error, x:
-            pass
-        self.socket = None
-        self.irclibobj._handle_event(
-            self,
-            Event("dcc_disconnect", self.peeraddress, "", [message]))
-        self.irclibobj._remove_connection(self)
-
-    def process_data(self):
-        """[Internal]"""
-
-        if self.passive and not self.connected:
-            conn, (self.peeraddress, self.peerport) = self.socket.accept()
-            self.socket.close()
-            self.socket = conn
-            self.connected = 1
-            if DEBUG:
-                print "DCC connection from %s:%d" % (
-                    self.peeraddress, self.peerport)
-            self.irclibobj._handle_event(
-                self,
-                Event("dcc_connect", self.peeraddress, None, None))
-            return
-
-        try:
-            new_data = self.socket.recv(2**14)
-        except socket.error, x:
-            # The server hung up.
-            self.disconnect("Connection reset by peer")
-            return
-        if not new_data:
-            # Read nothing: connection must be down.
-            self.disconnect("Connection reset by peer")
-            return
-
-        if self.dcctype == "chat":
-            # The specification says lines are terminated with LF, but
-            # it seems safer to handle CR LF terminations too.
-            chunks = _linesep_regexp.split(self.previous_buffer + new_data)
-
-            # Save the last, unfinished line.
-            self.previous_buffer = chunks[-1]
-            if len(self.previous_buffer) > 2**14:
-                # Bad peer! Naughty peer!
-                self.disconnect()
-                return
-            chunks = chunks[:-1]
-        elif self.dcctype == "send":
-            # We are going to sidestep the events a bit
-            size = len(new_data)
-            self.current += size
-            try:
-                self.fileobj.write(new_data)
-            except (AttributeError):
-                self.disconnect("Invalid file object")
-            except (IOError):
-                self.disconnect("Invalid file object")
-            chunks = ["send"]
-        else:
-            chunks = [new_data]
-
-        command = "dccmsg"
-        prefix = self.peeraddress
-        target = None
-        for chunk in chunks:
-            if DEBUG:
-                print "FROM PEER:", chunk
-            arguments = [chunk]
-            if DEBUG:
-                print "command: %s, source: %s, target: %s, arguments: %s" % (
-                    command, prefix, target, arguments)
-            self.irclibobj._handle_event(
-                self,
-                Event(command, prefix, target, arguments))
-
-    def _get_socket(self):
-        """[Internal]"""
-        return self.socket
-
-    def privmsg(self, string):
-        """Send data to DCC peer.
-
-        The string will be padded with appropriate LF if it's a DCC
-        CHAT session.
-        """
-        try:
-            self.socket.send(string)
-            if self.dcctype == "chat":
-                self.socket.send("\n")
-            if DEBUG:
-                print "TO PEER: %s\n" % string
-        except socket.error, x:
-            # Ouch!
-            self.disconnect("Connection reset by peer.")
-
-class SimpleIRCClient:
-    """A simple single-server IRC client class.
-
-    This is an example of an object-oriented wrapper of the IRC
-    framework.  A real IRC client can be made by subclassing this
-    class and adding appropriate methods.
-
-    The method on_join will be called when a "join" event is created
-    (which is done when the server sends a JOIN messsage/command),
-    on_privmsg will be called for "privmsg" events, and so on.  The
-    handler methods get two arguments: the connection object (same as
-    self.connection) and the event object.
-
-    Instance attributes that can be used by sub classes:
-
-        ircobj -- The IRC instance.
-
-        connection -- The ServerConnection instance.
-
-        dcc_connections -- A list of DCCConnection instances.
-    """
-    def __init__(self):
-        self.ircobj = IRC()
-        self.connection = self.ircobj.server()
-        self.dcc_connections = []
-        self.ircobj.add_global_handler("all_events", self._dispatcher, -10)
-        self.ircobj.add_global_handler("dcc_disconnect", self._dcc_disconnect, -10)
-
-    def _dispatcher(self, c, e):
-        """[Internal]"""
-        m = "on_" + e.eventtype()
-        if hasattr(self, m):
-            getattr(self, m)(c, e)
-
-    def _dcc_disconnect(self, c, e):
-        self.dcc_connections.remove(c)
-
-    def connect(self, server, port, nickname, password=None, username=None,
-                ircname=None, localaddress="", localport=0, ssl=False, ipv6=False):
-        """Connect/reconnect to a server.
-
-        Arguments:
-
-            server -- Server name.
-
-            port -- Port number.
-
-            nickname -- The nickname.
-
-            password -- Password (if any).
-
-            username -- The username.
-
-            ircname -- The IRC name.
-
-            localaddress -- Bind the connection to a specific local IP address.
-
-            localport -- Bind the connection to a specific local port.
-
-            ssl -- Enable support for ssl.
-
-            ipv6 -- Enable support for ipv6.
-
-        This function can be called to reconnect a closed connection.
-        """
-        self.connection.connect(server, port, nickname,
-                                password, username, ircname,
-                                localaddress, localport, ssl, ipv6)
-
-    def dcc_connect(self, address, port, dcctype="chat"):
-        """Connect to a DCC peer.
-
-        Arguments:
-
-            address -- IP address of the peer.
-
-            port -- Port to connect to.
-
-        Returns a DCCConnection instance.
-        """
-        dcc = self.ircobj.dcc(dcctype)
-        self.dcc_connections.append(dcc)
-        dcc.connect(address, port)
-        return dcc
-
-    def dcc_listen(self, dcctype="chat"):
-        """Listen for connections from a DCC peer.
-
-        Returns a DCCConnection instance.
-        """
-        dcc = self.ircobj.dcc(dcctype)
-        self.dcc_connections.append(dcc)
-        dcc.listen()
-        return dcc
-
-    def start(self):
-        """Start the IRC client."""
-        self.ircobj.process_forever()
-
-
-class Event:
+class Event(Event):
     """Class representing an IRC event."""
     def __init__(self, eventtype, source, target, arguments=None):
         """Constructor of Event objects.
@@ -1483,29 +1036,8 @@ class Event:
 
             arguments -- Any event specific arguments.
         """
-        self._eventtype = eventtype
-        self._source = source
-        self._target = target
-        if arguments:
-            self._arguments = arguments
-        else:
-            self._arguments = []
-
-    def eventtype(self):
-        """Get the event type."""
-        return self._eventtype
-
-    def source(self):
-        """Get the event source."""
-        return self._source
-
-    def target(self):
-        """Get the event target."""
-        return self._target
-
-    def arguments(self):
-        """Get the event arguments."""
-        return self._arguments
+        arguments = arguments if arguments else []
+        super(Event, self).__init__(eventtype, source, target, arguments)
 
 _LOW_LEVEL_QUOTE = "\020"
 _CTCP_LEVEL_QUOTE = "\134"

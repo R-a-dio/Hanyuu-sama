@@ -6,9 +6,8 @@ from threading import Thread, Event
 import logging
 from .. import config
 import re
-import irclib
+from . import irclib
 from multiprocessing.managers import BaseManager
-import bootstrap
 
 # Handler constants
 # Channels
@@ -25,7 +24,7 @@ REGULAR_NICKS = 5 # Only regulars can trigger this
 DEV_NICKS = 6 # Only the nicknames defined in config.irc_devs can trigger this
 
 class Session(object):
-    __metaclass__ = bootstrap.Singleton
+    #__metaclass__ = bootstrap.Singleton
     def __init__(self):
         logging.info("Creating IRC Session")
         self.ready = False
@@ -278,11 +277,11 @@ class Session(object):
 class IRCManager(BaseManager):
     pass
 
-IRCManager.register("stats", bootstrap.stats)
-IRCManager.register("session", Session,
-                    method_to_typeid={"server": "generic",
-                                      "irc": "generic"})
-IRCManager.register("generic")
+#IRCManager.register("stats", bootstrap.stats)
+IRCManager.register(b"session", Session,
+                    method_to_typeid={b"server": b"generic",
+                                      b"irc": b"generic"})
+IRCManager.register(b"generic")
 
 def connect():
     global manager, session
