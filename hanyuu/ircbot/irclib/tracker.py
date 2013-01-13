@@ -2,6 +2,9 @@
 Module that contains all the classes required to track channels, nicknames
 modes and other related stuff.
 """
+from __future__ import unicode_literals
+from __future__ import print_function
+from __future__ import absolute_import
 import sqlite3
 
 
@@ -27,14 +30,9 @@ class SqliteConnection:
             cur.execute("create table nicks (id integer primary key autoincrement, nick varchar(50) collate nocase);")
             cur.execute("create table channels (id integer primary key autoincrement, chan varchar(100) collate nocase, topic text);")
             cur.execute("create table nick_chan_link (id integer primary key autoincrement, nick_id integer not null constraint fk_n_c REFERENCES nicks(id), chan_id integer not null constraint fk_c_n REFERENCES channels(id), modes varchar(20));")
-            
-            #cur.execute("insert into nicks (nick, lastrequested) values ('Vin', datetime('now'))")
-            #cur.execute("insert into nicks (nick, lastrequested) values ('Wessie', datetime('now'))")
-            #cur.execute("insert into channels (chan, topic) values ('#r/a/dio', 'radio topic')")
-            #cur.execute("insert into nick_chan_link (nick_id, chan_id, modes) values (1, 1, 'ov')")
         self.nickmodes = ''
         self.nickchars = ''
-        self.argmodes = '' #lol i'm lazy. just assuming that bkl are all argument modes
+        self.argmodes = ''
 
     def join(self, chan, nick):
         chan_id = self.__get_chan_id(chan)
@@ -169,7 +167,7 @@ class SqliteConnection:
             res = cur.fetchall()
             if len(res) == 1:
                 return res[0][0]
-            return None
+        return None
     
     def execute(self, query):
         with SqliteCursor(self) as cur:

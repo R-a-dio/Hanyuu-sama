@@ -60,7 +60,9 @@ Current limitations:
 
 .. [IRC specifications] http://www.irchelp.org/irchelp/rfc/
 """
-
+from __future__ import unicode_literals
+from __future__ import print_function
+from __future__ import absolute_import
 import bisect
 import re
 import select
@@ -73,6 +75,7 @@ import codecs
 import Queue
 import sqlite3
 import collections
+from . import dcc, utils
 
 VERSION = 0, 4, 8
 DEBUG = 0
@@ -224,7 +227,7 @@ class IRC:
                         c.reconnect()
                     c.sent_bytes += len(message.encode('utf-8'))
                     if DEBUG:
-                        print "TO SERVER:", message
+                        print("TO SERVER:" + message)
                 else:
                     break
 
@@ -404,10 +407,6 @@ class ServerNotConnectedError(ServerConnectionError):
     pass
 
 
-# Huh!?  Crrrrazy EFNet doesn't follow the RFC: their ircd seems to
-# use \n as message separator!  :P
-_linesep_regexp = re.compile("\r?\n")
-
 class ServerConnection(Connection):
     """This class represents an IRC server connection.
 
@@ -491,7 +490,7 @@ class ServerConnection(Connection):
         except socket.error, x:
             self.socket.close()
             self.socket = None
-            raise ServerConnectionError, "Couldn't connect to socket: %s" % x
+            raise ServerConnectionError, "Couldn't connect to socket: {}".format(x)
         self.connected = 1
         if self.irclibobj.fn_to_add_socket:
             self.irclibobj.fn_to_add_socket(self.socket)
@@ -555,7 +554,7 @@ class ServerConnection(Connection):
             self.disconnect("Connection reset by peer")
             return
         self._last_ping = time.time()
-        lines = _linesep_regexp.split(self.previous_buffer + new_data)
+        lines = utils._linesep_regexp.split(self.previous_buffer + new_data)
 
         # Save the last, unfinished line.
         self.previous_buffer = lines.pop()
@@ -563,7 +562,7 @@ class ServerConnection(Connection):
         for line in lines:
             line = line.decode(self.encoding, 'replace')
             if DEBUG:
-                print "FROM SERVER:", line
+                print("FROM SERVER:" + line)
 
             if not line:
                 continue
@@ -596,7 +595,7 @@ class ServerConnection(Connection):
                 command = numeric_events[command]
 
             if command == "nick":
-                old_nick = nm_to_n(prefix)
+                old_nick = utils.nm_to_n(prefix)
                 if old_nick == self.real_nickname:
                     # We changed our own nick
                     self.real_nickname = arguments[0]
@@ -608,13 +607,13 @@ class ServerConnection(Connection):
 
             if command in ["privmsg", "notice"]:
                 target, message = arguments[0], arguments[1]
-                messages = _ctcp_dequote(message)
+                messages = utils._ctcp_dequote(message)
 
                 if command == "privmsg":
-                    if is_channel(target):
+                    if utils.is_channel(target):
                         command = "pubmsg"
                 else:
-                    if is_channel(target):
+                    if utils.is_channel(target):
                         command = "pubnotice"
                     else:
                         command = "privnotice"
@@ -628,22 +627,22 @@ class ServerConnection(Connection):
 
                         m = list(m)
                         if DEBUG:
-                            print "command: %s, source: %s, target: %s, arguments: %s" % (
-                                command, prefix, target, m)
+                            print("command: {}, source: {}, target: {}, arguments: {}".format(
+                                command, prefix, target, m))
                         self._handle_event(Event(command, prefix, target, m))
                         if command == "ctcp" and m[0] == "ACTION":
                             self._handle_event(Event("action", prefix, target, m[1:]))
                     else:
                         if DEBUG:
-                            print "command: %s, source: %s, target: %s, arguments: %s" % (
-                                command, prefix, target, [m])
+                            print("command: {}, source: {}, target: {}, arguments: {}".format(
+                                command, prefix, target, [m]))
                         self._handle_event(Event(command, prefix, target, [m]))
             else:
                 target = None
 
                 if command == "quit":
                     arguments = [arguments[0]]
-                    self.sqlite.quit(nm_to_n(prefix))
+                    self.sqlite.quit(utils.nm_to_n(prefix))
                 elif command == "ping":
                     target = arguments[0]
                 else:
@@ -651,7 +650,7 @@ class ServerConnection(Connection):
                     arguments = arguments[1:]
 
                 if command in ["join", "part"]:
-                    getattr(self.sqlite, command)(target, nm_to_n(prefix))
+                    getattr(self.sqlite, command)(target, utils.nm_to_n(prefix))
                 elif command == "kick":
                     self.sqlite.part(target, arguments[0])
                 elif command == "topic":
@@ -695,7 +694,7 @@ class ServerConnection(Connection):
                                                  self.sqlite.nickmodes[pos])
                 if command == "mode":
                     chan = target
-                    if not is_channel(target):
+                    if not utils.is_channel(target):
                         command = "umode"
                     operator = arguments[0][0]
                     modes = list(arguments[0])
@@ -715,8 +714,8 @@ class ServerConnection(Connection):
                             titer += 1
                         miter += 1
                 if DEBUG:
-                    print "command: %s, source: %s, target: %s, arguments: %s" % (
-                        command, prefix, target, arguments)
+                    print("command: {}, source: {}, target: {}, arguments: {}".format(
+                        command, prefix, target, arguments))
                 self._handle_event(Event(command, prefix, target, arguments))
 
     def _handle_event(self, event):
@@ -758,11 +757,11 @@ class ServerConnection(Connection):
     def ctcp(self, ctcptype, target, parameter=""):
         """Send a CTCP command."""
         ctcptype = ctcptype.upper()
-        self.privmsg(target, "\001%s%s\001" % (ctcptype, parameter and (" " + parameter) or ""))
+        self.privmsg(target, "\001{}{}\001".format(ctcptype, parameter and (" " + parameter) or ""))
 
     def ctcp_reply(self, target, parameter):
         """Send a CTCP REPLY command."""
-        self.notice(target, "\001%s\001" % parameter)
+        self.notice(target, "\001{}\001".format(parameter))
 
     def disconnect(self, message=""):
         """Hang up the connection.
@@ -835,11 +834,11 @@ class ServerConnection(Connection):
     
     def join(self, channel, key=""):
         """Send a JOIN command."""
-        self.send_raw("JOIN %s%s" % (channel, (key and (" " + key))))
+        self.send_raw("JOIN {}{}".format(channel, (key and (" " + key))))
 
     def kick(self, channel, nick, comment=""):
         """Send a KICK command."""
-        self.send_raw("KICK %s %s%s" % (channel, nick, (comment and (" :" + comment))))
+        self.send_raw("KICK {} {}{}".format(channel, nick, (comment and (" :" + comment))))
 
     def links(self, remote_server="", server_mask=""):
         """Send a LINKS command."""
@@ -865,7 +864,7 @@ class ServerConnection(Connection):
 
     def mode(self, target, command):
         """Send a MODE command."""
-        self.send_raw(u"MODE %s %s" % (target, command))
+        self.send_raw(u"MODE {} {}".format(target, command))
 
     def motd(self, server=""):
         """Send an MOTD command."""
@@ -882,11 +881,11 @@ class ServerConnection(Connection):
     def notice(self, target, text):
         """Send a NOTICE command."""
         # Should limit len(text) here!
-        self.send_raw(u"NOTICE %s :%s" % (target, text))
+        self.send_raw(u"NOTICE {} :{}".format(target, text))
 
     def oper(self, nick, password):
         """Send an OPER command."""
-        self.send_raw(u"OPER %s %s" % (nick, password))
+        self.send_raw(u"OPER {} {}".format(nick, password))
 
     def part(self, channels, message=""):
         """Send a PART command."""
@@ -901,21 +900,21 @@ class ServerConnection(Connection):
 
     def ping(self, target, target2=""):
         """Send a PING command."""
-        self.send_raw_instant(u"PING %s%s" % (target, target2 and (u" " + target2)))
+        self.send_raw_instant(u"PING {}{}".format(target, target2 and (u" " + target2)))
 
     def pong(self, target, target2=""):
         """Send a PONG command."""
-        self.send_raw_instant(u"PONG %s%s" % (target, target2 and (u" " + target2)))
+        self.send_raw_instant(u"PONG {}{}".format(target, target2 and (u" " + target2)))
 
     def privmsg(self, target, text):
         """Send a PRIVMSG command."""
         # Should limit len(text) here!
-        self.send_raw(u"PRIVMSG %s :%s" % (target, text))
+        self.send_raw(u"PRIVMSG {} :{}".format(target, text))
 
     def privmsg_many(self, targets, text):
         """Send a PRIVMSG command to multiple targets."""
         # Should limit len(text) here!
-        self.send_raw(u"PRIVMSG %s :%s" % (u",".join(targets), text))
+        self.send_raw(u"PRIVMSG {} :{}".format(u",".join(targets), text))
 
     def quit(self, message=""):
         """Send a QUIT command."""
@@ -942,7 +941,7 @@ class ServerConnection(Connection):
             else:
                 self.socket.sendall(message)
             if DEBUG:
-                print "TO SERVER:", message
+                print("TO SERVER:" + message)
         except socket.error, x:
             self.disconnect("Connection reset by peer.")
     def send_raw(self, string):
@@ -960,11 +959,11 @@ class ServerConnection(Connection):
 
     def squit(self, server, comment=""):
         """Send an SQUIT command."""
-        self.send_raw(u"SQUIT %s%s" % (server, comment and (u" :" + comment)))
+        self.send_raw(u"SQUIT {}{}".format(server, comment and (u" :" + comment)))
 
     def stats(self, statstype, server=""):
         """Send a STATS command."""
-        self.send_raw(u"STATS %s%s" % (statstype, server and (u" " + server)))
+        self.send_raw(u"STATS {}{}".format(statstype, server and (u" " + server)))
 
     def time(self, server=""):
         """Send a TIME command."""
@@ -975,7 +974,7 @@ class ServerConnection(Connection):
         if new_topic is None:
             self.send_raw(u"TOPIC " + channel)
         else:
-            self.send_raw(u"TOPIC %s :%s" % (channel, new_topic))
+            self.send_raw(u"TOPIC {} :{}".format(channel, new_topic))
 
     def trace(self, target=""):
         """Send a TRACE command."""
@@ -983,7 +982,7 @@ class ServerConnection(Connection):
 
     def user(self, username, realname):
         """Send a USER command."""
-        self.send_raw(u"USER %s 0 * :%s" % (username, realname))
+        self.send_raw(u"USER {} 0 * :{}".format(username, realname))
 
     def userhost(self, nicks):
         """Send a USERHOST command."""
@@ -1003,7 +1002,7 @@ class ServerConnection(Connection):
 
     def who(self, target="", op=""):
         """Send a WHO command."""
-        self.send_raw(u"WHO%s%s" % (target and (u" " + target), op and (u" o")))
+        self.send_raw(u"WHO{}{}".format(target and (u" " + target), op and (u" o")))
 
     def whois(self, targets):
         """Send a WHOIS command."""
@@ -1011,7 +1010,7 @@ class ServerConnection(Connection):
 
     def whowas(self, nick, max="", server=""):
         """Send a WHOWAS command."""
-        self.send_raw(u"WHOWAS %s%s%s" % (nick,
+        self.send_raw(u"WHOWAS {}{}{}".format(nick,
                                          max and (u" " + max),
                                          server and (u" " + server)))
 

@@ -1,3 +1,9 @@
+from __future__ import unicode_literals
+from __future__ import print_function
+from __future__ import absolute_import
+import re
+import string
+
 def parse_modes(string):
     """
     Returns a generator that yields tuples of (operator, mode)
@@ -29,6 +35,10 @@ def intertwine_modes(modes, targets):
 _LOW_LEVEL_QUOTE = "\020"
 _CTCP_LEVEL_QUOTE = "\134"
 _CTCP_DELIMITER = "\001"
+
+# Huh!?  Crrrrazy EFNet doesn't follow the RFC: their ircd seems to
+# use \n as message separator!  :P
+_linesep_regexp = re.compile("\r?\n")
 
 _low_level_mapping = {
     "0": "\000",
@@ -123,6 +133,8 @@ def _ctcp_dequote(message):
 
         return messages
 
+# TODO: make this follow the featurelist
+# See: featurelist.CHANTYPES
 def is_channel(string):
     """Check if a string is a channel name.
 
@@ -205,7 +217,9 @@ def parse_channel_modes(mode_string):
     >>> irclib.parse_channel_modes(\"+ab-c foo\")
     [['+', 'a', None], ['+', 'b', 'foo'], ['-', 'c', None]]
     """
-
+    
+    # TODO: make this follow the featurelist
+    # See: featurelist.CHANMODES
     return _parse_modes(mode_string, "bklvo")
 
 def _parse_modes(mode_string, unary_modes=""):

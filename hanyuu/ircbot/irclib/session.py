@@ -1,9 +1,7 @@
-from __future__ import unicode_literals
-from __future__ import absolute_imports
 """
 A high level session object to the lower level irclib.connection module.
 """
-from . import utils
+from . import utils, connection
 
 class Session(object):
     """
@@ -154,7 +152,7 @@ class HighEvent(object):
             targets = low_event.arguments[1:]
             
             event = creator(mode_setter, channel, None)
-            event.modes = intertwine_modes(modes, targets)
+            event.modes = utils.intertwine_modes(modes, targets)
         elif command == 'umode':
             # A user mode was set.
             pass

@@ -1,15 +1,24 @@
-class DCCConnectionError(IRCError):
+from __future__ import unicode_literals
+from __future__ import print_function
+from __future__ import absolute_import
+import socket
+from . import utils, connection
+
+# TODO set this somewhere else?
+DEBUG = False
+
+class DCCConnectionError(connection.IRCError):
     pass
 
 
-class DCCConnection(Connection):
+class DCCConnection(connection.Connection):
     """This class represents a DCC connection.
 
     DCCConnection objects are instantiated by calling the dcc
     method on an IRC object.
     """
     def __init__(self, irclibobj, dcctype, dccinfo=(None, None)):
-        Connection.__init__(self, irclibobj)
+        connection.Connection.__init__(self, irclibobj)
         self.connected = 0
         self.passive = 0
         self.dcctype = dcctype
@@ -41,7 +50,7 @@ class DCCConnection(Connection):
         try:
             self.socket.connect((self.peeraddress, self.peerport))
         except socket.error, x:
-            raise DCCConnectionError, "Couldn't connect to socket: %s" % x
+            raise DCCConnectionError("Couldn't connect to socket: {}".format(x))
         self.connected = 1
         if self.irclibobj.fn_to_add_socket:
             self.irclibobj.fn_to_add_socket(self.socket)
@@ -66,7 +75,7 @@ class DCCConnection(Connection):
             self.localaddress, self.localport = self.socket.getsockname()
             self.socket.listen(10)
         except socket.error, x:
-            raise DCCConnectionError, "Couldn't bind socket: %s" % x
+            raise DCCConnectionError("Couldn't bind socket: {}".format(x))
         return self
 
     def disconnect(self, message=""):
@@ -87,7 +96,7 @@ class DCCConnection(Connection):
         self.socket = None
         self.irclibobj._handle_event(
             self,
-            Event("dcc_disconnect", self.peeraddress, "", [message]))
+            connection.Event("dcc_disconnect", self.peeraddress, "", [message]))
         self.irclibobj._remove_connection(self)
 
     def process_data(self):
@@ -99,11 +108,11 @@ class DCCConnection(Connection):
             self.socket = conn
             self.connected = 1
             if DEBUG:
-                print "DCC connection from %s:%d" % (
-                    self.peeraddress, self.peerport)
+                # TODO: replace the prints with logging calls
+                print("DCC connection from {}:{}".format(self.peeraddress, self.peerport))
             self.irclibobj._handle_event(
                 self,
-                Event("dcc_connect", self.peeraddress, None, None))
+                connection.Event("dcc_connect", self.peeraddress, None, None))
             return
 
         try:
@@ -120,7 +129,7 @@ class DCCConnection(Connection):
         if self.dcctype == "chat":
             # The specification says lines are terminated with LF, but
             # it seems safer to handle CR LF terminations too.
-            chunks = _linesep_regexp.split(self.previous_buffer + new_data)
+            chunks = utils._linesep_regexp.split(self.previous_buffer + new_data)
 
             # Save the last, unfinished line.
             self.previous_buffer = chunks[-1]
@@ -148,14 +157,14 @@ class DCCConnection(Connection):
         target = None
         for chunk in chunks:
             if DEBUG:
-                print "FROM PEER:", chunk
+                print("FROM PEER:" + chunk)
             arguments = [chunk]
             if DEBUG:
-                print "command: %s, source: %s, target: %s, arguments: %s" % (
-                    command, prefix, target, arguments)
+                print("command: {}, source: {}, target: {}, arguments: {}".format(
+                    command, prefix, target, arguments))
             self.irclibobj._handle_event(
                 self,
-                Event(command, prefix, target, arguments))
+                connection.Event(command, prefix, target, arguments))
 
     def _get_socket(self):
         """[Internal]"""
@@ -172,7 +181,7 @@ class DCCConnection(Connection):
             if self.dcctype == "chat":
                 self.socket.send("\n")
             if DEBUG:
-                print "TO PEER: %s\n" % string
+                print("TO PEER: {}\n".format(string))
         except socket.error, x:
             # Ouch!
             self.disconnect("Connection reset by peer.")
