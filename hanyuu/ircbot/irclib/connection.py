@@ -696,23 +696,17 @@ class ServerConnection(Connection):
                     chan = target
                     if not utils.is_channel(target):
                         command = "umode"
-                    operator = arguments[0][0]
-                    modes = list(arguments[0])
-                    targets = arguments[1:]
-                    miter = titer = 0
-                    while miter < len(modes):
-                        mode = modes[miter]
-                        if mode in ['+', '-']: #FUCK IRC
-                            operator = mode
+                    chanmodes = self.featurelist['CHANMODES'].split(',')
+                    modes = utils._parse_modes(arguments,
+                                               chanmodes[0]+chanmodes[1]+self.sqlite.nickmodes,
+                                               chanmodes[2],
+                                               chanmodes[3])
+                    for (sign, mode, param) in modes:
                         if mode in self.sqlite.nickmodes:
-                            nick = targets[titer]
-                            if operator == '+':
-                                self.sqlite.add_mode(chan, nick, mode)
+                            if sign == '+':
+                                self.sqlite.add_mode(chan, param, mode)
                             else:
-                                self.sqlite.rem_mode(chan, nick, mode)
-                        if mode in self.sqlite.argmodes:
-                            titer += 1
-                        miter += 1
+                                self.sqlite.rem_mode(chan, param, mode)
                 if DEBUG:
                     print("command: {}, source: {}, target: {}, arguments: {}".format(
                         command, prefix, target, arguments))

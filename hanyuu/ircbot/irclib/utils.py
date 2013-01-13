@@ -190,65 +190,48 @@ def nm_to_u(s):
     s = s.split("!")[1]
     return s.split("@")[0]
 
-def parse_nick_modes(mode_string):
-    """Parse a nick mode string.
 
-    The function returns a list of lists with three members: sign,
-    mode and argument.  The sign is \"+\" or \"-\".  The argument is
-    always None.
-
-    Example:
-
-    >>> irclib.parse_nick_modes(\"+ab-c\")
-    [['+', 'a', None], ['+', 'b', None], ['-', 'c', None]]
+def _parse_modes(mode_string, always_param='beIkqaohv', set_param='l', no_param='BCMNORScimnpstz'):
     """
-
-    return _parse_modes(mode_string, "")
-
-def parse_channel_modes(mode_string):
-    """Parse a channel mode string.
-
-    The function returns a list of lists with three members: sign,
-    mode and argument.  The sign is \"+\" or \"-\".  The argument is
-    None if mode isn't one of \"b\", \"k\", \"l\", \"v\" or \"o\".
-
-    Example:
-
-    >>> irclib.parse_channel_modes(\"+ab-c foo\")
-    [['+', 'a', None], ['+', 'b', 'foo'], ['-', 'c', None]]
+    This function parses a mode string based on a set of mode types.
+    It returns a list of tuples like (prefix, mode, parameter), where
+    prefix is either + or -, mode is a character that specifies a mode,
+    and parameter is an optional parameter to the mode. If no parameter
+    was specified, the value is None.
+    
+    always_param contains the modes that always have a parameter, both
+    when they are set and unset.
+    
+    set_param contains modes that have a parameter when they are set.
+    
+    no_param contains modes that do not have a parameter.
+    
+    The default values are taken from Rizon's ircd.
     """
     
-    # TODO: make this follow the featurelist
-    # See: featurelist.CHANMODES
-    return _parse_modes(mode_string, "bklvo")
-
-def _parse_modes(mode_string, unary_modes=""):
-    """[Internal]"""
+    
     modes = []
-    arg_count = 0
-
-    # State variable.
-    sign = ""
-
-    a = mode_string.split()
-    if len(a) == 0:
+    sign = ''
+    param_index = 0;
+    
+    split = mode_string.split()
+    if len(split) == 0:
         return []
     else:
-        mode_part, args = a[0], a[1:]
-
+        mode_part, args = split[0], split[1:]
+    
     if mode_part[0] not in "+-":
         return []
+    
     for ch in mode_part:
         if ch in "+-":
             sign = ch
-        elif ch == " ":
-            collecting_arguments = 1
-        elif ch in unary_modes:
-            if len(args) >= arg_count + 1:
-                modes.append([sign, ch, args[arg_count]])
-                arg_count = arg_count + 1
+        elif (ch in always_param) or (ch in set_param and sign == '+'):
+            if param_index < len(args):
+                modes.append((sign, ch, args[param_index]))
+                param_index += 1
             else:
-                modes.append([sign, ch, None])
-        else:
-            modes.append([sign, ch, None])
+                modes.append((sign, ch, None))
+        else: # assume that any unknown mode is no_param
+            modes.append((sign, ch, None))
     return modes
