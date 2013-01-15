@@ -133,14 +133,12 @@ def _ctcp_dequote(message):
 
         return messages
 
-# TODO: make this follow the featurelist
-# See: featurelist.CHANTYPES
-def is_channel(string):
+def is_channel(string, chan_prefixes='#&+!'):
     """Check if a string is a channel name.
 
     Returns true if the argument is a channel name, otherwise false.
     """
-    return string and string[0] in "#&+!"
+    return string and string[0] in (chan_prefixes or "#&+!")
 
 def ip_numstr_to_quad(num):
     """Convert an IP number as an integer given in ASCII

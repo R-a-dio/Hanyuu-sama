@@ -3,6 +3,11 @@ A high level session object to the lower level irclib.connection module.
 """
 from . import utils, connection
 
+textual_commands = ["privmsg",
+                    "pubmsg",
+                    "privnotice",
+                    "pubnotice"]
+
 class Session(object):
     """
     A session object that can join multiple IRC networks and multiple IRC
@@ -26,9 +31,10 @@ class HighEvent(object):
     """
     A abstracted event of the IRC library.
     """
-    def __init__(self, server, nickname, channel, message):
+    def __init__(self, server, command, nickname, channel, message):
         super(HighEvent, self).__init__()
         
+        self.command = command
         self.nickname = nickname
         self.server = server
         self.channel = channel
@@ -41,6 +47,7 @@ class HighEvent(object):
         # We supply the source and server already to reduce code repetition.
         # Just use it as the HighEvent constructor but with partial applied.
         creator = lambda *args, **kwargs: cls(low_event.server,
+                                              command,
                                               *args,
                                               **kwargs)
         
@@ -57,44 +64,44 @@ class HighEvent(object):
             event = creator(old_nickname, None, None)
             event.new_nickname = new_nickname
             return event
-        elif command == 'welcome':
-            # Event used for the welcome message
-            pass
-        elif command == 'pubmsg':
+        elif command in ["pubmsg", "pubnotice"]:
             # A channel message
             nickname = Nickname(low_event.source)
             channel = low_event.target
             message = low_event.arguments[0]
             return creator(nickname, channel, message)
-        elif command == 'privmsg':
+        elif command in ["privmsg", "privnotice"]:
             # Private message
             # The target is set to our own nickname in privmsg.
             nickname = Nickname(low_event.source)
             message = low_event.arguments[0]
             return creator(nickname, None, message)
-        elif command == 'pubnotice':
-            # A notice to a channel
-            nickname = Nickname(low_event.source)
-            channel = low_event.target
-            message = low_event.arguments[0]
-            return creator(nickname, channel, message)
-        elif command == 'privnotice':
-            # A notice to only us.
-            # The target is set to our own nickname in privnotice.
-            nickname = Nickname(low_event.source)
-            message = low_event.arguments[0]
-            return creator(nickname, None, message)
-        elif command == 'ctcp' or command == 'action':
+        elif command == 'ctcp':
             # A CTCP to us.
             # Same as privmsg/notice the target is our own nickname
             nickname = Nickname(low_event.source)
             # The irclib splits off the first space delimited word for us.
-            command = low_event.arguments[0]
+            # This is the CTCP command name
+            ctcp = low_event.arguments[0]
             # The things behind the command are then indexed behind it.
             message = low_event.arguments[1]
             
             event = creator(nickname, None, message)
-            event.command = command
+            event.ctcp = ctcp
+            return event
+        elif command == 'action':
+            # ACTION CTCP are parsed differently than others (for some reason)
+            nickname = Nickname(low_event.source)
+            # The target is present in an ACTION
+            # However, this may be our nick; discard in that case
+            channel = low_event.target
+            # TODO: Should this follow featurelist? Is it necessary?
+            if not utils.is_channel(channel):
+                channel = None
+            # Message is in the arguments
+            message = low_event.arguments[0]
+            
+            event = creator(nickname, channel, message)
             return event
         elif command == 'ctcpreply':
             # A reply to one of our own CTCPs
@@ -139,39 +146,32 @@ class HighEvent(object):
             topic = low_event.arguments[0]
             
             return creator(nickname, channel, topic)
-        elif command == 'mode':
+        elif command in ['mode', 'umode']:
             # Mode change in the channel
             # The nickname that set the mode
             mode_setter = Nickname(low_event.source)
             # Simple channel
             channel = low_event.target
-            # This is a raw mode string that we need to parse and add to
-            # the targeted individuals.
-            modes = utils.parse_modes(low_event.arguments[0])
-            # This is a list of targets instead of one item so common
-            targets = low_event.arguments[1:]
             
+            #utils._parse_modes returns a list of tuples with (operation, mode, param)
             event = creator(mode_setter, channel, None)
-            event.modes = utils.intertwine_modes(modes, targets)
-        elif command == 'umode':
-            # A user mode was set.
-            pass
-        elif command == 'currenttopic':
-            # A response/welcome telling us what the topic is.
-            pass
-        elif command == 'notopic':
-            # A response of when there is no topic.
-            pass
-        elif command == 'featurelist':
-            # TODO: What is this.
-            # I have no idea what this does
-            pass
-        elif command == 'endofmotd':
-            # Signifies the end of the message of the day
-            pass
-        elif command == 'namreply':
-            # A name info reply.
-            pass
+            event.modes = utils._parse_modes(low_event.arguments.join(' '))
+        elif command in ['topic', 'currenttopic', 'notopic']:
+            # Any message that tells us what the topic is.
+            # The channel that had its topic set.
+            channel = low_event.target            
+            # The person who set the topic.
+            # If this isn't a topic command, there is no setter
+            topic_setter = None
+            if command == 'topic':
+                setter = Nickname(low_event.source)            
+            # The argument contains the 
+            # Treat notopic as empty string
+            topic = ''
+            if not command == 'notopic':
+                topic = low_event.arguments[0]
+            event = creator(topic_setter, channel, topic)
+            return event
 
         # TODO: Check for missing commands.
         return

@@ -610,10 +610,10 @@ class ServerConnection(Connection):
                 messages = utils._ctcp_dequote(message)
 
                 if command == "privmsg":
-                    if utils.is_channel(target):
+                    if utils.is_channel(target, self.featurelist.get('CHANTYPES', None)):
                         command = "pubmsg"
                 else:
-                    if utils.is_channel(target):
+                    if utils.is_channel(target, self.featurelist.get('CHANTYPES', None)):
                         command = "pubnotice"
                     else:
                         command = "privnotice"
@@ -629,9 +629,10 @@ class ServerConnection(Connection):
                         if DEBUG:
                             print("command: {}, source: {}, target: {}, arguments: {}".format(
                                 command, prefix, target, m))
-                        self._handle_event(Event(command, prefix, target, m))
                         if command == "ctcp" and m[0] == "ACTION":
                             self._handle_event(Event("action", prefix, target, m[1:]))
+                        else:
+                            self._handle_event(Event(command, prefix, target, m))
                     else:
                         if DEBUG:
                             print("command: {}, source: {}, target: {}, arguments: {}".format(
@@ -694,7 +695,7 @@ class ServerConnection(Connection):
                                                  self.sqlite.nickmodes[pos])
                 if command == "mode":
                     chan = target
-                    if not utils.is_channel(target):
+                    if not utils.is_channel(target, self.featurelist.get('CHANTYPES', None)):
                         command = "umode"
                     chanmodes = self.featurelist['CHANMODES'].split(',')
                     modes = utils._parse_modes(arguments,
