@@ -142,7 +142,7 @@ class Manager(object):
         Calls the `start` method on all registered processor instances.
         
         This method does nothing if a previous call to :meth:`start` was
-        successfull but :meth:`close` was not called inbetween the two calls.
+        successful but :meth:`close` was not called in between the two calls.
         
         .. warning::
             Exceptions are propagated.

@@ -106,7 +106,7 @@ class Icecast(object):
         self.source = new_source # Swap out our source
         self.start() # Start a new thread (so roundabout)
         
-    def set_metadata(self, metadata):
+    def metadata(self, metadata):
         try:
             self._shout.metadata = {'song': metadata} # Stupid library
         except (pylibshout.ShoutException) as err:
