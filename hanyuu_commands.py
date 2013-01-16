@@ -552,7 +552,13 @@ def info(server, nick, channel, text, hostmask):
     if id:
         # do shit with id
         try:
+            id = int(id.strip())
             song = manager.Song(id)
+        except ValueError:
+            message = u'ID Does not exist in database'
+        except TypeError:
+            message = u'Invalid ID'
+        else:
             rc = '?'
             sp = '?'
             with manager.MySQLCursor() as cur:
@@ -561,16 +567,12 @@ def info(server, nick, channel, text, hostmask):
                     row = cur.fetchone()
                     rc = row['requestcount']
                     sp = row['priority']
-            message = u"{c4}ID: {id} Title: {title} Faves: {faves} Plays: {plays} RC: {rc} SP: {sp} CD: {cd}"\
+            message = u"{c7}ID: {id} Title: {title} Faves: {faves} Plays: {plays} RC: {rc} SP: {sp} CD: {cd}"\
                 .format(id=id, title=song.metadata, faves=song.favecount, plays=song.playcount,
-                        rc=rc, sp=sp, cd=small_time_format(requests_.songdelay(rc), False))
-        except ValueError:
-            message = u'ID Does not exist in database'
-        except TypeError:
-            message = u'ID Invalid.'
+                        rc=rc, sp=sp, cd=small_time_format(requests_.songdelay(rc), False), **irc_colours)
     else:
         # Show some kind of info lol
-        message = u"Missing ID?"
+        message = u"Missing ID"
     if (mode == '@'):
         server.privmsg(channel, message)
     else:
