@@ -151,7 +151,8 @@ def parse_status(xml):
         annotations = annotations.split("\n")
         for annotation in annotations:
             tmp = annotation.split(":", 1)
-            result[tmp[0]] = tmp[1].strip() # no need whatsoever to decode anything here. It's not needed by NP()
+            if len(tmp) > 1:
+                result[tmp[0]] = tmp[1].strip() # no need whatsoever to decode anything here. It's not needed by NP()
         result["Online"] = True
         if xml_dict["title"] is None:
             result["Current Song"] = u"" # /shrug
