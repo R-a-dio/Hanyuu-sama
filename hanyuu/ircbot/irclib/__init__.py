@@ -1,10 +1,10 @@
 from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import absolute_import
-import logging
-from . import session
+from .. import logger
+logger = logger.getChild('irclib')
 
-logger = logging.getLogger('hanyuu.ircbot.irclib')
+#from . import session
 
 # Handler constants
 # Channels

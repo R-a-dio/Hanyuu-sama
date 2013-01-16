@@ -75,8 +75,8 @@ import codecs
 import Queue
 import sqlite3
 import collections
-from hanyuu.ircbot.irclib import utils
-from hanyuu.ircbot.irclib import dcc
+from . import utils
+# from . import dcc
 
 
 VERSION = 0, 4, 8

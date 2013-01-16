@@ -4,8 +4,9 @@ A high level session object to the lower level irclib.connection module.
 from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import absolute_import
-import hanyuu.ircbot.irclib.utils
-import hanyuu.ircbot.irclib.connection
+from . import utils
+from . import connection
+
 import time
 import select
 import bisect
