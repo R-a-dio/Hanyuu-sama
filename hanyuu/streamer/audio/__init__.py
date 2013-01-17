@@ -213,7 +213,6 @@ class Manager(object):
             logger.exception("Failed opening file.")
             return self.give_source()
         else:
-            print meta
             if hasattr(self, 'icecast'):
                 self.icecast.set_metadata(meta)
             return audiofile

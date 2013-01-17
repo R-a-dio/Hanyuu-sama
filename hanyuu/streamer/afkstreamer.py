@@ -1,12 +1,11 @@
-import logging
+from __future__ import unicode_literals
+from __future__ import print_function
+from __future__ import absolute_import
+from . import logger
+logger = logger.getChild(__name__)
+
 import threading
-import audio
-import util
-import manager
-import bootstrap
-
-
-logger = logging.getLogger('afkstreamer')
+from . import audio
 
 
 class Streamer(object):
@@ -19,7 +18,10 @@ class Streamer(object):
         self.instance = None
         self.icecast_config = attributes
         
-        self.instance = audio.Manager(self.icecast_config, self.supply_song)
+        self.instance = audio.Manager(
+                                      self.supply_song,
+                                      icecast_config=self.icecast_config,
+                                      )
         self.close_at_end = threading.Event()
         
     @property
@@ -83,7 +85,4 @@ class Streamer(object):
            use :meth:`close`: instead.
         """
         self.close(*args, **kwargs)
-class StreamManager(util.BaseManager):
-    socket = '/tmp/hanyuu_stream'
-
-StreamManager.register("Streamer", Streamer)
+        
