@@ -188,7 +188,6 @@ class ServerConnection(Connection):
             self.disconnect("Changing servers")
 
         self.previous_buffer = ""
-        self.handlers = {}
         self.real_server_name = ""
         self.real_nickname = nickname
         self.server = server
@@ -286,8 +285,6 @@ class ServerConnection(Connection):
 
         for line in lines:
             line = line.decode(self.encoding, 'replace')
-            if DEBUG:
-                print("FROM SERVER:" + line)
 
             if not line:
                 continue
@@ -351,17 +348,12 @@ class ServerConnection(Connection):
                             command = "ctcpreply"
 
                         m = list(m)
-                        if DEBUG:
-                            print("command: {}, source: {}, target: {}, arguments: {}".format(
-                                command, prefix, target, m))
+                        
                         if command == "ctcp" and m[0] == "ACTION":
                             self._handle_event(Event("action", prefix, target, m[1:]))
                         else:
                             self._handle_event(Event(command, prefix, target, m))
                     else:
-                        if DEBUG:
-                            print("command: {}, source: {}, target: {}, arguments: {}".format(
-                                command, prefix, target, [m]))
                         self._handle_event(Event(command, prefix, target, [m]))
             else:
                 target = None
@@ -396,7 +388,7 @@ class ServerConnection(Connection):
                     if 'CHANMODES' in self.featurelist:
                         chanmodes = self.featurelist['CHANMODES']
                         chansplit = chanmodes.split(',')
-                        self.sqlite.argmodes = ''.join(chansplit[:3]) #first three groups are argmodes
+                        self.sqlite.argmodes += ''.join(chansplit[:3]) #first three groups are argmodes
                     if 'PREFIX' in self.featurelist:
                         match = re.match(r"\((.*?)\)(.*?)$", self.featurelist['PREFIX'])
                         self.sqlite.nickchars = match.groups()[1]
@@ -411,7 +403,7 @@ class ServerConnection(Connection):
                             if c not in self.sqlite.nickchars:
                                 break
                             split += 1
-                        modes = list(name[:split])
+                        modes = name[:split]
                         nick = name[split:]
                         self.sqlite.join(chan, nick)
                         for mode in modes:
@@ -429,17 +421,11 @@ class ServerConnection(Connection):
                                 self.sqlite.add_mode(chan, param, mode)
                             else:
                                 self.sqlite.rem_mode(chan, param, mode)
-                if DEBUG:
-                    print("command: {}, source: {}, target: {}, arguments: {}".format(
-                        command, prefix, target, arguments))
                 self._handle_event(Event(command, prefix, target, arguments))
 
     def _handle_event(self, event):
         """[Internal]"""
         self.irclibobj._handle_event(self, event)
-        if event.eventtype() in self.handlers:
-            for fn in self.handlers[event.eventtype()]:
-                fn(self, event)
 
     def is_connected(self):
         """Return connection status.
@@ -447,20 +433,6 @@ class ServerConnection(Connection):
         Returns true if connected, otherwise false.
         """
         return self.connected
-
-    def add_global_handler(self, *args):
-        """Add global handler.
-
-        See documentation for IRC.add_global_handler.
-        """
-        self.irclibobj.add_global_handler(*args)
-
-    def remove_global_handler(self, *args):
-        """Remove global handler.
-
-        See documentation for IRC.remove_global_handler.
-        """
-        self.irclibobj.remove_global_handler(*args)
 
     def action(self, target, action):
         """Send a CTCP ACTION command."""
@@ -511,6 +483,10 @@ class ServerConnection(Connection):
     def hasaccess(self, channel, nick):
         """Check if nick is halfop or higher"""
         return self.sqlite.has_modes(channel, nick, 'oaqh', 'or')
+    
+    def hasanymodes(self, channel, nick, modes):
+        """Check if a nick has any of the specified modes"""
+        return self.sqlite.has_modes(channel, nick, modes, 'or')
     
     def inchannel(self, channel, nick):
         """Check if nick is in channel"""

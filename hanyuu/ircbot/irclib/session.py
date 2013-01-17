@@ -4,6 +4,7 @@ A high level session object to the lower level irclib.connection module.
 from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import absolute_import
+from . import logger
 from . import utils
 from . import connection
 from . import dcc
@@ -12,6 +13,9 @@ import time
 import select
 import bisect
 import collections
+import re
+
+logger = logger.getChild(__name__)
 
 class Session:
     """Class that handles one or several IRC server connections.
@@ -258,9 +262,32 @@ class Session:
         # Rebuild the low level event into a high level one
         high_event = HighEvent.from_low_event(server, event)
         
-        # TODO: check handlers and dispatch events
+        handlers = Session.handlers
         
-        pass
+        for handler, events, channels, nicks, modes, regex in handlers:
+            if high_event.command not in events:
+                continue
+            if high_event.channel not in channels:
+                continue
+            if high_event.nickname.name not in nicks:
+                continue
+            if high_event.channel and high_event.nickname and modes != '':
+                # If the triggering nick does not have any of the needed modes
+                if not server.hasanymodes(high_event.channel,
+                                          high_event.nickname.name,
+                                          modes):
+                    # Don't trigger the handler
+                    continue
+            if high_event.message and regex:
+                if not regex.match(high_event.message):
+                    continue
+            
+            # If we get here, that means we met all the requirements for
+            # triggering this handler
+            try:
+                handler(high_event)
+            except:
+                logger.exception('Exception in IRC handler')
 
     def _remove_connection(self, connection):
         """[Internal]"""
@@ -369,8 +396,6 @@ class HighEvent(object):
             message = low_event.arguments[0]
             
             event = creator(nickname, channel, message)
-            event.text_command = command
-            event.command = 'text'
             return event
         elif command == 'ctcpreply':
             # A CTCP reply.
@@ -521,9 +546,7 @@ def event_handler(events, channels=[], nicks=[], modes='', regex=''):
                        the event.
         
         :params modes: The required channel modes that are needed to trigger
-                       this event. Common values are 'qaoh' or '-'.
-                       The special mode '-' signifies a "normal user"; it covers
-                       anyone with no modes at all.
+                       this event.
                        If an empty mode string is specified, no modes are needed
                        to trigger the event.
         
@@ -567,7 +590,11 @@ def event_handler(events, channels=[], nicks=[], modes='', regex=''):
             raise TypeError('invalid type for nickname: {}'.format(nick))
     
     def decorator(fn):
-        handler = Handler(fn, events, channels, nicks, modes, regex)
+        if regex != '':
+            cregex = re.compile(regex, re.I)
+        else:
+            cregex = None
+        handler = Handler(fn, events, channels, nicks, modes, cregex)
         Session.handlers[fn.__module__ + ":" + fn.__name__] = handler
         return fn
     return decorator
