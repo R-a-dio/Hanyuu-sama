@@ -422,11 +422,7 @@ class ServerConnection(Connection):
                     chan = target
                     if not utils.is_channel(target, self.featurelist.get('CHANTYPES', None)):
                         command = "umode"
-                    chanmodes = self.featurelist['CHANMODES'].split(',')
-                    modes = utils._parse_modes(arguments,
-                                               chanmodes[0]+chanmodes[1]+self.sqlite.nickmodes,
-                                               chanmodes[2],
-                                               chanmodes[3])
+                    modes = self._parse_modes(arguments)
                     for (sign, mode, param) in modes:
                         if mode in self.sqlite.nickmodes:
                             if sign == '+':
@@ -733,6 +729,56 @@ class ServerConnection(Connection):
         self.send_raw(u"WHOWAS {}{}{}".format(nick,
                                          max and (u" " + max),
                                          server and (u" " + server)))
+    
+    def _parse_modes(self, mode_string):
+        """
+        This function parses a mode string based on a set of mode types.
+        It returns a list of tuples like (prefix, mode, parameter), where
+        prefix is either + or -, mode is a character that specifies a mode,
+        and parameter is an optional parameter to the mode. If no parameter
+        was specified, the value is None.
+        
+        The default values are taken from Rizon's ircd.
+        """
+        
+
+        if 'CHANMODES' in self.featurelist:
+            chanmodes = self.featurelist['CHANMODES'].split(',')
+            always_param = chanmodes[0]+chanmodes[1]+self.sqlite.nickmodes
+            set_param = chanmodes[2]
+            no_param = chanmodes[3]
+        else:
+            always_param = 'beIkqaohv'
+            set_param = 'l'
+            no_param='BCMNORScimnpstz'
+        
+        
+        modes = []
+        sign = ''
+        param_index = 0;
+        
+        split = mode_string.split()
+        if len(split) == 0:
+            return []
+        else:
+            mode_part, args = split[0], split[1:]
+        
+        if mode_part[0] not in "+-":
+            return []
+        
+        for ch in mode_part:
+            if ch in "+-":
+                sign = ch
+            elif (ch in always_param) or (ch in set_param and sign == '+'):
+                if param_index < len(args):
+                    modes.append((sign, ch, args[param_index]))
+                    param_index += 1
+                else:
+                    modes.append((sign, ch, None))
+            else: # assume that any unknown mode is no_param
+                modes.append((sign, ch, None))
+        return modes
+
 
 
     

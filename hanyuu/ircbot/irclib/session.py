@@ -6,15 +6,13 @@ from __future__ import print_function
 from __future__ import absolute_import
 from . import utils
 from . import connection
+from . import dcc
 
 import time
 import select
 import bisect
+import collections
 
-textual_commands = ["privmsg",
-                    "pubmsg",
-                    "privnotice",
-                    "pubnotice"]
 class Session:
     """Class that handles one or several IRC server connections.
 
@@ -80,11 +78,9 @@ class Session:
             self.fn_to_remove_socket = None
 
         self.fn_to_add_timeout = fn_to_add_timeout
-        self.connections = []
-        self.handlers = {}
+        self.connections = []        
         self.delayed_commands = [] # list of tuples in the format (time, function, arguments)
         self.encoding = encoding
-        self.add_global_handler("ping", self._ping_ponger, -42)
         
     def server(self):
         """Creates and returns a ServerConnection object."""
@@ -196,49 +192,6 @@ class Session:
         for c in self.connections:
             c.disconnect(message)
 
-    def add_global_handler(self, event, handler, priority=0):
-        """Adds a global handler function for a specific event type.
-
-        Arguments:
-
-            event -- Event type (a string).  Check the values of the
-            numeric_events dictionary in irclib.py for possible event
-            types.
-
-            handler -- Callback function.
-
-            priority -- A number (the lower number, the higher priority).
-
-        The handler function is called whenever the specified event is
-        triggered in any of the connections.  See documentation for
-        the Event class.
-
-        The handler functions are called in priority order (lowest
-        number is highest priority).  If a handler function returns
-        \"NO MORE\", no more handlers will be called.
-        """
-        if not event in self.handlers:
-            self.handlers[event] = []
-        bisect.insort(self.handlers[event], ((priority, handler)))
-
-    def remove_global_handler(self, event, handler):
-        """Removes a global handler function.
-
-        Arguments:
-
-            event -- Event type (a string).
-
-            handler -- Callback function.
-
-        Returns 1 on success, otherwise 0.
-        """
-        if not event in self.handlers:
-            return 0
-        for h in self.handlers[event]:
-            if handler == h[1]:
-                self.handlers[event].remove(h)
-        return 1
-
     def execute_at(self, at, function, arguments=()):
         """Execute a function at a specified time.
 
@@ -281,12 +234,33 @@ class Session:
         self.connections.append(c)
         return c
 
-    def _handle_event(self, connection, event):
+    def _handle_event(self, server, event):
         """[Internal]"""
-        h = self.handlers
-        for handler in h.get("all_events", []) + h.get(event.eventtype(), []):
-            if handler[1](connection, event) == "NO MORE":
+        
+        # PONG any incoming PING event
+        if event.eventtype == 'ping':
+            self._ping_ponger(server, event)
+        
+        # Preparse MODE events, we want them separate in high level
+        if event.eventtype in ['mode', 'umode']:
+            modes = server._parse_modes(event.arguments.join(' '))
+            if len(modes) > 1:
+                for sign, mode, param in modes:
+                    new_event = connection.Event(event.eventtype,
+                                                 event.source,
+                                                 event.target,
+                                                 [sign+mode, param])
+                    # Reraise the individual events as low level
+                    self._handle_event(server, new_event)
+                # If we had to preparse, end here
                 return
+        
+        # Rebuild the low level event into a high level one
+        high_event = HighEvent.from_low_event(server, event)
+        
+        # TODO: check handlers and dispatch events
+        
+        pass
 
     def _remove_connection(self, connection):
         """[Internal]"""
@@ -299,6 +273,7 @@ class Session:
         connection._last_ping = time.time()
         connection.pong(event.target())
 
+Session.handlers = {}
 
 class HighEvent(object):
     """
@@ -314,12 +289,12 @@ class HighEvent(object):
         self.message = message
         
     @classmethod
-    def from_low_event(cls, low_event):
+    def from_low_event(cls, server, low_event):
         command = low_event.eventtype
         
         # We supply the source and server already to reduce code repetition.
         # Just use it as the HighEvent constructor but with partial applied.
-        creator = lambda *args, **kwargs: cls(low_event.server,
+        creator = lambda *args, **kwargs: cls(server,
                                               command,
                                               *args,
                                               **kwargs)
@@ -443,13 +418,14 @@ class HighEvent(object):
             event = creator(target, channel, reason)
             event.kicker = kicker
             return event
-        elif command == 'topic':
-            # Someone changing the channel topic.
+        elif command == 'invite':
+            # Someone has invited us to a channel.
+            # The inviter
             nickname = Nickname(low_event.source)
-            channel = low_event.target
-            topic = low_event.arguments[0]
-            
-            return creator(nickname, channel, topic)
+            # Target contains our nickname
+            # First argument is the channel we were invited to
+            channel = low_event.arguments[0]
+            return creator(nickname, channel, None)
         elif command in ['mode', 'umode']:
             # Mode change in the channel
             # The nickname that set the mode
@@ -457,9 +433,17 @@ class HighEvent(object):
             # Simple channel
             channel = low_event.target
             
-            #utils._parse_modes returns a list of tuples with (operation, mode, param)
+            # ServerConnection._parse_modes returns a list of tuples with
+            # (operation, mode, param)
+            # HOWEVER, we preparse the modes, so we (preferably) only want the
+            # first one. Let's make sure we can still get all of them, though
             event = creator(mode_setter, channel, None)
-            event.modes = utils._parse_modes(low_event.arguments.join(' '))
+            modes = server._parse_modes(low_event.arguments.join(' '))
+            if len(modes) > 1:
+                event.modes = modes
+            else:
+                event.modes = modes[0]
+            return event
         elif command in ['topic', 'currenttopic', 'notopic']:
             # Any message that tells us what the topic is.
             # The channel that had its topic set.
@@ -477,12 +461,20 @@ class HighEvent(object):
             event = creator(topic_setter, channel, topic)
             event.command = 'topic'
             return event
-            
-            
+        elif command == 'all_raw_messages':
+            # This event contains all messages, unparsed
+            server_name = low_event.source
+            event = creator(None, None, low_event.arguments[0])
+            event.command = 'raw'
+            return event
         
-        # The event was not high level: thus, it's raw
-        # TODO: Check for missing commands.
-        return
+        # The event was not high level: thus, it's not raw, but simply unparsed
+        # You will probably be able to register to these, but they won't have
+        # much use
+        event = creator(None, None, low_event.arguments[0])
+        event.source = low_event.source
+        event.target = low_event.target
+        return event
     
     
 class Nickname(object):
@@ -507,3 +499,75 @@ class Nickname(object):
         else:
             self.name = utils.nm_to_n(host)
             self.host = host
+
+def event_handler(events, channels=[], nicks=[], modes='', regex=''):
+    """
+    The decorator for high level event handlers. By decorating a function
+    with this, the function is registered in the global :class:`Session` event
+    handler list, :attr:`Session.handlers`.
+    
+        :params events: The events that the handler should subscribe to.
+                        This can be both a string and a list; if a string
+                        is provided, it will be added as a single element
+                        in a list of events.
+                        This rule applies to `channels` and `nicks` as well.
+        
+        :params channels: The channels that the events should trigger on.
+                          Given an empty list, all channels will trigger
+                          the event.
+        
+        :params nicks: The nicknames that this handler should trigger for.
+                       Given an empty list, all nicknames will trigger
+                       the event.
+        
+        :params modes: The required channel modes that are needed to trigger
+                       this event. Common values are 'qaoh' or '-'.
+                       The special mode '-' signifies a "normal user"; it covers
+                       anyone with no modes at all.
+                       If an empty mode string is specified, no modes are needed
+                       to trigger the event.
+        
+        :params regex: The event will only be triggered if the
+                       :attr:`HighEvent.message` matches the specified regex.
+                       If no regex is specified, any :attr:`HighEvent.message`
+                       will do.
+    
+    
+    
+    
+    """
+    Handler = collections.namedtuple('Handler', ['handler',
+                                                 'events',
+                                                 'channels',
+                                                 'nicks',
+                                                 'modes',
+                                                 'regex'])
+    
+    # If you think the type checking here is wrong, please fix it,
+    # i have no idea what i'm doing
+    if not isinstance(events, list):
+        events = [events]
+    if not isinstance(channels, list):
+        channels = [channels]
+    if not isinstance(nicks, list):
+        nicks = [nicks]
+    if not isinstance(modes, str) and not isinstance(modes, unicode):
+        raise TypeError('invalid type for mode string: {}'.format(modes))
+    if not isinstance(regex, str) and not isinstance(regex, unicode):
+        raise TypeError('invalid type for regex: {}'.format(regex))
+    
+    for event in events:
+        if not isinstance(event, str) and not isinstance(event, unicode):
+            raise TypeError('invalid type for event name: {}'.format(event))
+    for channel in channels:
+        if not isinstance(channel, str) and not isinstance(channel, unicode):
+            raise TypeError('invalid type for channel name: {}'.format(channel))
+    for nick in nicks:
+        if not isinstance(nick, str) and not isinstance(nick, unicode):
+            raise TypeError('invalid type for nickname: {}'.format(nick))
+    
+    def decorator(fn):
+        handler = Handler(fn, events, channels, nicks, modes, regex)
+        Session.handlers[fn.__module__ + ":" + fn.__name__] = handler
+        return fn
+    return decorator
