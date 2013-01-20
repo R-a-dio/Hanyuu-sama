@@ -102,31 +102,20 @@ class ServerConnection(Connection):
                 ssl=False, ipv6=False, encoding='utf-8'):
         """Connect/reconnect to a server.
 
-            :param server: Server name.
-
-            :param port: Port number.
-
-            :param nickname: The nickname.
-
-            :param password: IRC Password (if any).
+        :param server: Server name.
+        :param port: Port number.
+        :param nickname: The nickname.
+        :param password: IRC Password (if any).
                               
-                              .. note::
-                                  
+                              .. note::                                  
                                   This is NOT the NickServ password; you have
                                   to send that manually.
-
-            :param username: The IRC username.
-
-            :param ircname: The IRC name ('realname').
-
-            :param localaddress: Bind the connection to a specific local IP
-                                  address.
-
-            :param localport: Bind the connection to a specific local port.
-
-            :param ssl: Enable support for ssl.
-
-            :param ipv6: -- Enable support for ipv6.
+        :param username: The IRC username.
+        :param ircname: The IRC name ('realname').
+        :param localaddress: Bind the connection to a specific local IP address.
+        :param localport: Bind the connection to a specific local port.
+        :param ssl: Enable support for ssl.
+        :param ipv6: Enable support for ipv6.
 
         This function can be called to reconnect a closed connection.
 
@@ -175,6 +164,7 @@ class ServerConnection(Connection):
 
     def close(self):
         """Close the connection.
+        
             .. warning::
                 This method closes the connection permanently; after it has
                 been called, the object is unusable.
