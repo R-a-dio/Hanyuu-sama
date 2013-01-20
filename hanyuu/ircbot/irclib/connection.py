@@ -105,8 +105,7 @@ class ServerConnection(Connection):
         self.featurelist = {}
         # Contains the featurelist.PREFIX information, maps chars to modes
         self.prefix = {}
-        
-        
+    
     def connect(self, server, port, nickname, password=None, username=None,
                 ircname=None, localaddress="", localport=0,
                 ssl=False, ipv6=False, encoding='utf-8'):
@@ -164,6 +163,7 @@ class ServerConnection(Connection):
             self.socket = None
             raise ServerConnectionError("Couldn't connect to socket: {}".format(x))
         self.connected = 1
+        self.irclibobj.register_socket(self.socket, self)
 
         # Log on...
         if self.password:

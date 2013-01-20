@@ -9,7 +9,7 @@ from . import logger
 
 logger = logger.getChild(__name__)
 
-# TODO set this somewhere else?
+# TODO: set this somewhere else?
 DEBUG = False
 
 class DCCConnectionError(connection.IRCError):
@@ -57,8 +57,7 @@ class DCCConnection(connection.Connection):
         except socket.error, x:
             raise DCCConnectionError("Couldn't connect to socket: {}".format(x))
         self.connected = 1
-        if self.irclibobj.fn_to_add_socket:
-            self.irclibobj.fn_to_add_socket(self.socket)
+        self.irclibobj.register_socket(self.socket, self)
         return self
 
     def listen(self):
@@ -81,12 +80,16 @@ class DCCConnection(connection.Connection):
             self.socket.listen(10)
         except socket.error, x:
             raise DCCConnectionError("Couldn't bind socket: {}".format(x))
+        self.irclibobj.register_socket(self.socket, self)
         return self
 
     def disconnect(self, message=""):
         """Hang up the connection and close the object.
-
+        
         :param message: Quit message.
+        
+        .. note::
+            After calling this method, the object becomes unusable.
         
         """
         if not self.connected:
@@ -112,7 +115,6 @@ class DCCConnection(connection.Connection):
             self.socket = conn
             self.connected = 1
             if DEBUG:
-                # TODO: replace the prints with logging calls
                 logger.debug("DCC connection from {}:{}"
                              .format(self.peeraddress, self.peerport))
             self.irclibobj._handle_event(
