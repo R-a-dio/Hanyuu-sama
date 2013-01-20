@@ -138,7 +138,12 @@ def queue(server, nick, channel, text, hostmask):
     else:
         queue = list(manager.Queue())
         if (len(queue) > 0):
-            message = u"{c3}Queue:{c} ".format(**irc_colours) + \
+            queue_time = 0
+            for song in manager.Queue().iter(None):
+                if (song.type == manager.REQUEST or song.type == manager.REGULAR):
+                    queue_time += song.length
+
+            message = u"{c3}Queue ({total_time}):{c} ".format(total_time=timedelta(seconds=queue_time), **irc_colours) + \
                 " {c3}|{c} ".format(**irc_colours)\
                 .join([song.metadata for song in queue])
         else:
