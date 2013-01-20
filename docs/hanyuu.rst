@@ -32,7 +32,7 @@ Subpackages
 
     hanyuu.abstractions
     hanyuu.db
-    hanyuu.irc
+    hanyuu.ircbot
     hanyuu.listener
     hanyuu.requests
     hanyuu.status
