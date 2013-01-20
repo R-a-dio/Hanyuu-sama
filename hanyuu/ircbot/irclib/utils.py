@@ -76,7 +76,7 @@ def _ctcp_dequote(message):
     that element is the tag; otherwise the tuple has two elements: the
     tag and the data.
 
-        :param message: The message to be decoded.
+    :param message: The message to be decoded.
     
     """
 

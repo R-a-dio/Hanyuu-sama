@@ -371,6 +371,7 @@ class HighEvent(object):
         
     @classmethod
     def from_low_event(cls, server, low_event):
+        """Generates a high level event from a low level one."""
         command = low_event.eventtype
         
         # We supply the source and server already to reduce code repetition.
@@ -568,7 +569,7 @@ class Nickname(object):
         """
         The constructor really just expects the raw host send by IRC servers.
         
-        it parses this for you into segments.
+        It parses this for you into segments.
         
         if `nickname_only` is set to True it expects a bare nickname unicode
         object to be used as nickname and nothing more.
@@ -587,32 +588,29 @@ def event_handler(events, channels=[], nicks=[], modes='', regex=''):
     with this, the function is registered in the global :class:`Session` event
     handler list, :attr:`Session.handlers`.
     
-        :param events: The events that the handler should subscribe to.
-                        This can be both a string and a list; if a string
-                        is provided, it will be added as a single element
-                        in a list of events.
-                        This rule applies to `channels` and `nicks` as well.
-        
-        :param channels: The channels that the events should trigger on.
-                          Given an empty list, all channels will trigger
-                          the event.
-        
-        :param nicks: The nicknames that this handler should trigger for.
-                       Given an empty list, all nicknames will trigger
-                       the event.
-        
-        :param modes: The required channel modes that are needed to trigger
-                       this event.
-                       If an empty mode string is specified, no modes are needed
-                       to trigger the event.
-        
-        :param regex: The event will only be triggered if the
-                       :attr:`HighEvent.message` matches the specified regex.
-                       If no regex is specified, any :attr:`HighEvent.message`
-                       will do.
+    :param events: The events that the handler should subscribe to.
+                   This can be both a string and a list; if a string
+                   is provided, it will be added as a single element
+                   in a list of events.
+                   This rule applies to `channels` and `nicks` as well.
     
+    :param channels: The channels that the events should trigger on.
+                     Given an empty list, all channels will trigger
+                     the event.
     
+    :param nicks: The nicknames that this handler should trigger for.
+                  Given an empty list, all nicknames will trigger
+                  the event.
     
+    :param modes: The required channel modes that are needed to trigger
+                  this event.
+                  If an empty mode string is specified, no modes are needed
+                  to trigger the event.
+    
+    :param regex: The event will only be triggered if the
+                  :attr:`HighEvent.message` matches the specified regex.
+                  If no regex is specified, any :attr:`HighEvent.message`
+                  will do.
     
     """
     Handler = collections.namedtuple('Handler', ['handler',
