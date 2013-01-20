@@ -37,7 +37,7 @@ high_level_events = ['connect',
                      'topic',
                      'invite',
                      'ctcp',
-                     'ctcpreply'
+                     'ctcpreply',
                      'action',
                      'nick',
                      'raw'
@@ -119,6 +119,7 @@ class Session:
         at a limited rate. The default is 2500 bytes per 1.3 seconds. This
         value cannot currently be changed.
         
+        .. seealso:: :meth:`process_once`
         """
         
         for c in self.connections:
@@ -164,7 +165,8 @@ class Session:
         exceeds a specified time limit, the Session assumes that we have lost
         connection to the server and will attempt to reconnect us.
         
-        If that seems boring, look at the :meth:`process_forever` method.
+        If calling it manually seems boring, look at the
+        :meth:`process_forever` method.
         """
         sockets = map(lambda x: x._get_socket(), self.connections)
         sockets = filter(lambda x: x != None, sockets)

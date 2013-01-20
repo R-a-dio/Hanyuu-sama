@@ -60,9 +60,17 @@ class Connection(object):
     ### Convenience wrappers.
 
     def execute_at(self, at, function, arguments=()):
+        """Executes a function at a specified time.
+        
+        .. seealso:: :meth:`session.Session.execute_at`
+        """
         self.irclibobj.execute_at(at, function, arguments)
 
     def execute_delayed(self, delay, function, arguments=()):
+        """Executes a function after a specified number of seconds.
+        
+        .. seealso:: :meth:`session.Session.execute_delayed`
+        """
         self.irclibobj.execute_delayed(delay, function, arguments)
 
 

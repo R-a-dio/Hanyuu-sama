@@ -13,9 +13,9 @@ class SqliteCursor:
     def __init__(self, conn):
         """Creates an instance of the :class:`SqliteCursor`.
 
-            :param conn: Either an :class:`IRCTracker` object or a
-                          :class:`sqlite3.Connection` object. This object
-                          will be used to connect to the database.
+        :param conn: Either an :class:`IRCTracker` object or a
+                      :class:`sqlite3.Connection` object. This object
+                      will be used to connect to the database.
         
         It is meant to be used in a 'with' statement, like this:
         
