@@ -405,8 +405,7 @@ class HighEvent(object):
             # The target is present in an ACTION
             # However, this may be our nick; discard in that case
             channel = low_event.target
-            # TODO: Should this follow featurelist? Is it necessary?
-            if not utils.is_channel(channel):
+            if not server.is_channel(channel):
                 channel = None
             # Message is in the argument
             message = low_event.argument[0]

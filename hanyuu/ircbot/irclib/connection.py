@@ -339,10 +339,10 @@ class ServerConnection(Connection):
                 messages = utils._ctcp_dequote(message)
 
                 if command == "privmsg":
-                    if utils.is_channel(target, self.featurelist.get('CHANTYPES', None)):
+                    if self.is_channel(target):
                         command = "pubmsg"
                 else:
-                    if utils.is_channel(target, self.featurelist.get('CHANTYPES', None)):
+                    if self.is_channel(target):
                         command = "pubnotice"
                     else:
                         command = "privnotice"
@@ -419,7 +419,7 @@ class ServerConnection(Connection):
                                                  self.tracker.nickmodes[pos])
                 if command == "mode":
                     chan = target
-                    if not utils.is_channel(target, self.featurelist.get('CHANTYPES', None)):
+                    if not self.is_channel(target):
                         command = "umode"
                     modes = self._parse_modes(''.join(arguments))
                     for (sign, mode, param) in modes:
@@ -640,7 +640,7 @@ class ServerConnection(Connection):
             else:
                 self.socket.sendall(message)
             if DEBUG:
-                print("TO SERVER:" + message)
+                logger.debug("TO SERVER:" + message)
         except socket.error, x:
             self.disconnect("Connection reset by peer.")
     def send_raw(self, string):
@@ -761,6 +761,13 @@ class ServerConnection(Connection):
             else: # assume that any unknown mode is no_param
                 modes.append((sign, ch, None))
         return modes
+    def is_channel(self, string):
+        """Check if a string is a channel name.
+    
+        Returns True if the argument is a channel name, otherwise False.
+        """
+        chan_prefixes = self.featurelist('CHANTYPES', None)        
+        return string and string[0] in (chan_prefixes or "#&+!")
 
 
 
