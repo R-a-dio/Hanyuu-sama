@@ -5,6 +5,9 @@ import socket
 from . import utils
 from . import connection
 
+from . import logger
+
+logger = logger.getChild(__name__)
 
 # TODO set this somewhere else?
 DEBUG = False
@@ -16,10 +19,12 @@ class DCCConnectionError(connection.IRCError):
 class DCCConnection(connection.Connection):
     """This class represents a DCC connection.
 
-    DCCConnection objects are instantiated by calling the dcc
-    method on an IRC object.
+    DCCConnection objects are instantiated by calling
+    :meth:`session.Session.dcc`.
+    
+    For usage, see :meth:`connect` and :meth:`listen`.
     """
-    def __init__(self, irclibobj, dcctype, dccinfo=(None, None)):
+    def __init__(self, irclibobj, dcctype, dccinfo=(None, 0)):
         connection.Connection.__init__(self, irclibobj)
         self.connected = 0
         self.passive = 0
@@ -31,11 +36,10 @@ class DCCConnection(connection.Connection):
 
     def connect(self, address, port):
         """Connect/reconnect to a DCC peer.
+    
+            :params address: Host/IP address of the peer.
 
-        Arguments:
-            address -- Host/IP address of the peer.
-
-            port -- The port number to connect to.
+            :params port: The port number to connect to.
 
         Returns the DCCConnection object.
         """
@@ -63,12 +67,12 @@ class DCCConnection(connection.Connection):
 
         Returns the DCCConnection object.
 
-        The local IP address and port are available as
-        self.localaddress and self.localport.  After connection from a
-        peer, the peer address and port are available as
-        self.peeraddress and self.peerport.
+        The local IP address and port are available as :attr:`localaddress`
+        and :attr:`localport`. After connection from a peer, the peer
+        address and port are available as :attr:`peeraddress` and
+        :attr:`peerport`.
         """
-        self.previous_buffer = ""
+        self.previous_buffer = b""
         self.handlers = {}
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.passive = 1
@@ -83,9 +87,7 @@ class DCCConnection(connection.Connection):
     def disconnect(self, message=""):
         """Hang up the connection and close the object.
 
-        Arguments:
-
-            message -- Quit message.
+            :params message: Quit message.
         """
         if not self.connected:
             return
@@ -111,7 +113,8 @@ class DCCConnection(connection.Connection):
             self.connected = 1
             if DEBUG:
                 # TODO: replace the prints with logging calls
-                print("DCC connection from {}:{}".format(self.peeraddress, self.peerport))
+                logger.debug("DCC connection from {}:{}"
+                             .format(self.peeraddress, self.peerport))
             self.irclibobj._handle_event(
                 self,
                 connection.Event("dcc_connect", self.peeraddress, None, None))
@@ -159,10 +162,10 @@ class DCCConnection(connection.Connection):
         target = None
         for chunk in chunks:
             if DEBUG:
-                print("FROM PEER:" + chunk)
+                logger.debug("FROM PEER:" + chunk)
             arguments = [chunk]
             if DEBUG:
-                print("command: {}, source: {}, target: {}, arguments: {}".format(
+                logger.debug("command: {}, source: {}, target: {}, arguments: {}".format(
                     command, prefix, target, arguments))
             self.irclibobj._handle_event(
                 self,

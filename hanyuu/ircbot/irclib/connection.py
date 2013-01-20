@@ -1,4 +1,6 @@
-# Copyright (C) 1999--2002  Joel Rosdahl
+# irclib -- Internet Relay Chat (IRC) protocol client library.
+# Based on python-irclib by Joel Rosdahl
+# Copyright (C) 2011-2013 r/a/dio
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -14,52 +16,7 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307  USA
 #
-# keltus <keltus@users.sourceforge.net>
-#
-# $Id: irclib.py,v 1.47 2008/09/25 22:00:59 keltus Exp $
 
-"""irclib -- Internet Relay Chat (IRC) protocol client library.
-
-This library is intended to encapsulate the IRC protocol at a quite
-low level.  It provides an event-driven IRC client framework.  It has
-a fairly thorough support for the basic IRC protocol, CTCP, DCC chat,
-but DCC file transfers is not yet supported.
-
-In order to understand how to make an IRC client, I'm afraid you more
-or less must understand the IRC specifications.  They are available
-here: [IRC specifications].
-
-The main features of the IRC client framework are:
-
-  * Abstraction of the IRC protocol.
-  * Handles multiple simultaneous IRC server connections.
-  * Handles server PONGing transparently.
-  * Messages to the IRC server are done by calling methods on an IRC
-    connection object.
-  * Messages from an IRC server triggers events, which can be caught
-    by event handlers.
-  * Reading from and writing to IRC server sockets are normally done
-    by an internal select() loop, but the select()ing may be done by
-    an external main loop.
-  * Functions can be registered to execute at specified times by the
-    event-loop.
-  * Decodes CTCP tagging correctly (hopefully); I haven't seen any
-    other IRC client implementation that handles the CTCP
-    specification subtilties.
-  * A kind of simple, single-server, object-oriented IRC client class
-    that dispatches events to instance methods is included.
-
-Current limitations:
-
-  * The IRC protocol shines through the abstraction a bit too much.
-  * Data is not written asynchronously to the server, i.e. the write()
-    may block if the TCP buffers are stuffed.
-  * There are no support for DCC file transfers.
-  * The author haven't even read RFC 2810, 2811, 2812 and 2813.
-  * Like most projects, documentation is lacking...
-
-.. [IRC specifications] http://www.irchelp.org/irchelp/rfc/
-"""
 from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import absolute_import
@@ -75,38 +32,20 @@ import codecs
 import Queue
 import collections
 from . import utils, tracker
-# from . import dcc
 
 from . import logger
 
 logger = logger.getChild(__name__)
 
-VERSION = 0, 4, 8
+VERSION = 0, 5, 0
 DEBUG = 0
 
-# TODO
-# ----
-# (maybe) thread safety
-# (maybe) color parser convenience functions
-# documentation (including all event types)
-# (maybe) add awareness of different types of ircds
-# send data asynchronously to the server (and DCC connections)
-# (maybe) automatically close unused, passive DCC connections after a while
-
-# NOTES
-# -----
-# connection.quit() only sends QUIT to the server.
-# ERROR from the server triggers the error event and the disconnect event.
-# dropping of the connection triggers the disconnect event.
 
 class IRCError(Exception):
     """Represents an IRC exception."""
     pass
 
-
-_rfc_1459_command_regexp = re.compile("^(:(?P<prefix>[^ ]+) +)?(?P<command>[^ ]+)( *(?P<argument> .+))?", re.UNICODE)
-
-class Connection:
+class Connection(object):
     """Base class for IRC connections.
 
     Must be overridden.
@@ -115,7 +54,7 @@ class Connection:
         self.irclibobj = irclibobj
 
     def _get_socket(self):
-        raise IRCError, "Not overridden"
+        raise IRCError("Not overridden")
 
     ##############################
     ### Convenience wrappers.
@@ -137,8 +76,8 @@ class ServerNotConnectedError(ServerConnectionError):
 class ServerConnection(Connection):
     """This class represents an IRC server connection.
 
-    ServerConnection objects are instantiated by calling the server
-    method on an IRC object.
+    ServerConnection objects are instantiated by calling
+    :meth:`session.Session.server`.
     """
 
     def __init__(self, irclibobj):
@@ -154,6 +93,8 @@ class ServerConnection(Connection):
         self._last_ping = time.time()
         self.encoding = irclibobj.encoding
         self.featurelist = {}
+        # Contains the featurelist.PREFIX information, maps chars to modes
+        self.prefix = {}
         
         
     def connect(self, server, port, nickname, password=None, username=None,
@@ -161,27 +102,31 @@ class ServerConnection(Connection):
                 ssl=False, ipv6=False, encoding='utf-8'):
         """Connect/reconnect to a server.
 
-        Arguments:
+            :params server: Server name.
 
-            server -- Server name.
+            :params port: Port number.
 
-            port -- Port number.
+            :params nickname: The nickname.
 
-            nickname -- The nickname.
+            :params password: IRC Password (if any).
+                              
+                              .. note::
+                                  
+                                  This is NOT the NickServ password; you have
+                                  to send that manually.
 
-            password -- Password (if any).
+            :params username: The IRC username.
 
-            username -- The username.
+            :params ircname: The IRC name ('realname').
 
-            ircname -- The IRC name ("realname").
+            :params localaddress: Bind the connection to a specific local IP
+                                  address.
 
-            localaddress -- Bind the connection to a specific local IP address.
+            :params localport: Bind the connection to a specific local port.
 
-            localport -- Bind the connection to a specific local port.
+            :params ssl: Enable support for ssl.
 
-            ssl -- Enable support for ssl.
-
-            ipv6 -- Enable support for ipv6.
+            :params ipv6: -- Enable support for ipv6.
 
         This function can be called to reconnect a closed connection.
 
@@ -203,6 +148,7 @@ class ServerConnection(Connection):
         self.localport = localport
         self.localhost = socket.gethostname()
         self.featurelist = {}
+        self.motd_sent = False
         self._ipv6 = ipv6
         self._ssl = ssl
         if ipv6:
@@ -217,10 +163,8 @@ class ServerConnection(Connection):
         except socket.error, x:
             self.socket.close()
             self.socket = None
-            raise ServerConnectionError, "Couldn't connect to socket: {}".format(x)
+            raise ServerConnectionError("Couldn't connect to socket: {}".format(x))
         self.connected = 1
-        if self.irclibobj.fn_to_add_socket:
-            self.irclibobj.fn_to_add_socket(self.socket)
 
         # Log on...
         if self.password:
@@ -231,9 +175,9 @@ class ServerConnection(Connection):
 
     def close(self):
         """Close the connection.
-
-        This method closes the connection permanently; after it has
-        been called, the object is unusable.
+            .. warning::
+                This method closes the connection permanently; after it has
+                been called, the object is unusable.
         """
 
         self.disconnect("Closing object")
@@ -265,7 +209,10 @@ class ServerConnection(Connection):
         return self.real_nickname
 
     def process_data(self):
-        """[Internal]"""
+        """Processes incoming data and dispatches handlers.
+        
+        Only for internal use.
+        """
 
         try:
             if self.ssl:
@@ -282,10 +229,7 @@ class ServerConnection(Connection):
             return
         self._last_ping = time.time()
         
-        try:
-            lines = utils._linesep_regexp.split(self.previous_buffer + new_data)
-        except UnicodeDecodeError:
-            logger.exception('error')
+        lines = utils._linesep_regexp.split(self.previous_buffer + new_data)
 
         # Save the last, unfinished line.
         self.previous_buffer = lines.pop()
@@ -304,7 +248,7 @@ class ServerConnection(Connection):
                                      None,
                                      [line]))
 
-            m = _rfc_1459_command_regexp.match(line)
+            m = utils._rfc_1459_command_regexp.match(line)
             if m.group("prefix"):
                 prefix = m.group("prefix")
                 if not self.real_server_name:
@@ -391,39 +335,49 @@ class ServerConnection(Connection):
                             self.featurelist[split[0]] = split[1]
                         elif (len(split) == 1):
                             self.featurelist[split[0]] = ""
-                elif command == "endofmotd":
+                elif command == "endofmotd" and not self.motd_sent:
+                    # We know now that the motd was only sent once
+                    # So don't let us do this again
+                    self.motd_sent = True
                     if 'CHANMODES' in self.featurelist:
                         chanmodes = self.featurelist['CHANMODES']
                         chansplit = chanmodes.split(',')
-                        self.tracker.argmodes += ''.join(chansplit[:3]) #first three groups are argmodes
                     if 'PREFIX' in self.featurelist:
                         match = re.match(r"\((.*?)\)(.*?)$", self.featurelist['PREFIX'])
-                        self.tracker.nickchars = match.groups()[1]
-                        self.tracker.nickmodes = match.groups()[0]
-                        self.tracker.argmodes += self.tracker.nickmodes #nickmodes are also argmodes
+                        # Map mode chars to modes
+                        # keys contains (@, %) etc, vals contains (o, h) etc.
+                        self.prefix = dict(zip(match.groups()[1], match.groups()[0]))
                 elif command == "namreply":
+                    # Process the name list for a newly joined channel
+                    # Argument 0 has something to do with channel type, ignore
+                    # Argument 1 is the channel name
                     chan = arguments[1]
+                    # Argument 2 is the space delimited name list
                     names = arguments[2].strip().split(' ')
                     for name in names:
+                        # We need to find the spot where the nickname starts
                         split = 0
                         for c in name:
-                            if c not in self.tracker.nickchars:
+                            # If we found a char that's not a mode char
+                            # (like + and @), we know the split point
+                            if c not in self.prefix:
                                 break
                             split += 1
-                        modes = name[:split]
+                        modes = name[:split] # this contains mode CHARS
                         nick = name[split:]
+                        # They've joined the channel...
                         self.tracker.join(chan, nick)
                         for mode in modes:
-                            pos = self.tracker.nickchars.index(mode)
-                            self.tracker.add_mode(chan, nick,
-                                                 self.tracker.nickmodes[pos])
+                            # ...and they have these modes
+                            self.tracker.add_mode(chan, nick, self.prefix[mode])
                 if command == "mode":
                     chan = target
                     if not self.is_channel(target):
                         command = "umode"
+                    # Just parse the modes and register them in the tracker
                     modes = self._parse_modes(''.join(arguments))
                     for (sign, mode, param) in modes:
-                        if mode in self.tracker.nickmodes:
+                        if mode in self.prefix.values():
                             if sign == '+':
                                 self.tracker.add_mode(chan, param, mode)
                             else:
@@ -431,13 +385,15 @@ class ServerConnection(Connection):
                 self._handle_event(Event(command, prefix, target, arguments))
 
     def _handle_event(self, event):
-        """[Internal]"""
+        """Dispatches low level events to the associated 
+        :class:`session.Session` object.
+        """
         self.irclibobj._handle_event(self, event)
 
     def is_connected(self):
         """Return connection status.
 
-        Returns true if connected, otherwise false.
+        Returns True if connected, otherwise False.
         """
         return self.connected
 
@@ -459,12 +415,7 @@ class ServerConnection(Connection):
         self.notice(target, "\001{}\001".format(parameter))
 
     def disconnect(self, message=""):
-        """Hang up the connection.
-
-        Arguments:
-
-            message -- Quit message.
-        """
+        """Hang up the connection."""
         if not self.connected:
             return
 
@@ -480,7 +431,11 @@ class ServerConnection(Connection):
         self._handle_event(Event("disconnect", self.server, "", [message]))
 
     def get_topic(self, channel):
-        """Return the topic of channel"""
+        """Return the topic of a channel.
+        
+            .. note:: You must be joined to the channel in order to get the
+                      topic.
+        """
         return self.tracker.topic(channel)
     
     def globops(self, text):
@@ -492,7 +447,7 @@ class ServerConnection(Connection):
         return self.tracker.has_modes(channel, nick, 'oaqh', 'or')
     
     def hasanymodes(self, channel, nick, modes):
-        """Check if a nick has any of the specified modes"""
+        """Check if nick has any of the specified modes on a channel."""
         return self.tracker.has_modes(channel, nick, modes, 'or')
     
     def inchannel(self, channel, nick):
@@ -508,27 +463,23 @@ class ServerConnection(Connection):
         self.send_raw(" ".join(["INVITE", nick, channel]).strip())
 
     def ishop(self, channel, nick):
-        """Check if nick is half operator on channel"""
+        """Check if nick is half operator on a channel."""
         return self.tracker.has_modes(channel, nick, 'h')
     
     def isnormal(self, channel, nick):
-        """Check if nick is a normal on channel"""
+        """Check if nick is a normal on a channel."""
         return not self.tracker.has_modes(channel, nick, 'oaqvh', 'or')
     
     def ison(self, nicks):
-        """Send an ISON command.
-
-        Arguments:
-
-            nicks -- List of nicks.
-        """
+        """Send an ISON command."""
         self.send_raw("ISON " + " ".join(nicks))
+    
     def isop(self, channel, nick):
-        """Check if nick is operator or higher on channel"""
+        """Check if nick is operator or higher on a channel."""
         return self.tracker.has_modes(channel, nick, 'oaq', 'or')
 
     def isvoice(self, channel, nick):
-        """Check if nick is voice on channel"""
+        """Check if nick has voice on a channel."""
         return self.tracker.has_modes(channel, nick, 'v')
     
     def join(self, channel, key=""):
@@ -607,18 +558,20 @@ class ServerConnection(Connection):
 
     def privmsg(self, target, text):
         """Send a PRIVMSG command."""
-        # Should limit len(text) here!
         self.send_raw(u"PRIVMSG {} :{}".format(target, text))
 
     def privmsg_many(self, targets, text):
         """Send a PRIVMSG command to multiple targets."""
-        # Should limit len(text) here!
         self.send_raw(u"PRIVMSG {} :{}".format(u",".join(targets), text))
 
     def quit(self, message=""):
-        """Send a QUIT command."""
-        # Note that many IRC servers don't use your QUIT message
-        # unless you've been connected for at least 5 minutes!
+        """Send a QUIT command.
+            
+            .. note:: This is not the same as :meth:`disconnect`.
+            
+            .. note:: Many IRC servers don't use your quit message unless
+                      you've been connected for at least 5 minutes.
+        """
         self.send_raw_instant(u"QUIT" + (message and (u" :" + message)))
 
     def reconnect(self, message=""):
@@ -628,9 +581,9 @@ class ServerConnection(Connection):
                     self.username, self.ircname, self.localaddress,
                     self.localport, self._ssl, self._ipv6)
     def send_raw_instant(self, string):
-        """Send raw string bypassing the flood protection"""
+        """Send raw string to the server, bypassing the flood protection."""
         if self.socket is None:
-            raise ServerNotConnectedError, "Not connected."
+            raise ServerNotConnectedError("Not connected.")
         try:
             message = string + u'\r\n'
             if (type(message) == unicode):
@@ -649,7 +602,7 @@ class ServerConnection(Connection):
         The string will be padded with appropriate CR LF.
         """
         if self.socket is None:
-            raise ServerNotConnectedError, "Not connected."
+            raise ServerNotConnectedError("Not connected.")
         try:
             self.message_queue.put(string)
         except (Queue.Full):
@@ -669,7 +622,13 @@ class ServerConnection(Connection):
         self.send_raw(u"TIME" + (server and (u" " + server)))
 
     def topic(self, channel, new_topic=None):
-        """Send a TOPIC command."""
+        """Send a TOPIC command.
+        
+            .. note:: This method does not return the topic for you; use
+                      :meth:`get_topic` for that. It is very rarely necessary
+                      to send this command explicitly unless you are setting
+                      the topic.
+        """
         if new_topic is None:
             self.send_raw(u"TOPIC " + channel)
         else:
@@ -727,8 +686,13 @@ class ServerConnection(Connection):
 
         if 'CHANMODES' in self.featurelist:
             chanmodes = self.featurelist['CHANMODES'].split(',')
-            always_param = chanmodes[0]+chanmodes[1]+self.tracker.nickmodes
+            # Groups A and B and the prefix modes need a parameter
+            always_param =  chanmodes[0] +\
+                            chanmodes[1] +\
+                            str(self.prefix.values())
+            # Group C only needs a parameter when set
             set_param = chanmodes[2]
+            # Group D does not need a parameter
             no_param = chanmodes[3]
         else:
             always_param = 'beIkqaohv'
@@ -766,7 +730,7 @@ class ServerConnection(Connection):
     
         Returns True if the argument is a channel name, otherwise False.
         """
-        chan_prefixes = self.featurelist('CHANTYPES', None)        
+        chan_prefixes = self.featurelist.get('CHANTYPES', None)        
         return string and string[0] in (chan_prefixes or "#&+!")
 
 
@@ -965,6 +929,7 @@ generated_events = [
     "disconnect",
     "ctcp",
     "ctcpreply",
+    "action"
 ]
 
 protocol_events = [
