@@ -47,9 +47,12 @@ class StatusUpdate(object):
             if not self.streamer.connected:
                 # no streamer up, and no mountpoint
                 self.debug("Streamer is not connected")
-                if (not self.switching):
+                # only allow hanyuu to stream if she is set as DJ first!
+                if m.DJ().id == 18 and (not self.switching):
                     logging.debug("Streaming trying to connect")
                     self.streamer.connect()
+                elif m.DJ().id != 18:
+                    logging.debug('Not allowed to connect')
         elif (not self.streamer.connected):
             self.debug("{server} is active and we aren't streaming; assume DJ".format(server=config.master_server))
             # No streamer is active, there is a DJ streaming

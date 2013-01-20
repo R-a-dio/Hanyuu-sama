@@ -541,7 +541,7 @@ lastrequest.handler = ("on_text", r'[.!@]lastr(equest)?.*',
 
 def info(server, nick, channel, text, hostmask):
     """Returns info about a song ID"""
-    match = re.match(r'^(?P<mode>[.!@])i(nfo)?\s?(?P<id>\d+)?$')
+    match = re.match(r'^(?P<mode>[.!@])i(nfo)?\s?(?P<id>\d+)?$', text)
     id = None
     if match:
         # We have an ID and stuff
@@ -552,16 +552,27 @@ def info(server, nick, channel, text, hostmask):
     if id:
         # do shit with id
         try:
+            id = int(id.strip())
             song = manager.Song(id)
         except ValueError:
             message = u'ID Does not exist in database'
         except TypeError:
-            message = u'ID Invalid.'
+            message = u'Invalid ID'
         else:
-            message = u"Not implemented"
+            rc = '?'
+            sp = '?'
+            with manager.MySQLCursor() as cur:
+                cur.execute("SELECT requestcount, priority FROM tracks WHERE id=%s", (id,))
+                if cur.rowcount == 1:
+                    row = cur.fetchone()
+                    rc = row['requestcount']
+                    sp = row['priority']
+            message = u"{c7}ID: {id} Title: {title} Faves: {faves} Plays: {plays} RC: {rc} SP: {sp} CD: {cd}"\
+                .format(id=id, title=song.metadata, faves=song.favecount, plays=song.playcount,
+                        rc=rc, sp=sp, cd=small_time_format(requests_.songdelay(rc), False), **irc_colours)
     else:
         # Show some kind of info lol
-        message = u"Suck my dick"
+        message = u"Missing ID"
     if (mode == '@'):
         server.privmsg(channel, message)
     else:
@@ -723,8 +734,8 @@ def hanyuu_response(response, delay):
                 return r
     return u"I have no idea what's happening~"
 
-def small_time_format(t):
-    if (t > 4*3600*24):
+def small_time_format(t, long_time=True):
+    if (t > 4*3600*24 and long_time):
         return 'a long time'
     if (t == 0):
         return '0s'
