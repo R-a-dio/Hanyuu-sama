@@ -4,42 +4,22 @@ from __future__ import absolute_import
 import re
 import string
 
-def parse_modes(string):
-    """
-    Returns a generator that yields tuples of (operator, mode)
-    
-    >>> list(parse_modes('+bbb-a'))
-    [('+', 'b'), ('+', 'b'), ('+', 'b'), ('-', 'a')]
-    
-    """
-    mode = None
-    for char in string:
-            if char in ('-', '+'):
-                    mode = char
-            elif mode is None:
-                    raise TypeError("Invalid mode string.")
-            else:
-                    yield (mode, char)
-
-
-def intertwine_modes(modes, targets):
-    """
-    :params modes: An iterator of (operator, mode) tuples as returned by :func:`parse_modes`
-    :params targets: A list of equal size of the iterator.
-    """
-    # TODO: Actually implement this.
-    # This might need to be moved to a server specific factory
-    pass
-
-
+#: The character used for low level CTCP quoting
 _LOW_LEVEL_QUOTE = "\020"
+#: Some kind of quoting char? No idea what this is for
 _CTCP_LEVEL_QUOTE = "\134"
+#: Signifies the start and end of a CTCP message
 _CTCP_DELIMITER = "\001"
 
-# Huh!?  Crrrrazy EFNet doesn't follow the RFC: their ircd seems to
-# use \n as message separator!  :P
+#: Regex used for separating lines in the IRC protocol
+#: Some IRC servers seem to use \n only as the delimiter
 _linesep_regexp = re.compile("\r?\n")
 
+#: Regex used to split lines into their components, according to the IRC
+#: specification. The regex groups are prefix, command and argument
+_rfc_1459_command_regexp = re.compile("^(:(?P<prefix>[^ ]+) +)?(?P<command>[^ ]+)( *(?P<argument> .+))?", re.UNICODE)
+
+#: Character mapping for special characters in low level CTCP quoting
 _low_level_mapping = {
     "0": "\000",
     "n": "\n",
@@ -47,12 +27,23 @@ _low_level_mapping = {
     _LOW_LEVEL_QUOTE: _LOW_LEVEL_QUOTE
 }
 
+#: Regex used for dequoting CTCP quotes. I think
 _low_level_regexp = re.compile(_LOW_LEVEL_QUOTE + "(.)", re.UNICODE)
+
+
+_special = "-[]\\`^{}"
+
+#: The characters that are permitted in IRC nicknames
+nick_characters = string.ascii_letters + string.digits + _special
+
+#: A translation map for translating IRC lowercase and uppercase
+_ircstring_translation = string.maketrans(string.ascii_uppercase + "[]\\^",
+                                        string.ascii_lowercase + "{}|~")
 
 def mask_matches(nick, mask):
     """Check if a nick matches a mask.
 
-    Returns true if the nick matches, otherwise false.
+    Returns True if the nick matches, otherwise False.
     """
     nick = irc_lower(nick)
     mask = irc_lower(mask)
@@ -64,10 +55,7 @@ def mask_matches(nick, mask):
     r = re.compile(mask, re.IGNORECASE)
     return r.match(nick)
 
-_special = "-[]\\`^{}"
-nick_characters = string.ascii_letters + string.digits + _special
-_ircstring_translation = string.maketrans(string.ascii_uppercase + "[]\\^",
-                                        string.ascii_lowercase + "{}|~")
+
 
 def irc_lower(s):
     """Returns a lowercased string.
@@ -88,9 +76,8 @@ def _ctcp_dequote(message):
     that element is the tag; otherwise the tuple has two elements: the
     tag and the data.
 
-    Arguments:
-
-        message -- The message to be decoded.
+    :param message: The message to be decoded.
+    
     """
 
     def _low_level_replace(match_obj):
@@ -133,13 +120,6 @@ def _ctcp_dequote(message):
 
         return messages
 
-def is_channel(string, chan_prefixes='#&+!'):
-    """Check if a string is a channel name.
-
-    Returns true if the argument is a channel name, otherwise false.
-    """
-    return string and string[0] in (chan_prefixes or "#&+!")
-
 def ip_numstr_to_quad(num):
     """Convert an IP number as an integer given in ASCII
     representation (e.g. '3232235521') to an IP address string
@@ -162,74 +142,28 @@ def ip_quad_to_numstr(quad):
 def nm_to_n(s):
     """Get the nick part of a nickmask.
 
-    (The source of an Event is a nickmask.)
+    (The source of an :class:`connection.Event` is a nickmask.)
     """
     return s.split("!")[0]
 
 def nm_to_uh(s):
     """Get the userhost part of a nickmask.
 
-    (The source of an Event is a nickmask.)
+    (The source of an :class:`connection.Event` is a nickmask.)
     """
     return s.split("!")[1]
 
 def nm_to_h(s):
     """Get the host part of a nickmask.
 
-    (The source of an Event is a nickmask.)
+    (The source of an :class:`connection.Event` is a nickmask.)
     """
     return s.split("@")[1]
 
 def nm_to_u(s):
     """Get the user part of a nickmask.
 
-    (The source of an Event is a nickmask.)
+    (The source of an :class:`connection.Event` is a nickmask.)
     """
     s = s.split("!")[1]
     return s.split("@")[0]
-
-
-def _parse_modes(mode_string, always_param='beIkqaohv', set_param='l', no_param='BCMNORScimnpstz'):
-    """
-    This function parses a mode string based on a set of mode types.
-    It returns a list of tuples like (prefix, mode, parameter), where
-    prefix is either + or -, mode is a character that specifies a mode,
-    and parameter is an optional parameter to the mode. If no parameter
-    was specified, the value is None.
-    
-    always_param contains the modes that always have a parameter, both
-    when they are set and unset.
-    
-    set_param contains modes that have a parameter when they are set.
-    
-    no_param contains modes that do not have a parameter.
-    
-    The default values are taken from Rizon's ircd.
-    """
-    
-    
-    modes = []
-    sign = ''
-    param_index = 0;
-    
-    split = mode_string.split()
-    if len(split) == 0:
-        return []
-    else:
-        mode_part, args = split[0], split[1:]
-    
-    if mode_part[0] not in "+-":
-        return []
-    
-    for ch in mode_part:
-        if ch in "+-":
-            sign = ch
-        elif (ch in always_param) or (ch in set_param and sign == '+'):
-            if param_index < len(args):
-                modes.append((sign, ch, args[param_index]))
-                param_index += 1
-            else:
-                modes.append((sign, ch, None))
-        else: # assume that any unknown mode is no_param
-            modes.append((sign, ch, None))
-    return modes
