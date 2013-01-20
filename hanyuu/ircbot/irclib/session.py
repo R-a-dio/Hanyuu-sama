@@ -60,13 +60,11 @@ class Session:
     def __init__(self, encoding='utf-8', handle_ctcp=True):
         """Constructor for :class:`Session` objects.
         
-            :param encoding: The encoding that we should treat the incoming
-                              data as.
-            
-            :param handle_ctcp: If this is True, the Session will respond to
-                                 common CTCP commands like VERSION and PING
-                                 on its own. It will still generate high level
-                                 events.
+        :param encoding: The encoding that we should treat the incoming data as.
+        :param handle_ctcp: If this is True, the Session will respond to
+                            common CTCP commands like VERSION and PING
+                            on its own. It will still generate high level
+                            events.
         
         See :meth:`process_once` for information on how to run the Session
         object.
