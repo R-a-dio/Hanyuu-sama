@@ -102,31 +102,31 @@ class ServerConnection(Connection):
                 ssl=False, ipv6=False, encoding='utf-8'):
         """Connect/reconnect to a server.
 
-            :params server: Server name.
+            :param server: Server name.
 
-            :params port: Port number.
+            :param port: Port number.
 
-            :params nickname: The nickname.
+            :param nickname: The nickname.
 
-            :params password: IRC Password (if any).
+            :param password: IRC Password (if any).
                               
                               .. note::
                                   
                                   This is NOT the NickServ password; you have
                                   to send that manually.
 
-            :params username: The IRC username.
+            :param username: The IRC username.
 
-            :params ircname: The IRC name ('realname').
+            :param ircname: The IRC name ('realname').
 
-            :params localaddress: Bind the connection to a specific local IP
+            :param localaddress: Bind the connection to a specific local IP
                                   address.
 
-            :params localport: Bind the connection to a specific local port.
+            :param localport: Bind the connection to a specific local port.
 
-            :params ssl: Enable support for ssl.
+            :param ssl: Enable support for ssl.
 
-            :params ipv6: -- Enable support for ipv6.
+            :param ipv6: -- Enable support for ipv6.
 
         This function can be called to reconnect a closed connection.
 
@@ -435,6 +435,7 @@ class ServerConnection(Connection):
         
             .. note:: You must be joined to the channel in order to get the
                       topic.
+        
         """
         return self.tracker.topic(channel)
     
@@ -571,6 +572,7 @@ class ServerConnection(Connection):
             
             .. note:: Many IRC servers don't use your quit message unless
                       you've been connected for at least 5 minutes.
+        
         """
         self.send_raw_instant(u"QUIT" + (message and (u" :" + message)))
 
@@ -628,6 +630,7 @@ class ServerConnection(Connection):
                       :meth:`get_topic` for that. It is very rarely necessary
                       to send this command explicitly unless you are setting
                       the topic.
+        
         """
         if new_topic is None:
             self.send_raw(u"TOPIC " + channel)

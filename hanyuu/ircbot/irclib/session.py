@@ -60,10 +60,10 @@ class Session:
     def __init__(self, encoding='utf-8', handle_ctcp=True):
         """Constructor for :class:`Session` objects.
         
-            :params encoding: The encoding that we should treat the incoming
+            :param encoding: The encoding that we should treat the incoming
                               data as.
             
-            :params handle_ctcp: If this is True, the Session will respond to
+            :param handle_ctcp: If this is True, the Session will respond to
                                  common CTCP commands like VERSION and PING
                                  on its own. It will still generate high level
                                  events.
@@ -93,7 +93,7 @@ class Session:
     def process_data(self, sockets):
         """Called when there is more data to read on connection sockets.
 
-            :params sockets: A list of socket objects to be processed.
+            :param sockets: A list of socket objects to be processed.
 
         .. seealso: :meth:`process_once`
         """
@@ -153,7 +153,7 @@ class Session:
     def process_once(self, timeout=0):
         """Process data from connections once.
         
-            :params timeout: How long the select() call should wait if no
+            :param timeout: How long the select() call should wait if no
                              data is available.
 
         This method should be called periodically to check and process
@@ -195,7 +195,7 @@ class Session:
 
         This method repeatedly calls :meth:`process_once`.
             
-            :params timeout: Parameter to pass to process_once.
+            :param timeout: Parameter to pass to process_once.
         """
         while 1:
             self.process_once(timeout)
@@ -203,7 +203,7 @@ class Session:
     def disconnect_all(self, message=""):
         """Disconnects all connections.
             
-            :params message: The quit message to send to servers.
+            :param message: The quit message to send to servers.
         """
         for c in self.connections:
             c.disconnect(message)
@@ -211,22 +211,22 @@ class Session:
     def execute_at(self, at, function, arguments=()):
         """Execute a function at a specified time.
 
-            :params at: Time to execute at (standard \"time_t\" time).
+            :param at: Time to execute at (standard \"time_t\" time).
 
-            :params function: The function to call.
+            :param function: The function to call.
 
-            :params arguments: Arguments to give the function.
+            :param arguments: Arguments to give the function.
         """
         self.execute_delayed(at-time.time(), function, arguments)
 
     def execute_delayed(self, delay, function, arguments=()):
         """Execute a function after a specified time.
 
-            :params delay: How many seconds to wait.
+            :param delay: How many seconds to wait.
 
-            :params function: The function to call.
+            :param function: The function to call.
 
-            :params arguments: Arguments to give the function.
+            :param arguments: Arguments to give the function.
         """
         bisect.insort(self.delayed_commands,
                       (delay+time.time(), function, arguments))
@@ -234,7 +234,7 @@ class Session:
     def dcc(self, dcctype="chat", dccinfo=(None, 0)):
         """Creates and returns a :class:`connection.DCCConnection` object.
 
-            :params dcctype: "chat" for DCC CHAT connections or "raw" for
+            :param dcctype: "chat" for DCC CHAT connections or "raw" for
                              DCC SEND (or other DCC types). If "chat",
                              incoming data will be split in newline-separated
                              chunks. If "raw", incoming data is not touched.
@@ -593,26 +593,26 @@ def event_handler(events, channels=[], nicks=[], modes='', regex=''):
     with this, the function is registered in the global :class:`Session` event
     handler list, :attr:`Session.handlers`.
     
-        :params events: The events that the handler should subscribe to.
+        :param events: The events that the handler should subscribe to.
                         This can be both a string and a list; if a string
                         is provided, it will be added as a single element
                         in a list of events.
                         This rule applies to `channels` and `nicks` as well.
         
-        :params channels: The channels that the events should trigger on.
+        :param channels: The channels that the events should trigger on.
                           Given an empty list, all channels will trigger
                           the event.
         
-        :params nicks: The nicknames that this handler should trigger for.
+        :param nicks: The nicknames that this handler should trigger for.
                        Given an empty list, all nicknames will trigger
                        the event.
         
-        :params modes: The required channel modes that are needed to trigger
+        :param modes: The required channel modes that are needed to trigger
                        this event.
                        If an empty mode string is specified, no modes are needed
                        to trigger the event.
         
-        :params regex: The event will only be triggered if the
+        :param regex: The event will only be triggered if the
                        :attr:`HighEvent.message` matches the specified regex.
                        If no regex is specified, any :attr:`HighEvent.message`
                        will do.

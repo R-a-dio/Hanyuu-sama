@@ -13,7 +13,7 @@ class SqliteCursor:
     def __init__(self, conn):
         """Creates an instance of the :class:`SqliteCursor`.
 
-            :params conn: Either an :class:`IRCTracker` object or a
+            :param conn: Either an :class:`IRCTracker` object or a
                           :class:`sqlite3.Connection` object. This object
                           will be used to connect to the database.
         

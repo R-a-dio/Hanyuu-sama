@@ -37,9 +37,9 @@ class DCCConnection(connection.Connection):
     def connect(self, address, port):
         """Connect/reconnect to a DCC peer.
     
-            :params address: Host/IP address of the peer.
+            :param address: Host/IP address of the peer.
 
-            :params port: The port number to connect to.
+            :param port: The port number to connect to.
 
         Returns the DCCConnection object.
         """
@@ -87,7 +87,7 @@ class DCCConnection(connection.Connection):
     def disconnect(self, message=""):
         """Hang up the connection and close the object.
 
-            :params message: Quit message.
+            :param message: Quit message.
         """
         if not self.connected:
             return
