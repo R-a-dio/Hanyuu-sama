@@ -4,22 +4,22 @@ from __future__ import absolute_import
 import re
 import string
 
-#: The character used for low level CTCP quoting.
+#: The character used for low level CTCP quoting
 _LOW_LEVEL_QUOTE = "\020"
-#: Some kind of quoting char? No idea what this is for.
+#: Some kind of quoting char? No idea what this is for
 _CTCP_LEVEL_QUOTE = "\134"
-#: Signifies the start and end of a CTCP message.
+#: Signifies the start and end of a CTCP message
 _CTCP_DELIMITER = "\001"
 
-#: Regex used for separating lines in the IRC protocol.
-#: Some IRC servers seem to use \n only as the delimiter.
+#: Regex used for separating lines in the IRC protocol
+#: Some IRC servers seem to use \n only as the delimiter
 _linesep_regexp = re.compile("\r?\n")
 
 #: Regex used to split lines into their components, according to the IRC
-#: specification. The regex groups are prefix, command and argument.
+#: specification. The regex groups are prefix, command and argument
 _rfc_1459_command_regexp = re.compile("^(:(?P<prefix>[^ ]+) +)?(?P<command>[^ ]+)( *(?P<argument> .+))?", re.UNICODE)
 
-#: Character mapping for special characters in low level CTCP quoting.
+#: Character mapping for special characters in low level CTCP quoting
 _low_level_mapping = {
     "0": "\000",
     "n": "\n",
@@ -27,7 +27,7 @@ _low_level_mapping = {
     _LOW_LEVEL_QUOTE: _LOW_LEVEL_QUOTE
 }
 
-#: Regex used for dequoting CTCP quotes. I think.
+#: Regex used for dequoting CTCP quotes. I think
 _low_level_regexp = re.compile(_LOW_LEVEL_QUOTE + "(.)", re.UNICODE)
 
 
@@ -36,7 +36,7 @@ _special = "-[]\\`^{}"
 #: The characters that are permitted in IRC nicknames
 nick_characters = string.ascii_letters + string.digits + _special
 
-#: A translation map for translating IRC lowercase and uppercase.
+#: A translation map for translating IRC lowercase and uppercase
 _ircstring_translation = string.maketrans(string.ascii_uppercase + "[]\\^",
                                         string.ascii_lowercase + "{}|~")
 

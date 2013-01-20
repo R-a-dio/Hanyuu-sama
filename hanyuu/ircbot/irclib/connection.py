@@ -75,9 +75,11 @@ class ServerNotConnectedError(ServerConnectionError):
 
 class ServerConnection(Connection):
     """This class represents an IRC server connection.
-
-    ServerConnection objects are instantiated by calling
-    :meth:`session.Session.server`.
+    
+    .. note::
+        Do not instantiate :class:`ServerConnection` directly; use
+        :meth:`session.Session.server` instead.
+    
     """
 
     def __init__(self, irclibobj):

@@ -91,7 +91,7 @@ class Session:
     def process_data(self, sockets):
         """Called when there is more data to read on connection sockets.
 
-            :param sockets: A list of socket objects to be processed.
+        :param sockets: A list of socket objects to be processed.
 
         .. seealso: :meth:`process_once`
         """
@@ -151,8 +151,8 @@ class Session:
     def process_once(self, timeout=0):
         """Process data from connections once.
         
-            :param timeout: How long the select() call should wait if no
-                             data is available.
+        :param timeout: How long the select() call should wait if no
+                        data is available.
 
         This method should be called periodically to check and process
         incoming and outgoing data, if there is any.
@@ -193,7 +193,7 @@ class Session:
 
         This method repeatedly calls :meth:`process_once`.
             
-            :param timeout: Parameter to pass to process_once.
+        :param timeout: Parameter to pass to process_once.
         """
         while 1:
             self.process_once(timeout)
@@ -201,7 +201,7 @@ class Session:
     def disconnect_all(self, message=""):
         """Disconnects all connections.
             
-            :param message: The quit message to send to servers.
+        :param message: The quit message to send to servers.
         """
         for c in self.connections:
             c.disconnect(message)
@@ -209,22 +209,18 @@ class Session:
     def execute_at(self, at, function, arguments=()):
         """Execute a function at a specified time.
 
-            :param at: Time to execute at (standard \"time_t\" time).
-
-            :param function: The function to call.
-
-            :param arguments: Arguments to give the function.
+        :param at: Time to execute at (standard \"time_t\" time).
+        :param function: The function to call.
+        :param arguments: Arguments to give the function.
         """
         self.execute_delayed(at-time.time(), function, arguments)
 
     def execute_delayed(self, delay, function, arguments=()):
         """Execute a function after a specified time.
 
-            :param delay: How many seconds to wait.
-
-            :param function: The function to call.
-
-            :param arguments: Arguments to give the function.
+        :param delay: How many seconds to wait.
+        :param function: The function to call.
+        :param arguments: Arguments to give the function.
         """
         bisect.insort(self.delayed_commands,
                       (delay+time.time(), function, arguments))
@@ -232,10 +228,10 @@ class Session:
     def dcc(self, dcctype="chat", dccinfo=(None, 0)):
         """Creates and returns a :class:`connection.DCCConnection` object.
 
-            :param dcctype: "chat" for DCC CHAT connections or "raw" for
-                             DCC SEND (or other DCC types). If "chat",
-                             incoming data will be split in newline-separated
-                             chunks. If "raw", incoming data is not touched.
+        :param dcctype: "chat" for DCC CHAT connections or "raw" for
+                         DCC SEND (or other DCC types). If "chat",
+                         incoming data will be split in newline-separated
+                         chunks. If "raw", incoming data is not touched.
         """
         c = dcc.DCCConnection(self, dcctype, dccinfo)
         self.connections.append(c)

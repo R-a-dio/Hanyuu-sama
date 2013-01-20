@@ -50,10 +50,6 @@ class IRCTracker:
             cur.execute("create table nicks (id integer primary key autoincrement, nick varchar(50) collate nocase);")
             cur.execute("create table channels (id integer primary key autoincrement, chan varchar(100) collate nocase, topic text);")
             cur.execute("create table nick_chan_link (id integer primary key autoincrement, nick_id integer not null constraint fk_n_c REFERENCES nicks(id), chan_id integer not null constraint fk_c_n REFERENCES channels(id), modes varchar(20));")
-        #: Modes that can be applied to nicknames (like o, q, h, etc.)
-        self.nickmodes = ''
-        #: Characters that belong to nickmodes (like @, ~, %, etc.)
-        self.nickchars = ''
 
     def join(self, chan, nick):
         """Tells the tracker that the nickname 'nick' joined 'chan'."""
