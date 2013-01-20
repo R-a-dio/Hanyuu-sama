@@ -247,9 +247,14 @@ class Session:
         
         # Preparse MODE events, we want them separate in high level
         if event.eventtype in ['mode', 'umode']:
-            modes = server._parse_modes(event.arguments.join(' '))
+            modes = server._parse_modes(' '.join(event.argument))
+            # do we have more than 1 mode? split and rehandle
             if len(modes) > 1:
                 for sign, mode, param in modes:
+                    # if the parameter is empty, make it blank
+                    # otherwise the joining breaks later on
+                    if not param:
+                        param = ''
                     new_event = connection.Event(event.eventtype,
                                                  event.source,
                                                  event.target,
@@ -264,28 +269,39 @@ class Session:
         
         handlers = Session.handlers
         
-        for handler, events, channels, nicks, modes, regex in handlers:
-            if high_event.command not in events:
+        command = high_event.command
+        channel = high_event.channel
+        nickname = high_event.nickname
+        message = high_event.nickname
+        
+        if channel:
+            channel = channel.lower()
+        if nickname:
+            nickname = nickname.name.lower()
+
+        for function, events, channels, nicks, modes, regex in handlers.values():
+            # command is guaranteed to exist, no need to do .lower in advance
+            if events and command.lower() not in events:
                 continue
-            if high_event.channel not in channels:
+            if channels and channel not in channels:
                 continue
-            if high_event.nickname.name not in nicks:
+            if nicks and nickname not in nicks:
                 continue
-            if high_event.channel and high_event.nickname and modes != '':
+            if channel and nickname and modes != '':
                 # If the triggering nick does not have any of the needed modes
-                if not server.hasanymodes(high_event.channel,
-                                          high_event.nickname.name,
+                if not server.hasanymodes(channel,
+                                          nickname,
                                           modes):
                     # Don't trigger the handler
                     continue
-            if high_event.message and regex:
-                if not regex.match(high_event.message):
+            if message and regex:
+                if not regex.match(message):
                     continue
             
             # If we get here, that means we met all the requirements for
             # triggering this handler
             try:
-                handler(high_event)
+                function(high_event)
             except:
                 logger.exception('Exception in IRC handler')
 
@@ -298,7 +314,7 @@ class Session:
     def _ping_ponger(self, connection, event):
         """[Internal]"""
         connection._last_ping = time.time()
-        connection.pong(event.target())
+        connection.pong(event.target)
 
 Session.handlers = {}
 
@@ -333,7 +349,7 @@ class HighEvent(object):
             # Our nickname - this might be different than the one we wanted!
             nickname = Nickname(low_event.target, nickname_only=True)
             # The welcome message
-            message = low_event.arguments[0]
+            message = low_event.argument[0]
             
             event = creator(nickname, None, message)
             event.command = 'connect'
@@ -347,7 +363,7 @@ class HighEvent(object):
             # name attribute with our new nickname.
             # TODO: Make sure this works correctly with the hostmask
             new_nickname = Nickname(low_event.source)
-            new_nickname.name = low_event.arguments[0]
+            new_nickname.name = low_event.target
             
             event = creator(old_nickname, None, None)
             event.new_nickname = new_nickname
@@ -356,7 +372,7 @@ class HighEvent(object):
             # A channel message
             nickname = Nickname(low_event.source)
             channel = low_event.target
-            message = low_event.arguments[0]
+            message = low_event.argument[0]
             event = creator(nickname, channel, message)
             event.text_command = command
             event.command = 'text'
@@ -365,7 +381,7 @@ class HighEvent(object):
             # Private message
             # The target is set to our own nickname in privmsg.
             nickname = Nickname(low_event.source)
-            message = low_event.arguments[0]
+            message = low_event.argument[0]
             event = creator(nickname, None, message)
             event.text_command = command
             event.command = 'text'
@@ -376,9 +392,9 @@ class HighEvent(object):
             nickname = Nickname(low_event.source)
             # The irclib splits off the first space delimited word for us.
             # This is the CTCP command name
-            ctcp = low_event.arguments[0]
+            ctcp = low_event.argument[0]
             # The things behind the command are then indexed behind it.
-            message = low_event.arguments[1]
+            message = ' '.join(low_event.argument[1:])
             
             event = creator(nickname, None, message)
             event.ctcp = ctcp
@@ -392,8 +408,8 @@ class HighEvent(object):
             # TODO: Should this follow featurelist? Is it necessary?
             if not utils.is_channel(channel):
                 channel = None
-            # Message is in the arguments
-            message = low_event.arguments[0]
+            # Message is in the argument
+            message = low_event.argument[0]
             
             event = creator(nickname, channel, message)
             return event
@@ -403,9 +419,9 @@ class HighEvent(object):
             nickname = Nickname(low_event.source)
             # The irclib splits off the first space delimited word for us.
             # This is the CTCP command name
-            ctcp = low_event.arguments[0]
+            ctcp = low_event.argument[0]
             # The things behind the command are then indexed behind it.
-            message = low_event.arguments[1]
+            message = ' '.join(low_event.argument[1:])
             
             event = creator(nickname, None, message)
             event.ctcp = ctcp
@@ -413,7 +429,7 @@ class HighEvent(object):
         elif command == 'quit':
             # A quit from an user.
             nickname = Nickname(low_event.source)
-            message = low_event.arguments[0]
+            message = low_event.argument[0]
             
             return creator(nickname, None, message)
         elif command == 'join':
@@ -425,18 +441,17 @@ class HighEvent(object):
         elif command == 'part':
             # Someone leaving our channel
             nickname = Nickname(low_event.source)
-            message = low_event.arguments[0]
             channel = low_event.target
             
-            return creator(nickname, channel, message)
+            return creator(nickname, channel, None)
         elif command == 'kick':
             # Someone forcibly leaving our channel.
             # The person kicking here
             kicker = Nickname(low_event.source)
             # The person being kicked
-            target = Nickname(low_event.arguments[0], nickname_only=True)
+            target = Nickname(low_event.argument[0], nickname_only=True)
             # The reason given by the kicker
-            reason = low_event.arguments[1]
+            reason = low_event.argument[1]
             # The channel this all went wrong in!
             channel = low_event.target
             
@@ -449,7 +464,7 @@ class HighEvent(object):
             nickname = Nickname(low_event.source)
             # Target contains our nickname
             # First argument is the channel we were invited to
-            channel = low_event.arguments[0]
+            channel = low_event.argument[0]
             return creator(nickname, channel, None)
         elif command in ['mode', 'umode']:
             # Mode change in the channel
@@ -463,7 +478,7 @@ class HighEvent(object):
             # HOWEVER, we preparse the modes, so we (preferably) only want the
             # first one. Let's make sure we can still get all of them, though
             event = creator(mode_setter, channel, None)
-            modes = server._parse_modes(low_event.arguments.join(' '))
+            modes = server._parse_modes(' '.join(low_event.argument))
             if len(modes) > 1:
                 event.modes = modes
             else:
@@ -472,7 +487,10 @@ class HighEvent(object):
         elif command in ['topic', 'currenttopic', 'notopic']:
             # Any message that tells us what the topic is.
             # The channel that had its topic set.
-            channel = low_event.target            
+            if command == 'currenttopic':
+                channel = low_event.argument[0]
+            else:
+                channel = low_event.target
             # The person who set the topic.
             # If this isn't a topic command, there is no setter
             topic_setter = None
@@ -481,22 +499,24 @@ class HighEvent(object):
             # The argument contains the topic string
             # Treat notopic as empty string
             topic = ''
-            if not command == 'notopic':
-                topic = low_event.arguments[0]
+            if command == 'currenttopic':
+                topic = ' '.join(low_event.argument[1:])
+            elif command == 'topic':
+                topic = low_event.argument[0]
             event = creator(topic_setter, channel, topic)
             event.command = 'topic'
             return event
         elif command == 'all_raw_messages':
             # This event contains all messages, unparsed
             server_name = low_event.source
-            event = creator(None, None, low_event.arguments[0])
+            event = creator(None, None, low_event.argument[0])
             event.command = 'raw'
             return event
         
         # The event was not high level: thus, it's not raw, but simply unparsed
         # You will probably be able to register to these, but they won't have
         # much use
-        event = creator(None, None, low_event.arguments[0])
+        event = creator(None, None, low_event.argument[0])
         event.source = low_event.source
         event.target = low_event.target
         return event
@@ -588,6 +608,11 @@ def event_handler(events, channels=[], nicks=[], modes='', regex=''):
     for nick in nicks:
         if not isinstance(nick, str) and not isinstance(nick, unicode):
             raise TypeError('invalid type for nickname: {}'.format(nick))
+    
+    # we don't care about cases, just lower
+    events = map(lambda e: e.lower(), events)
+    channels = map(lambda c: c.lower(), channels)
+    nicks= map(lambda n: n.lower(), nicks)
     
     def decorator(fn):
         if regex != '':

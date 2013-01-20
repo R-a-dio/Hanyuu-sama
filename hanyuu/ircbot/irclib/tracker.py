@@ -10,7 +10,7 @@ import sqlite3
 
 class SqliteCursor:
     def __init__(self, conn):
-        if isinstance(conn, SqliteConnection):
+        if isinstance(conn, IRCTracker):
             self.__conn = conn._conn
         elif isinstance(conn, sqlite3.Connection):
             self.__conn = conn
@@ -22,7 +22,7 @@ class SqliteCursor:
         self.__conn.commit()
         return
 
-class SqliteConnection:
+class IRCTracker:
     def __init__(self):
         self._conn = sqlite3.connect(":memory:", check_same_thread=False)
         self._conn.row_factory = sqlite3.Row

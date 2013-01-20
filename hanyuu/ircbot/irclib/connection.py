@@ -73,11 +73,13 @@ import time
 import types
 import codecs
 import Queue
-import sqlite3
 import collections
-from . import utils
+from . import utils, tracker
 # from . import dcc
 
+from . import logger
+
+logger = logger.getChild(__name__)
 
 VERSION = 0, 4, 8
 DEBUG = 0
@@ -141,7 +143,7 @@ class ServerConnection(Connection):
 
     def __init__(self, irclibobj):
         Connection.__init__(self, irclibobj)
-        #self.sqlite = tracker.SqliteConnection()
+        self.tracker = tracker.IRCTracker()
         self.connected = 0  # Not connected yet.
         self.socket = None
         self.ssl = None
@@ -152,6 +154,7 @@ class ServerConnection(Connection):
         self._last_ping = time.time()
         self.encoding = irclibobj.encoding
         self.featurelist = {}
+        
         
     def connect(self, server, port, nickname, password=None, username=None,
                 ircname=None, localaddress="", localport=0,
@@ -187,7 +190,7 @@ class ServerConnection(Connection):
         if self.connected:
             self.disconnect("Changing servers")
 
-        self.previous_buffer = ""
+        self.previous_buffer = b""
         self.real_server_name = ""
         self.real_nickname = nickname
         self.server = server
@@ -278,7 +281,11 @@ class ServerConnection(Connection):
             self.disconnect("Connection reset by peer")
             return
         self._last_ping = time.time()
-        lines = utils._linesep_regexp.split(self.previous_buffer + new_data)
+        
+        try:
+            lines = utils._linesep_regexp.split(self.previous_buffer + new_data)
+        except UnicodeDecodeError:
+            logger.exception('error')
 
         # Save the last, unfinished line.
         self.previous_buffer = lines.pop()
@@ -321,7 +328,7 @@ class ServerConnection(Connection):
                 if old_nick == self.real_nickname:
                     # We changed our own nick
                     self.real_nickname = arguments[0]
-                self.sqlite.nick(old_nick, arguments[0])
+                self.tracker.nick(old_nick, arguments[0])
             elif command == "welcome":
                 # Record the nickname in case the client changed nick
                 # in a nicknameinuse callback.
@@ -360,7 +367,7 @@ class ServerConnection(Connection):
 
                 if command == "quit":
                     arguments = [arguments[0]]
-                    self.sqlite.quit(utils.nm_to_n(prefix))
+                    self.tracker.quit(utils.nm_to_n(prefix))
                 elif command == "ping":
                     target = arguments[0]
                 else:
@@ -368,15 +375,15 @@ class ServerConnection(Connection):
                     arguments = arguments[1:]
 
                 if command in ["join", "part"]:
-                    getattr(self.sqlite, command)(target, utils.nm_to_n(prefix))
+                    getattr(self.tracker, command)(target, utils.nm_to_n(prefix))
                 elif command == "kick":
-                    self.sqlite.part(target, arguments[0])
+                    self.tracker.part(target, arguments[0])
                 elif command == "topic":
-                    self.sqlite.topic(target, arguments[0])
+                    self.tracker.topic(target, arguments[0])
                 elif command == "currenttopic":
-                    self.sqlite.topic(arguments[0], " ".join(arguments[1:]))
+                    self.tracker.topic(arguments[0], " ".join(arguments[1:]))
                 elif command == "notopic":
-                    self.sqlite.topic(target, "")
+                    self.tracker.topic(target, "")
                 elif command == "featurelist":
                     for feature in arguments:
                         split = feature.split("=")
@@ -388,39 +395,39 @@ class ServerConnection(Connection):
                     if 'CHANMODES' in self.featurelist:
                         chanmodes = self.featurelist['CHANMODES']
                         chansplit = chanmodes.split(',')
-                        self.sqlite.argmodes += ''.join(chansplit[:3]) #first three groups are argmodes
+                        self.tracker.argmodes += ''.join(chansplit[:3]) #first three groups are argmodes
                     if 'PREFIX' in self.featurelist:
                         match = re.match(r"\((.*?)\)(.*?)$", self.featurelist['PREFIX'])
-                        self.sqlite.nickchars = match.groups()[1]
-                        self.sqlite.nickmodes = match.groups()[0]
-                        self.sqlite.argmodes += self.sqlite.nickmodes #nickmodes are also argmodes
+                        self.tracker.nickchars = match.groups()[1]
+                        self.tracker.nickmodes = match.groups()[0]
+                        self.tracker.argmodes += self.tracker.nickmodes #nickmodes are also argmodes
                 elif command == "namreply":
                     chan = arguments[1]
                     names = arguments[2].strip().split(' ')
                     for name in names:
                         split = 0
                         for c in name:
-                            if c not in self.sqlite.nickchars:
+                            if c not in self.tracker.nickchars:
                                 break
                             split += 1
                         modes = name[:split]
                         nick = name[split:]
-                        self.sqlite.join(chan, nick)
+                        self.tracker.join(chan, nick)
                         for mode in modes:
-                            pos = self.sqlite.nickchars.index(mode)
-                            self.sqlite.add_mode(chan, nick,
-                                                 self.sqlite.nickmodes[pos])
+                            pos = self.tracker.nickchars.index(mode)
+                            self.tracker.add_mode(chan, nick,
+                                                 self.tracker.nickmodes[pos])
                 if command == "mode":
                     chan = target
                     if not utils.is_channel(target, self.featurelist.get('CHANTYPES', None)):
                         command = "umode"
-                    modes = self._parse_modes(arguments)
+                    modes = self._parse_modes(''.join(arguments))
                     for (sign, mode, param) in modes:
-                        if mode in self.sqlite.nickmodes:
+                        if mode in self.tracker.nickmodes:
                             if sign == '+':
-                                self.sqlite.add_mode(chan, param, mode)
+                                self.tracker.add_mode(chan, param, mode)
                             else:
-                                self.sqlite.rem_mode(chan, param, mode)
+                                self.tracker.rem_mode(chan, param, mode)
                 self._handle_event(Event(command, prefix, target, arguments))
 
     def _handle_event(self, event):
@@ -474,7 +481,7 @@ class ServerConnection(Connection):
 
     def get_topic(self, channel):
         """Return the topic of channel"""
-        return self.sqlite.topic(channel)
+        return self.tracker.topic(channel)
     
     def globops(self, text):
         """Send a GLOBOPS command."""
@@ -482,15 +489,15 @@ class ServerConnection(Connection):
 
     def hasaccess(self, channel, nick):
         """Check if nick is halfop or higher"""
-        return self.sqlite.has_modes(channel, nick, 'oaqh', 'or')
+        return self.tracker.has_modes(channel, nick, 'oaqh', 'or')
     
     def hasanymodes(self, channel, nick, modes):
         """Check if a nick has any of the specified modes"""
-        return self.sqlite.has_modes(channel, nick, modes, 'or')
+        return self.tracker.has_modes(channel, nick, modes, 'or')
     
     def inchannel(self, channel, nick):
         """Check if nick is in channel"""
-        return self.sqlite.in_chan(channel, nick)
+        return self.tracker.in_chan(channel, nick)
         
     def info(self, server=""):
         """Send an INFO command."""
@@ -502,11 +509,11 @@ class ServerConnection(Connection):
 
     def ishop(self, channel, nick):
         """Check if nick is half operator on channel"""
-        return self.sqlite.has_modes(channel, nick, 'h')
+        return self.tracker.has_modes(channel, nick, 'h')
     
     def isnormal(self, channel, nick):
         """Check if nick is a normal on channel"""
-        return not self.sqlite.has_modes(channel, nick, 'oaqvh', 'or')
+        return not self.tracker.has_modes(channel, nick, 'oaqvh', 'or')
     
     def ison(self, nicks):
         """Send an ISON command.
@@ -518,11 +525,11 @@ class ServerConnection(Connection):
         self.send_raw("ISON " + " ".join(nicks))
     def isop(self, channel, nick):
         """Check if nick is operator or higher on channel"""
-        return self.sqlite.has_modes(channel, nick, 'oaq', 'or')
+        return self.tracker.has_modes(channel, nick, 'oaq', 'or')
 
     def isvoice(self, channel, nick):
         """Check if nick is voice on channel"""
-        return self.sqlite.has_modes(channel, nick, 'v')
+        return self.tracker.has_modes(channel, nick, 'v')
     
     def join(self, channel, key=""):
         """Send a JOIN command."""
@@ -720,7 +727,7 @@ class ServerConnection(Connection):
 
         if 'CHANMODES' in self.featurelist:
             chanmodes = self.featurelist['CHANMODES'].split(',')
-            always_param = chanmodes[0]+chanmodes[1]+self.sqlite.nickmodes
+            always_param = chanmodes[0]+chanmodes[1]+self.tracker.nickmodes
             set_param = chanmodes[2]
             no_param = chanmodes[3]
         else:
