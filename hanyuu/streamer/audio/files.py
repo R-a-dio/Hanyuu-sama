@@ -30,6 +30,56 @@ class GarbageAudioFile(garbage.Garbage):
         return True
     
     
+class FileSource(object):
+    def __init__(self, source_function):
+        super(UnendingSource, self).__init__()
+        self.source_function = source_function
+        
+        self.eof = False
+        
+    def start(self):
+        """Starts the source"""
+        self.eof = False
+        self.source = self.source_function()
+        
+    def initialize(self):
+        """Sets the initial source from the source function."""
+        self.start()
+        
+    def change_source(self):
+        """Calls the source function and returns the result if not None."""
+        self.source.close()
+        new_source = self.source_function()
+        if new_source is None:
+            self.eof = True
+        else:
+            return new_source
+    
+    def read(self, size=4096, timeout=10.0):
+        if self.eof:
+            return b''
+        try:
+            data = self.source.read(size, timeout)
+        except (ValueError) as err:
+            if err.message == 'MD5 mismatch at end of stream':
+                data = b''
+        if data == b'':
+            self.source = self.change_source()
+            if self.source == None:
+                self.eof = True
+                return b''
+        return data
+    
+    def skip(self):
+        self.source = self.change_source()
+        
+    def close(self):
+        self.eof = True
+        
+    def __getattr__(self, key):
+        return getattr(self.source, key)
+    
+    
 class AudioFile(object):
     """A Simple wrapper around the audiotools library.
     

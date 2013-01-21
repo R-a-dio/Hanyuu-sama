@@ -8,6 +8,11 @@ logger = logger.getChild('icecast')
 
 
 class Icecast(object):
+    #: Options that :meth:`__init__` should get passed
+    #: from the pipeline manager when being created.
+    #: (See :class:`hanyuu.streamer.audio.Manager` for more information.)
+    options = [('icecast_config', {})]
+    #: The time to wait when we lose connection by cause of external behaviour.
     connecting_timeout = 5.0
     def __init__(self, source, config):
         super(Icecast, self).__init__()
@@ -101,7 +106,7 @@ class Icecast(object):
         self.source = new_source # Swap out our source
         self.start() # Start a new thread (so roundabout)
         
-    def set_metadata(self, metadata):
+    def metadata(self, metadata):
         try:
             self._shout.metadata = {'song': metadata} # Stupid library
         except (pylibshout.ShoutException) as err:
