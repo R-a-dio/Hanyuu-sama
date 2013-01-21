@@ -17,6 +17,7 @@ import select
 import bisect
 import collections
 import re
+import weakref
 
 # TODO: move this somewhere else
 DEBUG = 0
@@ -70,7 +71,8 @@ class Session:
         object.
         """
 
-        self.connections = []        
+        self.connections = []
+        self.socket_map = weakref.WeakKeyDictionary()
         self.delayed_commands = [] # list of tuples in the format (time, function, arguments)
         self.encoding = encoding
         self.handle_ctcp = handle_ctcp
@@ -96,9 +98,7 @@ class Session:
         .. seealso: :meth:`process_once`
         """
         for s in sockets:
-            for c in self.connections:
-                if s == c._get_socket():
-                    c.process_data()
+            self.socket_map[s].process_data()
 
     def process_timeout(self):
         """This is called to process any delayed commands that are registered
@@ -114,12 +114,13 @@ class Session:
             else:
                 break
 
-    def send_once(self):
+    def _send_once(self):
         """This method will send data to the servers from the message queue
         at a limited rate. The default is 2500 bytes per 1.3 seconds. This
         value cannot currently be changed.
         
-        .. seealso:: :meth:`process_once`
+        .. warning::
+            This method is internal and should not be called manually.
         """
         
         for c in self.connections:
@@ -158,7 +159,7 @@ class Session:
         This method should be called periodically to check and process
         incoming and outgoing data, if there is any.
         
-        It calls :meth:`process_data`, :meth:`send_once` and
+        It calls :meth:`process_data`, :meth:`_send_once` and
         :meth:`process_timeout`.
         
         It will also examine when we last received data from the server; if it
@@ -186,7 +187,7 @@ class Session:
                 logger.info("No data in the past 260 seconds, disconnect")
                 connection.reconnect("Ping timeout: 260 seconds")
         # Send outgoing data
-        self.send_once()
+        self._send_once()
         # Check delayed calls
         self.process_timeout()
         
@@ -228,7 +229,7 @@ class Session:
                       (delay+time.time(), function, arguments))
 
     def dcc(self, dcctype="chat", dccinfo=(None, 0)):
-        """Creates and returns a :class:`connection.DCCConnection` object.
+        """Creates and returns a :class:`dcc.DCCConnection` object.
 
         :param dcctype: "chat" for DCC CHAT connections or "raw" for
                          DCC SEND (or other DCC types). If "chat",
@@ -238,11 +239,16 @@ class Session:
         c = dcc.DCCConnection(self, dcctype, dccinfo)
         self.connections.append(c)
         return c
+    
+    def register_socket(self, socket, conn):
+        """Internal method used to map the sockets on
+        :class:`connection.Connection` to the connections themselves."""
+        self.socket_map[socket] = conn
 
     def _handle_event(self, server, event):
         """Internal event handler.
         
-        Receives events from :class:`connection.ServerConnection` and converts
+        Receives events from :class:`connection.Connection` and converts
         them into high level events, then dispatches them to event handlers.
         """
         
@@ -356,6 +362,7 @@ class Session:
         elif ctcp == 'SOURCE':
             server.ctcp_reply(source, 'SOURCE ' + self.ctcp_source)
 
+#: Global high level event handler container.
 Session.handlers = {}
 
 class HighEvent(object):
@@ -650,11 +657,13 @@ def event_handler(events, channels=[], nicks=[], modes='', regex=''):
     channels = map(lambda c: c.lower(), channels)
     nicks= map(lambda n: n.lower(), nicks)
     
+    # Compile the regex in advance
+    if regex != '':
+        cregex = re.compile(regex, re.I)
+    else:
+        cregex = None
+    
     def decorator(fn):
-        if regex != '':
-            cregex = re.compile(regex, re.I)
-        else:
-            cregex = None
         handler = Handler(fn, events, channels, nicks, modes, cregex)
         Session.handlers[fn.__module__ + ":" + fn.__name__] = handler
         return fn
