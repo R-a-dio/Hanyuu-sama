@@ -1,15 +1,15 @@
 from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import absolute_import
-from ... import config
+#from ... import config
 import logging
 import time
 from threading import Thread
 from flup.server.fcgi import WSGIServer
-import manager
-import irc
+#import manager
+#import irc
 from multiprocessing.managers import BaseManager
-import bootstrap
+#import bootstrap
 
 
 logger = logging.getLogger('hanyuu.requests.servers.fastcgi')
@@ -157,35 +157,6 @@ class FastCGIServer(object):
         yield '</body>'
         yield '</html>'
         
-class FastcgiManager(BaseManager):
-    pass
-
-FastcgiManager.register("stats", bootstrap.stats)
-FastcgiManager.register("fastcgi", FastCGIServer)
-
-def connect():
-    global manager, server
-    manager = FastcgiManager(address=config.manager_fastcgi,
-                             authkey=config.authkey)
-    manager.connect()
-    server = manager.fastcgi()
-    return server
-
-def start():
-    s = FastCGIServer()
-    manager = FastcgiManager(address=config.manager_fastcgi,
-                             authkey=config.authkey)
-    server = manager.get_server()
-    server.serve_forever()
-    
-def launch_server():
-    manager = FastcgiManager(address=config.manager_fastcgi,
-                         authkey=config.authkey)
-    manager.start()
-    global _related_
-    _unrelated_ = manager.fastcgi()
-    return manager
-
 if __name__ == "__main__":
     import multiprocessing, logging
     logger = multiprocessing.log_to_stderr()

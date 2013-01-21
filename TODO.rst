@@ -3,12 +3,12 @@ TODO/XXX Comment report for Hanyuu-sama
 =======================================
 
 
-Generated on Mon, 21 Jan 2013 01:08:55 CET
+Generated on Mon, 21 Jan 2013 03:58:43 CET
 
 Summary
 =======
 
-There are currently 5 TODO/XXX comments.
+There are currently 4 TODO/XXX comments.
 
 Listing
 =======
@@ -27,25 +27,18 @@ File : /abstractions/tracks.py:234
 
     @property
 
-File : /ircbot/commands.py:754
+File : /ircbot/commands.py:759
 
     # TODO:
     # rewrite shit man
     import time
     import requests_ # fixed import
 
-File : /ircbot/irclib/connection.py:767
+File : /streamer/audio/__init__.py:269
 
-    "005": "featurelist",  # XXX
-    "200": "tracelink",
-    "201": "traceconnecting",
-    "202": "tracehandshake",
-
-File : /ircbot/irclib/dcc.py:115
-
-                # TODO: replace the prints with logging calls
-                logger.debug("DCC connection from {}:{}"
-                             .format(self.peeraddress, self.peerport))
-            self.irclibobj._handle_event(
+                # TODO: Find the exact exceptions mutagen can raise.
+                # WARNING: The instancing of this object should NEVER raise an
+                #          exception to the callee that isn't expected.
+                meta = ''
 
 

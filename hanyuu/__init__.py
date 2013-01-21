@@ -6,7 +6,6 @@ import os
 import logging
 
 import sys
-print(sys.path[0])
 
 logger = logging.getLogger('hanyuu')
 

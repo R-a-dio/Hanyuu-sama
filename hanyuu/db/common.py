@@ -19,7 +19,7 @@ try:
 except KeyError:
     raise ValueError("Unknown database type '{:s}' given.".format(db_type))
 except config.NoSectionError:
-    if config.sphinx:
+    if getattr(config, 'sphinx', None):
         pass
     else:
         raise

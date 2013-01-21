@@ -45,7 +45,7 @@ class Status(models.Base):
                                    default=None)
     
     class Meta:
-        db_name='streamstatus'
+        db_table = 'streamstatus'
 
 
 class Radvar(models.Base):

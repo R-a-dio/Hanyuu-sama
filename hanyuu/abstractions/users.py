@@ -5,14 +5,13 @@ from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import absolute_import
 from ..db import models
-from .. import utils, config
+from .. import config
 from . import logger
 
 
 logger = logger.getChild('users')
 
 
-@utils.instance_decorator
 class DJ(object):
     """
     Encapsulates the concept of a DJ in our system.

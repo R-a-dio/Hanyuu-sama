@@ -42,17 +42,22 @@ Handler registration:
             Same as above but then with the channel that is allowed, do note
             that private messages always get accepted.
 """
+from __future__ import unicode_literals
+from __future__ import print_function
+from __future__ import absolute_import
 
-import logging
+from .. import config
+from . import logger
+logger = logger.getChild(__name__)
+
 import re
-import config
-import irc
-import manager
-import main
+from . import irclib
+#import manager
+#import main
 import random as _random
 from datetime import timedelta, datetime
-import bootstrap
-import requests_
+#import bootstrap
+#import requests_
 
 def tokenize(text):
     return text.lower().split(" ")
@@ -89,7 +94,7 @@ def create_faves_code(server, nick, channel, text, hostmask):
         authcode = None
         if (cur.rowcount > 0):
             authcode = cur.fetchone()['authcode']
-            print authcode
+            print(authcode)
         if (not authcode):
             while 1:
                 authcode = str(_random.getrandbits(24))

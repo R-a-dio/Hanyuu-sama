@@ -1,20 +1,25 @@
 # -*- coding: utf-8 -*-
-    
-import asyncore
-from asynchat import async_chat
-import socket
+from __future__ import unicode_literals
+from __future__ import print_function
+from __future__ import absolute_import
+
+from .. import logger
 from .. import config
+logger = logger.getChild(__name__)
+
+from asynchat import async_chat
 from threading import Thread
-import manager
-import logging
+import asyncore
+import socket
+
 
 def start():
     global listener, thread
     listener = Listener()
     def wrapper():
-        logging.info("THREADING: Started listener")
+        logger.info("THREADING: Started listener")
         asyncore.loop()
-        logging.info("THREADING: Stopped listener")
+        logger.info("THREADING: Stopped listener")
     thread = Thread(target=wrapper)
     thread.name = "Listener"
     thread.daemon = 1

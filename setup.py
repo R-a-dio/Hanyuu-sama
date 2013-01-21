@@ -6,7 +6,7 @@ def read(fname):
 
 setup(
       name="Hanyuu-sama",
-      version="1.2.0",
+      version="1.2.0a",
       author='Wessie',
       author_email='r-a-dio@wessie.info',
       description=("Developer version of Hanyuu-sama, a complete "
@@ -22,8 +22,12 @@ setup(
                   "xmltodict >= 0.4",
                   "peewee >= 2.0",
                   # "pylibmc >= 1.2.3",
-                  # "audiotools >= 2.19alpha3",
-                          ],
+                  "audiotools >= 2.19",
+                  #"python-audio-tools >= 2.19",
+      ],
+      dependency_links = [
+          "http://r-a-d.io/etc/python-pkg/"
+      ],
       keywords="streaming icecast fastcgi irc",
       packages=['hanyuu'],
       )
