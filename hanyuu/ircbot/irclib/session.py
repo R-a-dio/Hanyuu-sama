@@ -229,7 +229,7 @@ class Session:
                       (delay+time.time(), function, arguments))
 
     def dcc(self, dcctype="chat", dccinfo=(None, 0)):
-        """Creates and returns a :class:`connection.DCCConnection` object.
+        """Creates and returns a :class:`dcc.DCCConnection` object.
 
         :param dcctype: "chat" for DCC CHAT connections or "raw" for
                          DCC SEND (or other DCC types). If "chat",
@@ -362,6 +362,7 @@ class Session:
         elif ctcp == 'SOURCE':
             server.ctcp_reply(source, 'SOURCE ' + self.ctcp_source)
 
+#: Global high level event handler container.
 Session.handlers = {}
 
 class HighEvent(object):
