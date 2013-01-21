@@ -767,7 +767,7 @@ numeric_events = {
     "002": "yourhost",
     "003": "created",
     "004": "myinfo",
-    "005": "featurelist",  # XXX
+    "005": "featurelist",
     "200": "tracelink",
     "201": "traceconnecting",
     "202": "tracehandshake",
