@@ -144,7 +144,7 @@ def queue(server, nick, channel, text, hostmask):
                     request_time += song.length
 
             message = u"{c3}Queue {time}:{c} ".format(time = "" if request_time == 0\
-                else "(Request time: {t})".format(t=timedelta(seconds=request_time)), **irc_colours) + \
+                else "(/r/ time: {t})".format(t=timedelta(seconds=request_time)), **irc_colours) + \
                 " {c3}|{c} ".format(**irc_colours)\
                 .join([song.metadata for song in queue])
         else:
