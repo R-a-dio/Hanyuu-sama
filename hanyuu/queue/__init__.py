@@ -4,6 +4,7 @@ from __future__ import absolute_import
 
 import peewee
 import time
+import datetime
 
 from .. import config
 from ..db import models
@@ -52,13 +53,48 @@ class Queue(object):
             # to that
             result = time.mktime(query[0].time.timetuple())
             result += query[0].song.length
+        else:
+            # TODO: we need a now playing abstraction
+            pass
         return result or time.time()
     
     def append(self, song, type=REGULAR):
         if not self.dj:
             raise QueueError('cannot append to a Queue without a dj')
-        
-    
+        timestamp = self.get_time_placement(type)
+        dt_timestamp = datetime.datetime.fromtimestamp(timestamp)
+        if type == REQUEST:
+            # shift all regulars forward
+            models.Queue.update(time=models.Queue.time + dt_timestamp)\
+                    .where(models.Queue.type == REGULAR)
+            # get the last regular
+            q = self._create_select_query()\
+                    .where(models.Queue.type == REGULAR)\
+                    .order_by(models.Queue.time.desc())\
+                    .limit(1)
+            q = list(q)
+            if len(q) == 1:
+                # remove the last regular in the queue if there is one
+                q[0].delete_instance()
+            # remove any identical song that's already in the queue
+            # update any track data
+            if song.track_id:
+                models.Queue.delete()\
+                            .where(models.Track.id == song.track_id)\
+                            .execute()
+                song._track.update(last_requested=datetime.datetime.now(),
+                                   priority=models.Track.priority+4,
+                                   request_count=models.Track.request_count+1)\
+                           .execute()
+        item = models.Queue()
+        item.type = type
+        item.time = dt_timestamp
+        item.song = song._song
+        item.track = song._track
+        item.dj = self.dj
+        item.save()
+        self.normalize()
+
     def _create_select_query(self):
         query = models.Queue.select()
         if self.dj:

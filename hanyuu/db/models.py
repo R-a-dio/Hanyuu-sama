@@ -268,8 +268,6 @@ class Queue(Base):
                                           null=True,
                                           db_column='track')
 
-    ip = peewee.TextField(null=True)
-
     dj = peewee.ForeignKeyField(DJ, related_name='queue',
                                     db_column='dj')
 

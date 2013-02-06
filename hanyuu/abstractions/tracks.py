@@ -159,7 +159,26 @@ class Track(object):
             self._track = None
 
         return result
-
+    
+    @property
+    def song_id(self):
+        """
+        :returns: The id field of the underlying :class:`hanyuu.models.Song`
+                  instance
+        :rtype:   int
+        """
+        return self._song.id
+    
+    @property
+    def track_id(self):
+        """
+        :returns: The id field of the underlying :class:`hanyuu.models.Track`
+                  instance, or None if there is no underlying Track instance
+        :rtype:   int
+        """
+        if self._track:
+            return self._track.id
+    
     @property
     def metadata(self):
         """
