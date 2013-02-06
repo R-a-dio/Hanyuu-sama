@@ -33,18 +33,18 @@ class Queue(object):
     
     @property
     def length(self):
-        return self._create_select_query().count()
+        return self._select().count()
     
     def get_time_placement(self, type=REGULAR):
         result = None
         if type == REGULAR:
             # if we want to add a regular, it goes at the end
             # of the queue
-            query = self._create_select_query()\
+            query = self._select()\
                         .order_by(models.Queue.time.desc())
         elif type == REQUEST:
             # requests need to be added after the last request
-            query = self._create_select_query()\
+            query = self._select()\
                         .where(models.Queue.type == REQUEST |
                                models.Queue.type == POPPED)\
                         .order_by(models.Queue.time.desc())
@@ -65,10 +65,10 @@ class Queue(object):
         dt_timestamp = datetime.datetime.fromtimestamp(timestamp)
         if type == REQUEST:
             # shift all regulars forward
-            models.Queue.update(time=models.Queue.time + dt_timestamp)\
-                    .where(models.Queue.type == REGULAR)
+            self._update(time=models.Queue.time + song.length)\
+                    .where(models.Queue.type == REGULAR)\
             # get the last regular
-            q = self._create_select_query()\
+            q = self._select()\
                     .where(models.Queue.type == REGULAR)\
                     .order_by(models.Queue.time.desc())\
                     .limit(1)
@@ -94,10 +94,18 @@ class Queue(object):
         item.dj = self.dj
         item.save()
         self.normalize()
+    
+    def normalize(self):
+        pass
 
-    def _create_select_query(self):
+    def _select(self):
         query = models.Queue.select()
         if self.dj:
             query = query.where(models.Queue.dj == self.dj)
         return query
     
+    def _update(self, **kwargs):
+        query = models.Queue.update(**kwargs)
+        if self.dj:
+            query = query.where(models.Queue.dj == self.dj)
+        return query
