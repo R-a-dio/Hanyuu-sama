@@ -42,9 +42,10 @@ def relay_listeners(server_name, mount=None, port=None):
         try:
             result = parse_status(result.content)
             listeners = int(result.get('Current Listeners', 0))
+            active = 1 if result['Online'] else 0
             with manager.MySQLCursor() as cur:
-                cur.execute("UPDATE `relays` SET listeners=%s, active=1 WHERE relay_name=%s;",
-                                                (listeners, server_name))
+                cur.execute("UPDATE `relays` SET listeners=%s, active=%s WHERE relay_name=%s;",
+                                                (listeners, active, server_name))
             return listeners
         except:
             with manager.MySQLCursor() as cur:
