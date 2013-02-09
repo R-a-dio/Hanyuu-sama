@@ -30,6 +30,11 @@ def relay_listeners(server_name, mount=None, port=None):
     try:
         result = requests.get(url, headers={'User-Agent': 'Mozilla'}, timeout=2)
         result.raise_for_status() # raise exception if status code is abnormal
+    except requests.exceptions.Timeout:
+        with manager.MySQLCursor() as cur:
+            cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
+                                                (server_name,))
+        raise # for get_listener_count
     except requests.ConnectionError:
         with manager.MySQLCursor() as cur:
             cur.execute("UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
