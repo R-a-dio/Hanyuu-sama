@@ -119,7 +119,7 @@ lp.handler = ("on_text", r'[.!@]lp$', irc.ALL_NICKS, irc.ALL_CHANNELS)
 def queue(server, nick, channel, text, hostmask):
     p = tokenize(text)
     if len(p) > 1:
-        if p[1] == u"l(ength)":
+        if p[1] == u"length" or p[1] == u"l":
             request_queue = regular_queue = requests_ = regulars = 0
             for song in manager.Queue().iter(None):
                 if (song.type == manager.REQUEST):
@@ -186,7 +186,7 @@ def favorite(server, nick, channel, text, hostmask):
     song = manager.NP()
     if match:
         mode, command = match.group("mode", "command")
-        if (command.strip().lower() == "l(ast)"):
+        if (command.strip().lower() == "last" or command.strip().lower() == "l"):
             song = manager.LP().get(1)[0]
         if (command.strip().isdigit()):
             id = int(command.strip())
@@ -211,7 +211,7 @@ def unfavorite(server, nick, channel, text, hostmask):
     song = manager.NP()
     if match:
         mode, command = match.group("mode", "command")
-        if (command.strip() == "(last|l)"):
+        if (command.strip() == "last" or command.strip() == "l"):
             song = manager.LP().get(1)[0]
         if (command.strip().isdigit()):
             id = int(command.strip())
@@ -362,7 +362,7 @@ def random(server, nick, channel, text, hostmask):
                 manager.Queue().append_request(song)
                 request_announce(server, song)
                 return
-    if (command.lower().strip() == "f(ave|avorite)"):
+    if (command.lower().strip() == "fave" or command.lower().strip() == "f" or command.lower().strip() == "favorite"):
         songs = manager.Song.nick(nick, limit=None, tracks=True)
         request_from_list(songs)
         return
@@ -421,7 +421,7 @@ def lucky(server, nick, channel, text, hostmask):
     else:
         server.notice(nick, message)
         
-lucky.handler = ("on_text", r'[.!@]l(ucky)\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
+lucky.handler = ("on_text", r'[.!@]"l(ucky)?"\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def search(server, nick, channel, text, hostmask):
     def format_date(dt):
