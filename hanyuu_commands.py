@@ -343,7 +343,7 @@ def request_announce(server, song):
 request_announce.exposed = True
 
 def random(server, nick, channel, text, hostmask):
-    match = re.match(r"^(?P<mode>[.!@])random\b(?P<command>.*)", text, re.I|re.U)
+    match = re.match(r"^(?P<mode>[.!@])ra(ndom)?\b(?P<command>.*)", text, re.I|re.U)
     if (match):
         mode, command = match.group("mode", "command")
     else:
@@ -390,7 +390,7 @@ def random(server, nick, channel, text, hostmask):
     else:
         server.notice(nick, message)
         
-random.handler = ("on_text", r'[.!@]random\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
+random.handler = ("on_text", r'[.!@]ra(ndom)?\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def lucky(server, nick, channel, text, hostmask):
     match = re.match(r"^(?P<mode>[.!@])l(ucky)?\s(?P<query>.*)", text, re.I|re.U)
