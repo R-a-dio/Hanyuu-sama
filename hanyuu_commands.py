@@ -366,8 +366,8 @@ def random(server, nick, channel, text, hostmask):
         songs = manager.Song.nick(nick, limit=None, tracks=True)
         request_from_list(songs)
         return
-    elif (re.match(r"^f(ave|avorite) (.*)", command)):
-        fave_nick = re.match(r"^f(ave|avorite) (.*)", command).groups()[1]
+    elif (re.match(r"^f(ave|avorite)? (.*)", command)):
+        fave_nick = re.match(r"^f(ave|avorite)? (.*)", command).groups()[1]
         songs = manager.Song.nick(fave_nick, limit=None, tracks=True)
         request_from_list(songs)
         return
@@ -393,7 +393,7 @@ def random(server, nick, channel, text, hostmask):
 random.handler = ("on_text", r'[.!@]random\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def lucky(server, nick, channel, text, hostmask):
-    match = re.match(r"^(?P<mode>[.!@])l(ucky)\s(?P<query>.*)", text, re.I|re.U)
+    match = re.match(r"^(?P<mode>[.!@])l(ucky)?\s(?P<query>.*)", text, re.I|re.U)
     if (match):
         mode, query = match.group("mode", "query")
     else:
@@ -421,7 +421,7 @@ def lucky(server, nick, channel, text, hostmask):
     else:
         server.notice(nick, message)
         
-lucky.handler = ("on_text", r'[.!@]"l(ucky)?"\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
+lucky.handler = ("on_text", r'[.!@]l(ucky)?\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def search(server, nick, channel, text, hostmask):
     def format_date(dt):
@@ -690,7 +690,7 @@ lastfm_setuser.handler = ("on_text", r'[.@!]fma.*',
                           irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def favorite_list(server, nick, channel, text, hostmask):
-    match = re.match(r'^(?P<mode>[.!@])f(ave|avorite)l(ist)?($|\s)(?P<fnick>.*)', text, re.I|re.U)
+    match = re.match(r'^(?P<mode>[.!@])f(ave|avorite)?l(ist)?($|\s)(?P<fnick>.*)', text, re.I|re.U)
 
     if (match):
         mode, fnick = match.group('mode', 'fnick')
@@ -707,7 +707,7 @@ def favorite_list(server, nick, channel, text, hostmask):
     else:
         server.notice(nick, message)
 
-favorite_list.handler = ('on_text', r'[.!@]f(ave|avorite)l(ist)?',
+favorite_list.handler = ('on_text', r'[.!@]f(ave|avorite)?l(ist)?',
                          irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 
