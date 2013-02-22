@@ -146,6 +146,7 @@ class ServerConnection(Connection):
         self.localport = localport
         self.localhost = socket.gethostname()
         self.featurelist = {}
+        self.identities = {}
         self.motd_sent = False
         self._ipv6 = ipv6
         self._ssl = ssl
@@ -207,6 +208,30 @@ class ServerConnection(Connection):
         was passed to the connect() method.  """
 
         return self.real_nickname
+
+    def is_identified(self, nick):
+        """ Checks if a user has identified for their Nickname via NickServ
+            returns boolean
+        """
+        # Send Message to NickServ `STATUS {nick}`
+        self.privmsg("NickServ", "STATUS {0}".format(nick))
+        
+        # Wait for NickServ's response
+        #    this is handled in the `process_data` function
+        start_time = time.time()
+        while not nick in self.identities:
+            # Timeout after two seconds
+            if (time.time() - start_time) > 2:
+                return False
+            
+            # Not sure if this line should be included.
+            time.sleep(0.1)
+        
+        # Cache the response so we can delete it from the dict
+        output = self.identities[nick]
+        del(self.identities[nick])
+        
+        return output
 
     def process_data(self):
         """Processes incoming data and dispatches handlers.
@@ -290,6 +315,24 @@ class ServerConnection(Connection):
                         command = "pubnotice"
                     else:
                         command = "privnotice"
+                        
+                        # Check if the privnotice is NickServ sending us a Nick Status
+                        #     see `is_identified` function
+                        sender = utils.nm_to_n(prefix)
+                        if sender.lower() == "nickserv":
+                            # Parse the message
+                            resp = re.match("STATUS (.*) (\d)", messages[0])
+                            
+                            # Stop if it isn't a Nick Status
+                            if not resp == None:
+                                nick   =  resp.group(1)
+                                # NickServ will return `STATUS {nick} 3` if it is identified
+                                status = (resp.group(2) == '3')
+                                
+                                # Add the info to the dict
+                                self.identities[nick] = status
+                                
+                                return
 
                 for m in messages:
                     if type(m) is types.TupleType:
