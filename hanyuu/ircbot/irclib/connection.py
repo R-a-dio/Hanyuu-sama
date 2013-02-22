@@ -229,7 +229,7 @@ class ServerConnection(Connection):
         
         # Cache the response so we can delete it from the dict
         output = self.identities[nick]
-        del(self.identities[nick])
+        del self.identities[nick]
         
         return output
 
@@ -326,8 +326,8 @@ class ServerConnection(Connection):
                             # Stop if it isn't a Nick Status
                             if not resp == None:
                                 nick   =  resp.group(1)
-                                # NickServ will return `STATUS {nick} 3` if it is identified
-                                status = (resp.group(2) == '3')
+                                # NickServ will return 2 or 3 if it is identified
+                                status = (resp.group(2) == '2' or resp.group(2) == '3')
                                 
                                 # Add the info to the dict
                                 self.identities[nick] = status
