@@ -367,7 +367,7 @@ def random(server, nick, channel, text, hostmask):
         request_from_list(songs)
         return
     elif (re.match(r"^f(ave|avorite)? (.*)", command)):
-        fave_nick = re.match(r"^f(ave|avorite)? (.*)", command).groups()[1]
+        fave_nick = re.match(r"^f(ave|avorite)? (.*)", command).groups()[2]
         songs = manager.Song.nick(fave_nick, limit=None, tracks=True)
         request_from_list(songs)
         return
