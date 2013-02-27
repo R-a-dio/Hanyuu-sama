@@ -59,7 +59,9 @@ class FileSource(object):
     No handlers are supported for this class.
     """
     def __init__(self, source, options, handlers):
-        super(UnendingSource, self).__init__()
+        super(FileSource, self).__init__()
+        self.source = None
+
         self.source_function = source
         
         self.options = options
@@ -71,20 +73,31 @@ class FileSource(object):
     def start(self):
         """Starts the source"""
         self.eof = False
-        self.source = self.source_function()
-        
+        self.source = self.change_source()
+
     def initialize(self):
         """Sets the initial source from the source function."""
         self.start()
         
     def change_source(self):
         """Calls the source function and returns the result if not None."""
-        self.source.close()
-        new_source = self.source_function()
-        if new_source is None:
-            self.eof = True
+        if not (self.source is None):
+            self.source.close()
+        filename = self.source_function()
+
+        if filename is None:
+            return
+        
+        try:
+            audiofile = AudioFile(filename)
+        except (files.AudioError) as err:
+            logger.exception("Unsupported file.")
+            return self.change_source()
+        except (IOError) as err:
+            logger.exception("Failed opening file.")
+            return self.change_source()
         else:
-            return new_source
+            return audiofile
     
     def read(self, size=4096, timeout=10.0):
         if self.eof:

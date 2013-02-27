@@ -127,8 +127,9 @@ class Manager(object):
         
         self.started = threading.Event()
         
-        last_proc = None
+        last_proc = self.get_source
         for processor in processors:
+            proc_options = {}
             for option, default in getattr(processor, 'options', []):
                 print(option, default)
                 proc_options[option] = options.get(option, default)
@@ -272,7 +273,7 @@ class FileInformation(object):
         
         self.filename = filename
         
-        if metadata is None:
+        if not (metadata is None):
             self.metadata = metadata
         else:
             try:
@@ -288,16 +289,17 @@ class FileInformation(object):
                 # Same as for the artist
                 title = meta.get('title')
                 
-                # Check if we need the artist formatting or not.
-                meta = u"{:s} - {:s}" if artist else u"{:s}"
-                
                 # mutagen returns a list of unicode objects so we join them on
                 # a nice comma for the end result.
                 if artist:
                     artist = u", ".join(artist)
                 if title:
                     title = u", ".join(title)
-                meta = meta.format(artist, title)
+
+                if artist:
+                    meta = u"{:s} - {:s}".format(artist, title)
+                else:
+                    meta = title
                 
             self.metadata = meta
             
