@@ -119,7 +119,7 @@ lp.handler = ("on_text", r'[.!@]lp$', irc.ALL_NICKS, irc.ALL_CHANNELS)
 def queue(server, nick, channel, text, hostmask):
     p = tokenize(text)
     if len(p) > 1:
-        if p[1] == u"length":
+        if p[1] == u"length" or p[1] == u"l":
             request_queue = regular_queue = requests_ = regulars = 0
             for song in manager.Queue().iter(None):
                 if (song.type == manager.REQUEST):
@@ -182,11 +182,11 @@ def dj(server, nick, channel, text, hostmask):
 dj.handler = ("on_text", r'[.!@]dj.*', irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def favorite(server, nick, channel, text, hostmask):
-    match = re.match(r"^(?P<mode>[.!@])fave\b(?P<command>.*)", text, re.I|re.U)
+    match = re.match(r"^(?P<mode>[.!@])(fave|favorite)\b(?P<command>.*)", text, re.I|re.U)
     song = manager.NP()
     if match:
         mode, command = match.group("mode", "command")
-        if (command.strip().lower() == "last"):
+        if (command.strip().lower() == "last" or command.strip().lower() == "l"):
             song = manager.LP().get(1)[0]
         if (command.strip().isdigit()):
             id = int(command.strip())
@@ -204,14 +204,14 @@ def favorite(server, nick, channel, text, hostmask):
         .format(song=song.metadata, **irc_colours)
     server.notice(nick, message)
     
-favorite.handler = ("on_text", r'[.!@]fave.*', irc.ALL_NICKS, irc.ALL_CHANNELS)
+favorite.handler = ("on_text", r'[.!@](fave|favorite).*', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def unfavorite(server, nick, channel, text, hostmask):
     match = re.match(r"^(?P<mode>[.!@])unfave\b(?P<command>.*)", text, re.I|re.U)
     song = manager.NP()
     if match:
         mode, command = match.group("mode", "command")
-        if (command.strip() == "last"):
+        if (command.strip() == "last" or command.strip() == "l"):
             song = manager.LP().get(1)[0]
         if (command.strip().isdigit()):
             id = int(command.strip())
@@ -343,7 +343,7 @@ def request_announce(server, song):
 request_announce.exposed = True
 
 def random(server, nick, channel, text, hostmask):
-    match = re.match(r"^(?P<mode>[.!@])random\b(?P<command>.*)", text, re.I|re.U)
+    match = re.match(r"^(?P<mode>[.!@])ra(ndom)?\b(?P<command>.*)", text, re.I|re.U)
     if (match):
         mode, command = match.group("mode", "command")
     else:
@@ -362,12 +362,12 @@ def random(server, nick, channel, text, hostmask):
                 manager.Queue().append_request(song)
                 request_announce(server, song)
                 return
-    if (command.lower().strip() == "fave"):
+    if (command.lower().strip() == "fave" or command.lower().strip() == "f" or command.lower().strip() == "favorite"):
         songs = manager.Song.nick(nick, limit=None, tracks=True)
         request_from_list(songs)
         return
-    elif (re.match(r"^fave (.*)", command)):
-        fave_nick = re.match(r"^fave (.*)", command).groups()[1]
+    elif (re.match(r"^f(ave|avorite)? (.*)", command)):
+        fave_nick = re.match(r"^f(ave|avorite)? (.*)", command).groups()[2]
         songs = manager.Song.nick(fave_nick, limit=None, tracks=True)
         request_from_list(songs)
         return
@@ -390,10 +390,10 @@ def random(server, nick, channel, text, hostmask):
     else:
         server.notice(nick, message)
         
-random.handler = ("on_text", r'[.!@]random\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
+random.handler = ("on_text", r'[.!@]ra(ndom)?\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def lucky(server, nick, channel, text, hostmask):
-    match = re.match(r"^(?P<mode>[.!@])lucky\s(?P<query>.*)", text, re.I|re.U)
+    match = re.match(r"^(?P<mode>[.!@])l(ucky)?\s(?P<query>.*)", text, re.I|re.U)
     if (match):
         mode, query = match.group("mode", "query")
     else:
@@ -421,7 +421,7 @@ def lucky(server, nick, channel, text, hostmask):
     else:
         server.notice(nick, message)
         
-lucky.handler = ("on_text", r'[.!@]lucky\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
+lucky.handler = ("on_text", r'[.!@]l(ucky)?\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def search(server, nick, channel, text, hostmask):
     def format_date(dt):
@@ -690,7 +690,7 @@ lastfm_setuser.handler = ("on_text", r'[.@!]fma.*',
                           irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def favorite_list(server, nick, channel, text, hostmask):
-    match = re.match(r'^(?P<mode>[.!@])fl(ist)?($|\s)(?P<fnick>.*)', text, re.I|re.U)
+    match = re.match(r'^(?P<mode>[.!@])f(ave|avorite)?l(ist)?($|\s)(?P<fnick>.*)', text, re.I|re.U)
 
     if (match):
         mode, fnick = match.group('mode', 'fnick')
@@ -707,7 +707,7 @@ def favorite_list(server, nick, channel, text, hostmask):
     else:
         server.notice(nick, message)
 
-favorite_list.handler = ('on_text', r'[.!@]fl(ist)?',
+favorite_list.handler = ('on_text', r'[.!@]f(ave|avorite)?l(ist)?',
                          irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 
