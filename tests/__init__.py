@@ -5,6 +5,11 @@ import sys
 import os
 
 
+# setup logging to DEBUG
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logging.getLogger('peewee').setLevel(logging.INFO)
+
 # We add the path above us to the PYTHONPATH to allow non-install testing
 sys.path.insert(0, os.path.abspath('..'))
 # Test if the PYTHONPATH addition worked
