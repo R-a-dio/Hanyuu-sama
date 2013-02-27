@@ -1,6 +1,10 @@
 """Module that handles file access and decoding to PCM.
 
 It uses python-audiotools for the majority of the work done."""
+from __future__ import unicode_literals
+from __future__ import print_function
+from __future__ import absolute_import
+
 from . import garbage
 import audiotools
 
@@ -30,10 +34,37 @@ class GarbageAudioFile(garbage.Garbage):
         return True
     
     
+# TODO: Add handler hooks.
 class FileSource(object):
-    def __init__(self, source_function):
+    """
+    ======
+    Source
+    ======
+    
+    The :class:`FileSource` class expects a function as source.
+    
+    This function should return an absolute path to a supported audio file as
+    an :const:`unicode` or :const:`bytes` object.
+    
+    =======
+    Options
+    =======
+    
+    No options are supported for this class.
+    
+    ========
+    Handlers
+    ========
+    
+    No handlers are supported for this class.
+    """
+    def __init__(self, source, options, handlers):
         super(UnendingSource, self).__init__()
-        self.source_function = source_function
+        self.source_function = source
+        
+        self.options = options
+        
+        self.handler = handlers
         
         self.eof = False
         
