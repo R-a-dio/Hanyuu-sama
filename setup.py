@@ -20,6 +20,7 @@ setup(
                   "flup >= 1.0.2",
                   "MySQL-python >= 1.2.3",
                   "xmltodict >= 0.4",
+                  "raven",
                   #"audiotools >= 2.19alpha3",
                           ],
       keywords = "streaming icecast fastcgi irc",

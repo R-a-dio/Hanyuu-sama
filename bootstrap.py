@@ -1,6 +1,8 @@
 import config
 import logging
 import time
+from raven.handlers.logging import SentryHandler
+from raven.conf import setup_logging
 
 logging.getLogger().setLevel(config.loglevel)
     
@@ -13,8 +15,11 @@ if __name__ == "__main__":
             logging.exception("Fucking loading broke, FIX YOUR SHIT")
             
 def logging_setup():
-    logging.getLogger().setLevel(config.loglevel)
-    
+    root = logging.getLogger()
+    root.setLevel(config.loglevel)
+    client = SentryHandler(config.sentry_key)
+    setup_logging(client)
+
 def stats():
     """Returns information about the process"""
     from threading import active_count, enumerate
