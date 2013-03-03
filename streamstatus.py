@@ -182,11 +182,21 @@ def parse_listeners(xml):
     xml should be a string, not a url!
     (while it supports filenames, it doesnt support urls)
     """
+    skip_following = False
     result = []
     try:
         xml_dict = xmltodict.parse(xml, xml_attribs=False)
         xml_dict = xml_dict["icestats"]["source"]["listener"]
         for listener in xml_dict:
+            if not isinstance(listener, dict):
+                # This is a bug fix, when there is only one listener the
+                # returned xml_dict is a single dict with just the one
+                # listener in it.
+                if skip_following:
+                    continue
+                listener = xml_dict
+                # Set a variable so we skip the rest of the entries.
+                skip_following = True
             _tmp = {}
             _tmp['ip'] = listener['IP']
             _tmp['player'] = listener['UserAgent']
