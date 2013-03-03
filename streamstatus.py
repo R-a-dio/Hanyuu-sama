@@ -228,5 +228,6 @@ def get_listeners():
                 result.raise_for_status() # None if normal
             except:
                 logging.exception("get_listeners")
-            listeners.update(dict((l['ip'], l) for l in parse_listeners(result.content)))
+            else:
+                listeners.update(dict((l['ip'], l) for l in parse_listeners(result.content)))
     return listeners.values()
