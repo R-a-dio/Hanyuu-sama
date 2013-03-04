@@ -13,7 +13,6 @@ setup(
                      "package including an IRC bot, Icecast streamer "
                      "and FastCGI request server."),
       license='GPL',
-      long_description=read('README'),
       install_requires=[
                   "requests >= 1.0",
                   "mutagen >= 1.19",
@@ -21,13 +20,18 @@ setup(
                   "pymysql",
                   "xmltodict >= 0.4",
                   "peewee >= 2.0",
+                  "bjsonrpc",
                   # "pylibmc >= 1.2.3",
                   "audiotools >= 2.19",
+                  "pylibshout >= 1.0",
                   #"python-audio-tools >= 2.19",
       ],
       dependency_links = [
           "http://r-a-d.io/etc/python-pkg/"
       ],
       keywords="streaming icecast fastcgi irc",
-      packages=['hanyuu'],
+      packages=['hanyuu', 'hanyuu.db', 'hanyuu.abstractions',
+                'hanyuu.ircbot', 'hanyuu.status', 'hanyuu.streamer',
+                'hanyuu.streamer.audio', 'hanyuu.streamer.audio.garbage',
+                'hanyuu.ircbot.irclib'],
       )
