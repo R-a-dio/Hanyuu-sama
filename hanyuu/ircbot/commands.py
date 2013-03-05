@@ -84,6 +84,11 @@ def np(server, nick, channel, text, hostmask):
 np.handler = ("on_text", r'[.!@]np$', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def create_faves_code(server, nick, channel, text, hostmask):
+    # Check if they have identified for their nick
+    if not server.is_identified(nick):
+        server.privmsg(nick, "You need to identify for your nick first.")
+        return
+    
     with manager.MySQLCursor() as cur:
         cur.execute("SELECT * FROM enick WHERE `nick`=%s", (nick,))
         authcode = None
