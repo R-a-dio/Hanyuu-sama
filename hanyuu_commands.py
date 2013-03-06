@@ -117,10 +117,12 @@ def lp(server, nick, channel, text, hostmask):
 lp.handler = ("on_text", r'[.!@]lp$', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def queue(server, nick, channel, text, hostmask):
-    p = tokenize(text)
-    if len(p) > 1:
-        if p[1] == u"length" or p[1] == u"l":
-            request_queue = regular_queue = requests_ = regulars = 0
+    match = re.match(r"^[.@!]q(ueue)? ?(?P<command>l(ength)?)?.*", text, re.I|re.U)
+
+    # We can be lazy here and not check if re.match() found anything because
+    # the function handler ensures [.!@]q(ueue)? match
+    if match.group("command"):
+        request_queue = regular_queue = requests_ = regulars = 0
             for song in manager.Queue().iter(None):
                 if (song.type == manager.REQUEST):
                     request_queue += song.length
@@ -143,11 +145,14 @@ def queue(server, nick, channel, text, hostmask):
                 if (song.type == manager.REQUEST):
                     request_time += song.length
 
-            message = u"{c3}Queue {time}:{c} ".format(time = "" if request_time == 0\
-                else "(/r/ time: {t})".format(t=timedelta(seconds=request_time)), **irc_colours) + \
-                " {c3}|{c} ".format(**irc_colours)\
-                .join([song.metadata for song in queue])
+            time_str = ""
+            if request_time != 0:
+                time_str = "(/r/ time: {t})".format(t=timedelta(seconds=request_time))
+
+            message = u"{c3}Queue {time}:{c} ".format(time = time_str, **irc_colours) + \
+                " {c3}|{c} ".format(**irc_colours).join([song.metadata for song in queue])
         else:
+            # Would this ever trigger?
             message = u"No queue at the moment"
     server.privmsg(channel, message)
 
