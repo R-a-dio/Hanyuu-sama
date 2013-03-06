@@ -117,7 +117,7 @@ def lp(server, nick, channel, text, hostmask):
 lp.handler = ("on_text", r'[.!@]lp$', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
 def queue(server, nick, channel, text, hostmask):
-    match = re.match(r"^[.@!]q(ueue)? ?(?P<command>l(ength)?)?.*", text, re.I|re.U)
+    match = re.match(r"^[.@!]q(ueue)?\b(?P<command>l(ength)?)?", text, re.I|re.U)
 
     # We can be lazy here and not check if re.match() found anything because
     # the function handler ensures [.!@]q(ueue)? match
