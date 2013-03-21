@@ -22,3 +22,45 @@ database:
 media:
     # Path to the directory with music files
     directory: /my/music/directory
+
+streamer:
+    icecast:
+        # Icecast port
+        port: 8000
+        # Icecast host
+        host: localhost
+        # Icecast password
+        passwd: hackme
+        # Icecast user
+        user: AFK
+        # Mountpoint to use
+        mount: /main.mp3
+        # Format of the audio, can be MP3 and OGG
+        format: MP3
+        # Protocol to use, icecast uses HTTP
+        protocol: HTTP
+        # The following are all optional
+        # Icecast genre to send
+        genre: Weeaboo
+        # URL to send to icecast
+        url: http://r-a-d.io/
+        # Description for the stream
+        description: Request at the site!
+        # Name of the stream
+        name: R/a/dio
+        # Channels in the audio data
+        channels: 2
+        # Bitrate/Quality of the stream
+        quality: 4
+        bitrate: 192
+        # Samplerate of the stream
+        samplerate: 44100
+    rpc:
+        # The host.. often localhost yes
+        host: localhost
+        # The port the RPC should be hosted on
+        port: 65432
+        # Note: Both of the above values are also used when connected, so if you run a piece of
+        #       hanyuu somewhere else and need to connect to a streamer RPC this should be the
+        #       information required for that.
+        # Warning: The above is very bad since we don't use any authentication for the RPC.

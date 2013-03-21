@@ -18,6 +18,7 @@ setup(
                   "mutagen >= 1.19",
                   "flup >= 1.0.2",
                   "pymysql",
+                  "PyYAML>=3.05",
                   "xmltodict >= 0.4",
                   "peewee >= 2.0",
                   "bjsonrpc",
@@ -29,6 +30,11 @@ setup(
       dependency_links = [
           "http://r-a-d.io/etc/python-pkg/"
       ],
+      entry_points={
+          "console_scripts": [
+              "hanyuu = hanyuu.runner:main",
+          ],
+      },
       keywords="streaming icecast fastcgi irc",
       packages=['hanyuu', 'hanyuu.db', 'hanyuu.abstractions',
                 'hanyuu.ircbot', 'hanyuu.status', 'hanyuu.streamer',
