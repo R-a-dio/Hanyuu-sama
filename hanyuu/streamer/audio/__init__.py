@@ -88,44 +88,57 @@ class Manager(object):
     #: A list of processors that are instanced in order and are passed their
     #: previous friend as first argument.
     processors = [files.FileSource, encoder.Encoder, icecast.Icecast]
-    def __init__(self, source, processors=None, **options):
+    def __init__(self, source, processors=None, options=None, handlers=None):
         """
-        :params source: A callable object that returns a FileInformation object.
-                        See :meth:`Manager.get_source` for the exception.
-                        
-        :params processors: An iterable of processors. 
-                            Defaults to :attr:`Manager.processors`
-                            
-        :params options: The constructor accepts other arbitrary keyword
-                         arguments that are passed to processors that have the
-                         keyword inside their `options` attribute.
-                         
-                     Example: If processor **A** defines `options` as the
-                              following: '[("my_extra_argument", None)]' and
-                              you pass 'my_extra_argument' as an keyword
-                              argument to the :class:`Manager` class it
-                              would be passed to processor **A** when
-                              creating the class instance. Or if the keyword
-                              is not given will pass `None` instead.
+        :param source: 
+            A callable object that returns a FileInformation object.
+            See :meth:`Manager.get_source` for the exception.
+        :param processors: 
+            An iterable of processors. 
+            Defaults to :attr:`Manager.processors`
+        :param options: 
+            A :const:`dict` containing options for the processors found in
+            :obj:`processors`.
+            
+            See the individual **processor classes** for accepted options.
+            
+            .. note::
+                Unused options are ignored.
+        :param handlers:
+            A :const:`dict` containing handlers (functions) that should be
+            called when the related event is fired.
+            
+            See the individual **processor classes** for available events.
+            
+            .. note::
+                Unused handlers are ignored.
+                
+            .. warning::
+                Handlers are called in the audio pipeline threads. For this
+                reason you should avoid handlers that take a long time to
+                complete their work or block in other means.
         """
         super(Manager, self).__init__()
         
         processors = processors or self.processors
+        handlers = Handlers(handlers) if handlers else Handlers()
         
         self.instances = []
         
         self.started = threading.Event()
         
-        last_proc = None
+        last_proc = self.get_source
         for processor in processors:
+            proc_options = {}
             for option, default in getattr(processor, 'options', []):
+                print(option, default)
                 proc_options[option] = options.get(option, default)
             
             logger.debug("Creating {!r} instance.".format(processor))
             # Create our processor instance with requested options.
             # NOTE: We don't call the `start` method here but in our own `start`
             #       instead. Please don't change this.            
-            proc_instance = processor(last_proc, **proc_options)
+            proc_instance = processor(last_proc, proc_options, handlers)
             
             # Append it to the instances list so we don't lose reference to
             # them. Or garbage collect them by accident.
@@ -260,7 +273,7 @@ class FileInformation(object):
         
         self.filename = filename
         
-        if metadata is None:
+        if not (metadata is None):
             self.metadata = metadata
         else:
             try:
@@ -276,20 +289,29 @@ class FileInformation(object):
                 # Same as for the artist
                 title = meta.get('title')
                 
-                # Check if we need the artist formatting or not.
-                meta = u"{:s} - {:s}" if artist else u"{:s}"
-                
                 # mutagen returns a list of unicode objects so we join them on
                 # a nice comma for the end result.
                 if artist:
                     artist = u", ".join(artist)
                 if title:
                     title = u", ".join(title)
-                meta = meta.format(artist, title)
+
+                if artist:
+                    meta = u"{:s} - {:s}".format(artist, title)
+                else:
+                    meta = title
                 
             self.metadata = meta
             
 
+class Handlers(dict):
+    def __missing__(self, key):
+        return lambda *args, **kwargs: None
+    
+    def __getattr__(self, key):
+        return self[key]
+    
+    
 def test_dir(directory=u'/media/F/Music', files=None):
     import os
     import mutagen

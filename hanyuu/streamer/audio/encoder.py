@@ -1,3 +1,12 @@
+"""
+A very simple encoder module.
+
+The encoders currently supported are listed below:
+
+    - LAME MP3 encoder
+    
+Other formats would require a rework of this module to be more generic.
+"""
 from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import absolute_import
@@ -19,52 +28,96 @@ LAME_BIN = 'lame'
 
 
 class Encoder(object):
-    """An Encoder class that handles the encoder subprocess underneath.
+    """
+    An Encoder class that handles the encoder subprocess underneath.
     
-    This expects various things from the **source** given.
+    Right now this class only supports encoding by using a LAME mp3 encoder
+    binary. Other formats are not supported.
     
-    The source should have the following characteristics:
-    
-        :func:`read`: A function that accepts a single integer argument that is
-                      the amount of bytes to return. It should return PCM audio
-                      data in a supported format.
-                      
-        :attr:`sample_rate`: The sample rate of the audio data. This should be
-                             the full integer of the sample rate (44100 instead
-                             of 44.1)
-                             
-        :attr:`bits_per_sample`: The bits per sample of the audio data. This
-                                 can be 16, 24 and 32 bits.
-                                 
-
     .. note::
-        The Encoder class can restart the encoder transparently when an error
-        occurs. This means that you should never use the underlying
-        :class:`EncoderInstance` class anywhere in your code but always use 
-        the actual :class:`Encoder` class instead.
+        You should never use the :class:`EncoderInstance` class. The class
+        should only be used by the :class:`Encoder` class and touching the
+        :class:`EncoderInstance` instance used by the :class:`Encoder` class
+        can cause **undefined** behaviour.
     """
     options = [('lame_settings',
                 ['--cbr', '-b', '192', '--resample', '44.1'])]
-    def __init__(self, source, lame_settings):
+    def __init__(self, source, options, handlers):
         """
-        :params lame_settings:
-                This should be a list of lame options to pass to the lame
-                binary. This should be used for the encoding options, other
-                options are handled by the class already.
-                
-                The default is to encode to CBR192 @ 44.1kHz and joint stereo.
-                
+        ======
+        Source
+        ======
+        
+        The source should have the following attributes:
+        
+            :func:`read`:
+                :param size: An :const:`int` signifying the amount of bytes to return.
+                :returns: A :const:`bytes` of PCM audio data in supported format.
+                          
+            :attr:`sample_rate`:
+                The sample rate of the audio data. This should be
+                the full integer of the sample rate (44100 instead
+                of 44.1)
+                                 
+            :attr:`bits_per_sample`: 
+                The bits per sample of the audio data. This
+                can be 16, 24 and 32 bits.
+                                 
+        =======
+        Options
+        =======
+        
+        The options available for the :class:`Encoder` is a single one named
+        'lame_settings'. This is a list of arguments to pass to the underlying
+        LAME encoder binary. 
+        
+        The list should contain the encoding options of LAME only. Input and
+        other options are handled by the implementation.
+        
+        The default encoding options are CBR192 @ 44.1kHz and joint stereo.
+        Which looks like this:
+            ['--cbr', '-b', '192', '--resample', '44.1']
+
         .. note::
             The 'joint stereo' flag is implicitly set inside the class and
             can't be changed through the :obj:`lame_settings`.
+            
+            
+        ========
+        Handlers
+        ========
+        
+        The encoding class has the following handler hooks available:
+        
+            - encoder_start(encoder): 
+                Called when :meth:`Encoder.start` is called.
+                
+                :param encoder: :class:`Encoder` instance.
+            - encoder_close(encoder): 
+                Called when :meth:`Encoder.close` is called.
+                
+                :param encoder: :class:`Encoder` instance.
+            - encoder_restart_before(encoder):
+                Called when a new :class:`EncoderInstance` needs to be created.
+                This is called **BEFORE** the instance is created.
+                
+                :param encoder: :class:`Encoder` instance.
+            - encoder_restart_after(encoder, encoder_instance):
+                Called when a new :class:`EncoderInstance` is created. This
+                is called **AFTER** the instance is created.
+                
+                :param encoder: :class:`Encoder` instance.
+                :param encoder_instance: :class:`EncoderInstance` instance.
         """
         super(Encoder, self).__init__()
         self.alive = threading.Event()
         
         self.source = source
         
+        self.handler = handlers
+        
         #: The settings for encoding to pass to lame as a list.
-        self.encoding_settings = lame_settings
+        self.settings = options['lame_settings']
         
         # This is an implicit 'joint stereo' setting for lame.
         self.mode = 'j'
@@ -81,13 +134,18 @@ class Encoder(object):
         self.alive.clear()
         self.start_instance()
         
+        self.handler.encoder_start(self)
+        
     def close(self):
         """
         This calls the :meth:`EncoderInstance.close` method on the
         :class:`EncoderInstance`.
         """
         self.alive.set() # Set ourself to closed so we don't restart instances
-        self.instance.close()
+        if hasattr(self, 'instance'):
+            self.instance.close()
+        
+        self.handler.encoder_close(self)
         
     def restart(self):
         """
@@ -110,8 +168,12 @@ class Encoder(object):
         collection by the :mod:`garbage` module.
         """
         if not self.alive.is_set():
+            self.handler.encoder_restart_before(self)
+            
             GarbageInstance(self.instance)
             self.start_instance()
+            
+            self.handler.encoder_restart_after(self, self.instance)
             
     def start_instance(self):
         """
@@ -147,13 +209,24 @@ class Encoder(object):
         return getattr(self.instance, key)
     
     
+# TODO: Document EncoderInstance properly.
 class EncoderInstance(object):
-    """Class that represents a subprocessed encoder."""
+    """
+    Class that represents a subprocessed encoder.
+    
+    This is a non-generic class as of now and could be made generic and
+    supporting different kind of format encoders. As of yet this only supports
+    the LAME binary encoder.
+    
+    .. note::
+        This class is used internally and should never be instantiated
+        directly by the user.
+    """
     def __init__(self, encoder_manager):
         super(EncoderInstance, self).__init__()
         self.encoder_manager = encoder_manager
         
-        for key in ['source', 'compression', 'mode', 'out_file']:
+        for key in ['source', 'settings', 'mode', 'out_file']:
             setattr(self, key, getattr(self.encoder_manager, key))
         
         self.running = threading.Event()
@@ -180,12 +253,18 @@ class EncoderInstance(object):
                      '-s', str(decimal.Decimal(self.source.sample_rate) / 1000),
                      '--bitwidth', str(self.source.bits_per_sample),
                      '--signed', '--little-endian',
-                     '-m', self.mode] + self.compression + ['-', self.out_file]
+                     '-m', self.mode] + self.settings + ['-', self.out_file]
                      
-        self.process = subprocess.Popen(args=arguments,
-                                        stdin=subprocess.PIPE,
-                                        stdout=subprocess.PIPE)
-        
+        try:
+            self.process = subprocess.Popen(args=arguments,
+                                            stdin=subprocess.PIPE,
+                                            stdout=subprocess.PIPE)
+        except OSError as err:
+            if err.errno == 2:
+                logger.error("You don't have LAME installed.")
+                return
+            else:
+                raise
         self.thread = threading.Thread(target=self.run,
                                             name='Encoder Feeder')
         self.thread.daemon = True
@@ -218,7 +297,11 @@ class EncoderInstance(object):
         self.encoder_manager.report_close()
         
         
+# TODO: Document GarbageInstance properly.
 class GarbageInstance(garbage.Garbage):
+    """
+    A garbage object to be registered for EncoderInstance class instances.
+    """
     def collect(self):
         # Check if our encoder process is down yet
         returncode = self.item.process.poll()

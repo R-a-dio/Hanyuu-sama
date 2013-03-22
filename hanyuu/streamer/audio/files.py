@@ -1,6 +1,10 @@
 """Module that handles file access and decoding to PCM.
 
 It uses python-audiotools for the majority of the work done."""
+from __future__ import unicode_literals
+from __future__ import print_function
+from __future__ import absolute_import
+
 from . import garbage
 import audiotools
 
@@ -30,30 +34,70 @@ class GarbageAudioFile(garbage.Garbage):
         return True
     
     
+# TODO: Add handler hooks.
 class FileSource(object):
-    def __init__(self, source_function):
-        super(UnendingSource, self).__init__()
-        self.source_function = source_function
+    """
+    ======
+    Source
+    ======
+    
+    The :class:`FileSource` class expects a function as source.
+    
+    This function should return an absolute path to a supported audio file as
+    an :const:`unicode` or :const:`bytes` object.
+    
+    =======
+    Options
+    =======
+    
+    No options are supported for this class.
+    
+    ========
+    Handlers
+    ========
+    
+    No handlers are supported for this class.
+    """
+    def __init__(self, source, options, handlers):
+        super(FileSource, self).__init__()
+        self.source = None
+
+        self.source_function = source
+        
+        self.options = options
+        
+        self.handler = handlers
         
         self.eof = False
         
     def start(self):
         """Starts the source"""
         self.eof = False
-        self.source = self.source_function()
-        
+        self.source = self.change_source()
+
     def initialize(self):
         """Sets the initial source from the source function."""
         self.start()
         
     def change_source(self):
         """Calls the source function and returns the result if not None."""
-        self.source.close()
-        new_source = self.source_function()
-        if new_source is None:
-            self.eof = True
+        if not (self.source is None):
+            self.source.close()
+        filename = self.source_function()
+
+        if filename is None:
+            return
+        
+        try:
+            audiofile = AudioFile(filename)
+        except (files.AudioError) as err:
+            logger.exception("Unsupported file.")
+            return self.change_source()
+        except (IOError) as err:
+            logger.exception("Failed opening file.")
+            return self.change_source()
         else:
-            return new_source
+            return audiofile
     
     def read(self, size=4096, timeout=10.0):
         if self.eof:
