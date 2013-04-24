@@ -208,7 +208,7 @@ class IRC:
                 continue
             c.last_time = time.time()
             c.send_time += delta
-            if c.send_time >= 1.3:
+            if c.send_time >= 1.9:
                 c.send_time = 0
                 c.sent_bytes = 0
             
