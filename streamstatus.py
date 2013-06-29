@@ -28,7 +28,9 @@ def relay_listeners(server_name, mount=None, port=None):
             else:
                 raise KeyError("Unknown relay {}".format(server_name))
     url = "http://{name}.r-a-d.io:{port}{mount}.xspf".format(name=server_name,
-                                                             port=port, mount=mount)
+                                                    port=port, mount=mount)
+    error_sql = "UPDATE `relays` SET listeners=0, active=0 "
+                "WHERE relay_name=%s;"
     try:
         result = requests.get(
             url,
@@ -37,15 +39,11 @@ def relay_listeners(server_name, mount=None, port=None):
         result.raise_for_status()  # raise exception if status code is abnormal
     except requests.exceptions.Timeout:
         with manager.MySQLCursor() as cur:
-            cur.execute(
-                "UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
-                (server_name,))
+            cur.execute(error_sql, (server_name,))
         raise  # for get_listener_count
     except requests.ConnectionError:
         with manager.MySQLCursor() as cur:
-            cur.execute(
-                "UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
-                (server_name,))
+            cur.execute(error_sql, (server_name,))
     except requests.HTTPError:
         with manager.MySQLCursor() as cur:
             cur.execute("UPDATE `relays` SET active=0 WHERE relay_name=%s;",
@@ -57,14 +55,13 @@ def relay_listeners(server_name, mount=None, port=None):
             active = 1 if result['Online'] else 0
             with manager.MySQLCursor() as cur:
                 cur.execute(
-                    "UPDATE `relays` SET listeners=%s, active=%s WHERE relay_name=%s;",
+                    "UPDATE `relays` SET listeners=%s, active=%s "
+                    "WHERE relay_name=%s;",
                     (listeners, active, server_name))
             return listeners
         except:
             with manager.MySQLCursor() as cur:
-                cur.execute(
-                    "UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
-                    (server_name,))
+                cur.execute(error_sql, (server_name,))
             logging.exception("get listener count")
     return -1
 
@@ -93,8 +90,7 @@ def get_listener_count():
                         requests.ConnectionError) as e:  # rare
                     if not dns_spamfilter:
                         logging.warning(
-                            "Connection Error to {}. sudo rndc flush if it is correct, and update DNS"
-                            .format(name))
+                            "Connection Error to {}.".format(name))
                         dns_spamfilter.reset()
                     else:
                         # logging.warning("HTTPError on {}".format(name))
@@ -111,30 +107,34 @@ def get_listener_count():
 
 def get_status(server_name):
     """
-    Gets the current status of the master server, and the listener counts of all of the
-    slave relays, aggregating them, filtering negative, and summing them to give an
-    artificial Master server listener count used by Hanyuu in every StatusUpdate call.
+    Gets the current status of the master server,
+    and the listener counts of all of the slave relays, aggregating them,
+    filtering negative, and summing them to give an artificial Master server
+    listener count used by Hanyuu in every StatusUpdate call.
     """
     result = {"Online": False}
         # Pointless but easier to type. Also makes more sense.
     with manager.MySQLCursor() as cur:
         cur.execute(
-            "SELECT port, mount FROM `relays` WHERE relay_name=%s;", (server_name,))
+            "SELECT port, mount FROM `relays` WHERE relay_name=%s;",
+                (server_name,))
         if cur.rowcount == 1:
                 row = cur.fetchone()
                 port = row['port']
                 mount = row['mount']
         else:
-            logging.critical(
-                "Master server is not in the config or database and get_status failed.")
+            logging.critical("Master server is not in the config or database"
+                "and get_status failed.")
         try:
-            result = requests.get("http://{server}.r-a-d.io:{port}{mount}.xspf".format(
-                server=server_name, port=port, mount=mount),
-                headers={'User-Agent': 'Mozilla'}, timeout=2)
+            result = requests.get(
+                "http://{server}.r-a-d.io:{port}{mount}.xspf".format(
+                    server=server_name, port=port, mount=mount),
+                    headers={'User-Agent': 'Mozilla'}, timeout=2)
         except requests.HTTPError as e:  # rare, mostly 403
             if not dns_spamfilter:
                 logging.warning(
-                    "Can't connect to mountpoint; Assuming listener limit reached")
+                    "Can't connect to mountpoint; "
+                    "Assuming listener limit reached")
                 dns_spamfilter.reset()
             else:
                 logging.exception("HTTPError occured in status retrieval")
@@ -175,7 +175,7 @@ def parse_status(xml):
                 {}).get('trackList',
                         {}).get('track',
                                 None)
-        except AttributeError:  # No mountpoint it seems, just ditch an empty result
+        except AttributeError: # No mountpoint it seems; empty result
             return result
         else:
             if xml_dict is None:  # We got none returned from the get anyway
@@ -188,19 +188,23 @@ def parse_status(xml):
             tmp = annotation.split(":", 1)
             if len(tmp) > 1:
                 result[tmp[0]] = tmp[
-                    1].strip()  # no need whatsoever to decode anything here. It's not needed by NP()
+                    1].strip()  # no need whatsoever to decode anything here.
+                                # It's not needed by NP()
         result["Online"] = True
         if xml_dict["title"] is None:
             result["Current Song"] = u""  # /shrug
         else:
             result["Current Song"] = xml_dict.get("title", u"")
-    except UnicodeDecodeError:  # we have runes, but we know we are online. This should not even be possible (requests.get.content)
+    except UnicodeDecodeError:  # we have runes, but we know we are online.
+                                # This should not even be possible...
         result["Online"] = True
-        result[
-            "Current Song"] = u""  # Erase the bad stuff. However, keep in mind stream title can do this (anything user input...)
+        result["Current Song"] = u"" # Erase the bad stuff. 
+                                     # However, keep in mind stream title can
+                                     # do this (anything user input...)
     except:
         logging.exception("Failed to parse XML Status data.")
-    return result  # cleaner and easier to read falling back to original function scope (instead of 5 returns)
+    return result  # cleaner and easier to read falling back to original
+                   # function scope (instead of 5 returns)
 
 
 def parse_listeners(xml):
@@ -254,11 +258,9 @@ def get_listeners():
             try:
                 result = requests.get(
                     '{url}/admin/listclients?mount={mount}'.format(url=url,
-                                                                   mount=mount), headers={'User-Agent': 'Mozilla',
-                                                                                          'Referer':
-                                                                                          '{url}/admin/'.format(
-                                                                                              url=url),
-                                                                                          'Authorization': 'Basic {}'.format(auth)}, timeout=2)
+                    mount=mount), headers={'User-Agent': 'Mozilla',
+                    'Referer': '{url}/admin/'.format(url=url),
+                    'Authorization': 'Basic {}'.format(auth)}, timeout=2)
                 result.raise_for_status()  # None if normal
             except:
                 logging.exception("get_listeners")
