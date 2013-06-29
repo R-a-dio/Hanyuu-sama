@@ -67,10 +67,7 @@ import re
 import select
 import socket
 import string
-import sys
 import time
-import types
-import codecs
 import Queue
 import sqlite3
 
