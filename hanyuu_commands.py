@@ -572,14 +572,17 @@ def info(server, nick, channel, text, hostmask):
             rc = '?'
             sp = '?'
             with manager.MySQLCursor() as cur:
-                cur.execute("SELECT requestcount, priority FROM tracks WHERE id=%s", (id,))
+                cur.execute("SELECT requestcount, priority, accepter, tags FROM tracks WHERE id=%s", (id,))
                 if cur.rowcount == 1:
                     row = cur.fetchone()
                     rc = row['requestcount']
                     sp = row['priority']
-            message = u"{c7}ID: {id} Title: {title} Faves: {faves} Plays: {plays} RC: {rc} SP: {sp} CD: {cd}"\
+                    ac = row['accepter'] if row['accepter'] else "N/A"
+                    tags = row['tags']
+            message = u"{c7}ID: {id} Title: {title} Faves: {faves} Plays: {plays} Requests: {rc} Priority: {sp} CD: {cd} Accepted By: {ac} Tags: {tags}"\
                 .format(id=id, title=song.metadata, faves=song.favecount, plays=song.playcount,
-                        rc=rc, sp=sp, cd=small_time_format(requests_.songdelay(rc), False), **irc_colours)
+                        rc=rc, sp=sp, cd=small_time_format(requests_.songdelay(rc), False),
+                        ac=ac, tags=tags, **irc_colours)
     else:
         # Show some kind of info lol
         message = u"Missing ID"
