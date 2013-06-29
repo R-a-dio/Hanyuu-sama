@@ -8,6 +8,7 @@ import bootstrap
 
 bootstrap.logging_setup()
 
+
 class AudioError(Exception):
 
     """Exception raised when an error occurs in this module."""
@@ -38,7 +39,6 @@ class GarbageAudioFile(garbage.Garbage):
 
 
 class AudioFile(object):
-
 
     """A Simple wrapper around the audiotools library.
 
