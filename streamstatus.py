@@ -30,7 +30,7 @@ def relay_listeners(server_name, mount=None, port=None):
     url = "http://{name}.r-a-d.io:{port}{mount}.xspf".format(name=server_name,
                                                              port=port,
                                                              mount=mount)
-    error_sql = "UPDATE `relays` SET listeners=0, active=0 " +
+    error_sql = "UPDATE `relays` SET listeners=0, active=0 " \
                 "WHERE relay_name=%s;"
     try:
         result = requests.get(
