@@ -28,8 +28,9 @@ def relay_listeners(server_name, mount=None, port=None):
             else:
                 raise KeyError("Unknown relay {}".format(server_name))
     url = "http://{name}.r-a-d.io:{port}{mount}.xspf".format(name=server_name,
-                                                    port=port, mount=mount)
-    error_sql = "UPDATE `relays` SET listeners=0, active=0 "
+                                                             port=port,
+                                                             mount=mount)
+    error_sql = "UPDATE `relays` SET listeners=0, active=0 " +
                 "WHERE relay_name=%s;"
     try:
         result = requests.get(
