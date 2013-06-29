@@ -1,6 +1,5 @@
 import requests
 import logging
-import config
 import manager
 import xmltodict
 import itertools
@@ -88,7 +87,7 @@ def get_listener_count():
                 try:
                     count = relay_listeners(name, row["mount"], row["port"])
                 except (requests.HTTPError,
-                        requests.ConnectionError) as e:  # rare
+                        requests.ConnectionError):  # rare
                     if not dns_spamfilter:
                         logging.warning(
                             "Connection Error to {}.".format(name))
@@ -133,7 +132,7 @@ def get_status(server_name):
                 ),
                 headers={'User-Agent': 'Mozilla'}, timeout=2
             )
-        except requests.HTTPError as e:  # rare, mostly 403
+        except requests.HTTPError:  # rare, mostly 403
             if not dns_spamfilter:
                 logging.warning(
                     "Can't connect to mountpoint; "
