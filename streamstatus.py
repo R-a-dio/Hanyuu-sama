@@ -118,19 +118,21 @@ def get_status(server_name):
     with manager.MySQLCursor() as cur:
         cur.execute(
             "SELECT port, mount FROM `relays` WHERE relay_name=%s;",
-                (server_name,))
+            (server_name,))
         if cur.rowcount == 1:
                 row = cur.fetchone()
                 port = row['port']
                 mount = row['mount']
         else:
             logging.critical("Master server is not in the config or database"
-                "and get_status failed.")
+                             "and get_status failed.")
         try:
             result = requests.get(
                 "http://{server}.r-a-d.io:{port}{mount}.xspf".format(
-                    server=server_name, port=port, mount=mount),
-                    headers={'User-Agent': 'Mozilla'}, timeout=2)
+                    server=server_name, port=port, mount=mount
+                ),
+                headers={'User-Agent': 'Mozilla'}, timeout=2
+            )
         except requests.HTTPError as e:  # rare, mostly 403
             if not dns_spamfilter:
                 logging.warning(
@@ -176,7 +178,7 @@ def parse_status(xml):
                 {}).get('trackList',
                         {}).get('track',
                                 None)
-        except AttributeError: # No mountpoint it seems; empty result
+        except AttributeError:  # No mountpoint it seems; empty result
             return result
         else:
             if xml_dict is None:  # We got none returned from the get anyway
@@ -199,9 +201,9 @@ def parse_status(xml):
     except UnicodeDecodeError:  # we have runes, but we know we are online.
                                 # This should not even be possible...
         result["Online"] = True
-        result["Current Song"] = u"" # Erase the bad stuff. 
-                                     # However, keep in mind stream title can
-                                     # do this (anything user input...)
+        result["Current Song"] = u""  # Erase the bad stuff.
+                                      # However, keep in mind stream title can
+                                      # do this (anything user input...)
     except:
         logging.exception("Failed to parse XML Status data.")
     return result  # cleaner and easier to read falling back to original
