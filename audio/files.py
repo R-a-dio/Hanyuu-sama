@@ -3,7 +3,10 @@
 It uses python-audiotools for the majority of the work done."""
 import audiotools
 import garbage
+import logging
+import bootstrap
 
+bootstrap.logging_setup()
 
 class AudioError(Exception):
 
@@ -28,7 +31,7 @@ class GarbageAudioFile(garbage.Garbage):
             [item.poll() for item in gc.get_referrers(subprocess.Popen)
              if isinstance(item, subprocess.Popen)]
         except:
-            logger.warning("Exception occured in hack.")
+            logging.warning("Exception occured in hack.")
         # Hack to kill zombies above
 
         return True
@@ -72,6 +75,7 @@ class AudioFile(object):
         try:
             reader = audiotools.open(filename)
         except (audiotools.UnsupportedFile) as err:
+            logging.exception("Unsupported File - Check dependencies")
             raise AudioError("Unsupported file")
 
         self.file = reader
