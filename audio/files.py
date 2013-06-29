@@ -39,6 +39,7 @@ class GarbageAudioFile(garbage.Garbage):
 
 class AudioFile(object):
 
+
     """A Simple wrapper around the audiotools library.
 
     This opens the filename given wraps the file in a PCMConverter that
@@ -74,7 +75,7 @@ class AudioFile(object):
         """Open a file for reading and wrap it in several helpers."""
         try:
             reader = audiotools.open(filename)
-        except (audiotools.UnsupportedFile) as err:
+        except (audiotools.UnsupportedFile):
             logging.exception("Unsupported File - Check dependencies")
             raise AudioError("Unsupported file")
 
