@@ -346,9 +346,8 @@ class IRC:
         """
         bisect.insort(
             self.delayed_commands,
-            (delay + time.time(),
-                     function,
-                     arguments))
+            (delay + time.time(), function, arguments)
+        )
         if self.fn_to_add_timeout:
             self.fn_to_add_timeout(delay)
 
@@ -559,7 +558,7 @@ class ServerConnection(Connection):
                 new_data = self.ssl.read(2 ** 14)
             else:
                 new_data = self.socket.recv(2 ** 14)
-        except socket.error as x:
+        except socket.error:
             # The server hung up.
             self.disconnect("Connection reset by peer")
             return
@@ -649,8 +648,10 @@ class ServerConnection(Connection):
                                 Event("action", prefix, target, m[1:]))
                     else:
                         if DEBUG:
-                            print "command: %s, source: %s, target: %s, arguments: %s" % (
-                                command, prefix, target, [m])
+                            print "command: %s, source: %s, target: %s," \
+                                  "arguments: %s" % (
+                                    command, prefix, target, [m]
+                                  )
                         self._handle_event(Event(command, prefix, target, [m]))
             else:
                 target = None
@@ -799,7 +800,7 @@ class ServerConnection(Connection):
 
         try:
             self.socket.close()
-        except socket.error as x:
+        except socket.error:
             pass
         self.socket = None
         self._handle_event(Event("disconnect", self.server, "", [message]))
@@ -972,7 +973,7 @@ class ServerConnection(Connection):
                 self.socket.sendall(message)
             if DEBUG:
                 print "TO SERVER:", message
-        except socket.error as x:
+        except socket.error:
             self.disconnect("Connection reset by peer.")
 
     def send_raw(self, string):
@@ -1337,7 +1338,7 @@ class DCCConnection(Connection):
         self.connected = 0
         try:
             self.socket.close()
-        except socket.error as x:
+        except socket.error:
             pass
         self.socket = None
         self.irclibobj._handle_event(
@@ -1363,7 +1364,7 @@ class DCCConnection(Connection):
 
         try:
             new_data = self.socket.recv(2 ** 14)
-        except socket.error as x:
+        except socket.error:
             # The server hung up.
             self.disconnect("Connection reset by peer")
             return
@@ -1428,7 +1429,7 @@ class DCCConnection(Connection):
                 self.socket.send("\n")
             if DEBUG:
                 print "TO PEER: %s\n" % string
-        except socket.error as x:
+        except socket.error:
             # Ouch!
             self.disconnect("Connection reset by peer.")
 
