@@ -5,7 +5,7 @@ Description of how commands are now handled and should be created
 
 Handler creation:
     All handlers get the following arguments passed
-    
+
         session:
             an irc.Session object having this handler loaded
         server:
@@ -22,22 +22,22 @@ Handler creation:
 Handler registration:
     Handlers should set their 'handler' attribute to a tuple with the following
         format.
-        
+
         (event type, regular expression, allowed nicknames, allowed channels)
-        
+
         event type:
             The type of event to trigger this handler on, currently only
             supports 'on_text'
-            
+
         regular expression:
             A regex that is used to match against the incoming IRC message,
             if it's a match the handler will be called if the
             'allowed nicknames' and 'allowed channels' are True
-            
+
         allowed nicknames:
             A constant or list of nicknames that are allowed to trigger this
             handler. Look in irc.py for the constants defined.
-            
+
         allowed channels:
             Same as above but then with the channel that is allowed, do note
             that private messages always get accepted.
@@ -54,15 +54,17 @@ from datetime import timedelta, datetime
 import bootstrap
 import requests_
 
+
 def tokenize(text):
     return text.lower().split(" ")
 
 irc_colours = {"c": u"\x03", "c1": u"\x0301", "c2": u"\x0302",
-            "c3": u"\x0303", "c4": u"\x0304", "c5": u"\x0305",
-            "c6": u"\x0306", "c7": u"\x0307", "c8": u"\x0308",
-            "c9": u"\x0309", "c10": u"\x0310", "c11": u"\x0311",
-            "c12": u"\x0312", "c13": u"\x0313", "c14": u"\x0314",
-            "c15": u"\x0315"}
+               "c3": u"\x0303", "c4": u"\x0304", "c5": u"\x0305",
+               "c6": u"\x0306", "c7": u"\x0307", "c8": u"\x0308",
+               "c9": u"\x0309", "c10": u"\x0310", "c11": u"\x0311",
+               "c12": u"\x0312", "c13": u"\x0313", "c14": u"\x0314",
+               "c15": u"\x0315"}
+
 
 def np(server, nick, channel, text, hostmask):
     status = manager.Status()
@@ -72,7 +74,7 @@ def np(server, nick, channel, text, hostmask):
             np=np.metadata, curtime=np.positionf,
             length=np.lengthf, listeners=status.listeners,
             faves=np.favecount,
-            fs="" if (np.favecount == 1) else "s", 
+            fs="" if (np.favecount == 1) else "s",
             times=np.playcount,
             ts="" if (np.playcount == 1) else "s",
             lp=np.lpf,
@@ -80,8 +82,9 @@ def np(server, nick, channel, text, hostmask):
     else:
         message = u"Stream is currently down."
     server.privmsg(channel, message)
-    
+
 np.handler = ("on_text", r'[.!@]np$', irc.ALL_NICKS, irc.ALL_CHANNELS)
+
 
 def create_faves_code(server, nick, channel, text, hostmask):
     with manager.MySQLCursor() as cur:
@@ -91,9 +94,10 @@ def create_faves_code(server, nick, channel, text, hostmask):
             authcode = cur.fetchone()['authcode']
             print authcode
         if (not authcode):
-            while 1:
+            while True:
                 authcode = str(_random.getrandbits(24))
-                cur.execute("SELECT * FROM enick WHERE `authcode`=%s", (authcode,))
+                cur.execute(
+                    "SELECT * FROM enick WHERE `authcode`=%s", (authcode,))
                 if (cur.rowcount == 0):
                     break
             cur.execute("INSERT INTO enick (nick, authcode) VALUES (%(nick)s, "
@@ -104,20 +108,23 @@ def create_faves_code(server, nick, channel, text, hostmask):
 create_faves_code.handler = ("on_text", r'SEND CODE',
                              irc.ALL_NICKS, irc.PRIVATE_MESSAGE)
 
+
 def lp(server, nick, channel, text, hostmask):
     lastplayed = manager.LP().get()
     if (len(lastplayed) > 0):
         message = u"{c3}Last Played:{c} ".format(**irc_colours) + \
             " {c3}|{c} ".format(**irc_colours).join(
-                                        [song.metadata for song in lastplayed])
+            [song.metadata for song in lastplayed])
     else:
         message = u"There is currently no last played data available"
     server.privmsg(channel, message)
-    
+
 lp.handler = ("on_text", r'[.!@]lp$', irc.ALL_NICKS, irc.ALL_CHANNELS)
 
+
 def queue(server, nick, channel, text, hostmask):
-    match = re.match(r"^[.@!]q(?:ueue)?(\W(?P<command>l(?:ength)?))?", text, re.I|re.U)
+    match = re.match(
+        r"^[.@!]q(?:ueue)?(\W(?P<command>l(?:ength)?))?", text, re.I | re.U)
 
     # We can be lazy here and not check if re.match() found anything because
     # the function handler ensures [.!@]q(ueue)? match
@@ -131,12 +138,13 @@ def queue(server, nick, channel, text, hostmask):
                 regular_queue += song.length
                 regulars += 1
         message = u"There are {req} requests ({req_time}), {norm} randoms ({norm_time}), total of {total} songs ({total_time})".\
-                format(**{'req_time': timedelta(seconds=request_queue),
-                'norm_time': timedelta(seconds=regular_queue),
-                'total_time': timedelta(seconds=request_queue+regular_queue),
-                'req': requests_,
-                'norm': regulars,
-                'total': requests_+regulars})
+            format(**{'req_time': timedelta(seconds=request_queue),
+                      'norm_time': timedelta(seconds=regular_queue),
+                      'total_time':
+                      timedelta(seconds=request_queue + regular_queue),
+                      'req': requests_,
+                      'norm': regulars,
+                      'total': requests_ + regulars})
     else:
         queue = list(manager.Queue())
         if (len(queue) > 0):
@@ -147,15 +155,19 @@ def queue(server, nick, channel, text, hostmask):
 
             time_str = ""
             if request_time != 0:
-                time_str = "(/r/ time: {t})".format(t=timedelta(seconds=request_time))
+                time_str = "(/r/ time: {t})".format(
+                    t=timedelta(seconds=request_time))
 
-            message = u"{c3}Queue {time}:{c} ".format(time = time_str, **irc_colours) + \
-                " {c3}|{c} ".format(**irc_colours).join([song.metadata for song in queue])
+            message = u"{c3}Queue {time}:{c} ".format(time=time_str, **irc_colours) + \
+                " {c3}|{c} ".format(**irc_colours).join(
+                    [song.metadata for song in queue])
         else:
             message = u"No queue at the moment"
     server.privmsg(channel, message)
 
-queue.handler = ("on_text", r'[.!@]q(?:ueue)?', irc.ALL_NICKS, irc.ALL_CHANNELS)
+queue.handler = (
+    "on_text", r'[.!@]q(?:ueue)?', irc.ALL_NICKS, irc.ALL_CHANNELS)
+
 
 def dj(server, nick, channel, text, hostmask):
     tokens = text.split(' ')
@@ -170,23 +182,28 @@ def dj(server, nick, channel, text, hostmask):
                 topic = server.get_topic(channel)
                 regex = re.compile(r"((.*?r/)(.*)(/dio.*?))\|(.*?)\|(.*)")
                 result = regex.match(topic)
-                if (result != None):
+                if (result is not None):
                     result = list(result.groups())
-                    result[1:5] = u'|{c7} Stream:{c4} {status} {c7}DJ:{c4} {dj} {c11} http://r-a-d.io{c} |'.format(status=new_status, dj=new_dj, **irc_colours)
+                    result[1:5] = u'|{c7} Stream:{c4} {status} {c7}DJ:{c4} {dj} {c11} http://r-a-d.io{c} |'.format(
+                        status=new_status, dj=new_dj, **irc_colours)
                     server.topic(channel, u"".join(result))
                     manager.DJ().name = new_dj
                 else:
-                    server.privmsg(channel, "Topic is the wrong format, can't set new topic")
+                    server.privmsg(
+                        channel, "Topic is the wrong format, can't set new topic")
         else:
-            server.notice(nick, "You don't have the necessary privileges to do this.")
+            server.notice(
+                nick, "You don't have the necessary privileges to do this.")
     else:
-        server.privmsg(channel, "Current DJ: {c3}{dj}"\
+        server.privmsg(channel, "Current DJ: {c3}{dj}"
                        .format(dj=manager.DJ().name, **irc_colours))
-        
+
 dj.handler = ("on_text", r'[.!@]dj.*', irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
+
 def favorite(server, nick, channel, text, hostmask):
-    match = re.match(r"^(?P<mode>[.!@])(fave|favorite)\b(?P<command>.*)", text, re.I|re.U)
+    match = re.match(
+        r"^(?P<mode>[.!@])(fave|favorite)\b(?P<command>.*)", text, re.I | re.U)
     song = manager.NP()
     if match:
         mode, command = match.group("mode", "command")
@@ -205,13 +222,16 @@ def favorite(server, nick, channel, text, hostmask):
     else:
         song.faves.append(nick)
         message = u"Added {c3}'{song}'{c} to your favorites."\
-        .format(song=song.metadata, **irc_colours)
+            .format(song=song.metadata, **irc_colours)
     server.notice(nick, message)
-    
-favorite.handler = ("on_text", r'[.!@](fave|favorite).*', irc.ALL_NICKS, irc.ALL_CHANNELS)
+
+favorite.handler = (
+    "on_text", r'[.!@](fave|favorite).*', irc.ALL_NICKS, irc.ALL_CHANNELS)
+
 
 def unfavorite(server, nick, channel, text, hostmask):
-    match = re.match(r"^(?P<mode>[.!@])unfave\b(?P<command>.*)", text, re.I|re.U)
+    match = re.match(
+        r"^(?P<mode>[.!@])unfave\b(?P<command>.*)", text, re.I | re.U)
     song = manager.NP()
     if match:
         mode, command = match.group("mode", "command")
@@ -232,9 +252,10 @@ def unfavorite(server, nick, channel, text, hostmask):
         message = u"You don't have {c3}'{song}'{c} in your favorites."\
             .format(song=song.metadata, **irc_colours)
     server.notice(nick, message)
-    
+
 unfavorite.handler = ("on_text", r'[.!@]unfave.*',
-                       irc.ALL_NICKS, irc.ALL_CHANNELS)
+                      irc.ALL_NICKS, irc.ALL_CHANNELS)
+
 
 def set_curthread(server, nick, channel, text, hostmask):
     status = manager.Status()
@@ -247,36 +268,40 @@ def set_curthread(server, nick, channel, text, hostmask):
 
     message = u"Thread: {thread}".format(thread=status.thread)
     server.privmsg(channel, message)
-    
+
 set_curthread.handler = ("on_text", r'[.!@]thread(\s.*)?',
-                          irc.ALL_NICKS, irc.MAIN_CHANNELS)
+                         irc.ALL_NICKS, irc.MAIN_CHANNELS)
+
 
 def topic(server, nick, channel, text, hostmask):
     tokens = text.split(' ')
     param = u" ".join(tokens[1:]).strip()
-    if param != u"" or len(tokens) > 1: #i have NO IDEA WHATSOEVER why this is like this. just c/p from above
+    if param != u"" or len(tokens) > 1:  # i have NO IDEA WHATSOEVER why this is like this. just c/p from above
         if server.hasaccess(channel, nick):
             topic = server.get_topic(channel)
             print(u"Topic: {0}".format(topic))
             regex = re.compile(ur"(.*?r/)(.*)(/dio.*?)(.*)")
             result = regex.match(topic)
-            if (result != None):
+            if (result is not None):
                 result = list(result.groups())
                 result[1] = u"{param}{c7}".format(param=param, **irc_colours)
                 server.topic(channel, u"".join(result))
             else:
-                server.privmsg(channel, "Topic is the wrong format, can't set new topic")
+                server.privmsg(
+                    channel, "Topic is the wrong format, can't set new topic")
 
     else:
         topic = server.get_topic(channel)
         server.privmsg(channel, u"Topic: {topic}".format(topic=topic))
-        
+
 topic.handler = ("on_text", r'[.!@]topic(\s.*)?',
-                  irc.ALL_NICKS, irc.MAIN_CHANNELS)
+                 irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 # TODO:
 #     No way yet to kill the streamer, so this is TODO
 killing_stream = False
+
+
 def kill_afk(server, nick, channel, text, hostmask):
     if (server.isop(channel, nick)):
         try:
@@ -290,35 +315,41 @@ def kill_afk(server, nick, channel, text, hostmask):
         server.privmsg(channel, message)
     else:
         server.notice(nick, u"You don't have high enough access to do this.")
-        
+
 kill_afk.handler = ("on_text", r'[.!@]kill',
-                     irc.DEV_NICKS, irc.ALL_CHANNELS)
+                    irc.DEV_NICKS, irc.ALL_CHANNELS)
 
 # TODO:
 #    same as above
+
+
 def shut_afk(server, nick, channel, text, hostmask):
     try:
         stream = main.connect()
         stream.switch_dj()
-        message =  u'Disconnecting after current track. Start streaming a fallback song before the AFK Streamer disconnects.'
+        message = u'Disconnecting after current track. Start streaming a fallback song before the AFK Streamer disconnects.'
     except:
         message = u"Something went wrong, please try again."
         logging.exception("AFK cleankill failed")
     server.privmsg(channel, message)
-        
+
 shut_afk.handler = ("on_text", r'[.!@]cleankill',
-                     irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
+                    irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
 
 
-spam = bootstrap.Switch(True) # side effect: hanyuu no longer spams as ferociously if that pesky race condition returns
+spam = bootstrap.Switch(True)
+                        # side effect: hanyuu no longer spams as ferociously if
+                        # that pesky race condition returns
+
+
 def announce(server, spam=spam):
     np = manager.NP()
     status = manager.Status()
-    if not spam: # No more requiring a fave for a now starting announce. (Hiroto)
+    if not spam:  # No more requiring a fave for a now starting announce. (Hiroto)
         message = u"Now starting:{c4} '{np}' {c}[{length}]({listeners} listeners), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
             np=np.metadata, length=np.lengthf, listeners=status.listeners,
             faves=np.favecount,
-            fs="" if (np.favecount == 1) else "s", 
+            fs="" if (np.favecount == 1) else "s",
             times=np.playcount,
             ts="" if (np.playcount == 1) else "s",
             lp=np.lpf,
@@ -327,10 +358,11 @@ def announce(server, spam=spam):
         spam.reset()
     for nick in np.faves:
         if (server.inchannel("#r/a/dio", nick)):
-            server.notice(nick, u"Fave: {0} is playing."\
+            server.notice(nick, u"Fave: {0} is playing."
                           .format(np.metadata))
 
 announce.exposed = True
+
 
 def request_announce(server, song):
     # UNLEASH THE HACK
@@ -341,17 +373,20 @@ def request_announce(server, song):
                                                     **irc_colours)
     else:
         message = u"Requested:{c3} '{song}' ({until})".format(song=song.metadata,
-                                                   until=qsong.until, **irc_colours)
+                                                              until=qsong.until, **irc_colours)
     server.privmsg("#r/a/dio", message)
 
 request_announce.exposed = True
 
+
 def random(server, nick, channel, text, hostmask):
-    match = re.match(r"^(?P<mode>[.!@])ra(ndom)?\b(?P<command>.*)", text, re.I|re.U)
+    match = re.match(
+        r"^(?P<mode>[.!@])ra(ndom)?\b(?P<command>.*)", text, re.I | re.U)
     if (match):
         mode, command = match.group("mode", "command")
     else:
         return
+
     def request_from_list(songs):
         while len(songs) > 0:
             song = songs.pop(_random.randrange(len(songs)))
@@ -393,11 +428,14 @@ def random(server, nick, channel, text, hostmask):
         server.privmsg(channel, message)
     else:
         server.notice(nick, message)
-        
-random.handler = ("on_text", r'[.!@]ra(ndom)?\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
+
+random.handler = (
+    "on_text", r'[.!@]ra(ndom)?\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
+
 
 def lucky(server, nick, channel, text, hostmask):
-    match = re.match(r"^(?P<mode>[.!@])l(ucky)?\s(?P<query>.*)", text, re.I|re.U)
+    match = re.match(
+        r"^(?P<mode>[.!@])l(ucky)?\s(?P<query>.*)", text, re.I | re.U)
     if (match):
         mode, query = match.group("mode", "query")
     else:
@@ -418,31 +456,34 @@ def lucky(server, nick, channel, text, hostmask):
             manager.Queue().append_request(song)
             request_announce(server, song)
             return
-    if (message == None):
+    if (message is None):
         message = u"Your query did not have any results"
     if (mode == "@"):
         server.privmsg(channel, message)
     else:
         server.notice(nick, message)
-        
-lucky.handler = ("on_text", r'[.!@]l(ucky)?\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
+
+lucky.handler = (
+    "on_text", r'[.!@]l(ucky)?\b', irc.ALL_NICKS, irc.MAIN_CHANNELS)
+
 
 def search(server, nick, channel, text, hostmask):
     def format_date(dt):
-        if (dt == None):
+        if (dt is None):
             return 'Never'
         else:
             dt = datetime.now() - dt
-            
-            if dt.total_seconds < 86400:
-                return '{h}h{m}m'.format(h=dt.total_seconds/3600, \
-                    m=(dt.total_seconds%3600)/60)
-            elif dt.days > 30:
-                return '{m}m{d}d'.format(m=dt.days/30, d=dt.days%30)
-            else:
-                return '{d}d{h}h'.format(d=dt.days, h=dt.seconds/3600)
 
-    match = re.match(r"^(?P<mode>[.!@])s(earch)?\s(?P<query>.*)", text, re.I|re.U)
+            if dt.total_seconds < 86400:
+                return '{h}h{m}m'.format(h=dt.total_seconds / 3600,
+                                         m=(dt.total_seconds % 3600) / 60)
+            elif dt.days > 30:
+                return '{m}m{d}d'.format(m=dt.days / 30, d=dt.days % 30)
+            else:
+                return '{d}d{h}h'.format(d=dt.days, h=dt.seconds / 3600)
+
+    match = re.match(
+        r"^(?P<mode>[.!@])s(earch)?\s(?P<query>.*)", text, re.I | re.U)
     if (match):
         mode, query = match.group('mode', 'query')
     else:
@@ -450,21 +491,25 @@ def search(server, nick, channel, text, hostmask):
         server.notice(nick, message)
         return
     try:
-        query = int(query);
+        query = int(query)
         try:
             song = manager.Song(id=query)
-            message = [u"{col_code}{meta} {c3}({trackid}){c} (LP:{c5}{lp}{c})"\
-                .format(col_code=irc_colours['c3' if song.requestable else 'c4'],\
-                    meta=song.metadata, trackid=song.id, \
-                    lp=format_date(song.lpd), **irc_colours)]
+            message = [u"{col_code}{meta} {c3}({trackid}){c} (LP:{c5}{lp}{c})"
+                       .format(
+                       col_code=irc_colours[
+                           'c3' if song.requestable else 'c4'],
+                       meta=song.metadata, trackid=song.id,
+                       lp=format_date(song.lpd), **irc_colours)]
         except (ValueError):
             message = []
     except (ValueError):
-        message = [u"{col_code}{meta} {c3}({trackid}){c} (LP:{c5}{lp}{c})"\
-            .format(col_code=irc_colours['c3' if song.requestable else 'c4'],\
-                meta=song.metadata, trackid=song.id, \
-                lp=format_date(song.lpd), **irc_colours) for \
-                song in manager.Song.search(query)]
+        message = [u"{col_code}{meta} {c3}({trackid}){c} (LP:{c5}{lp}{c})"
+                   .format(
+                       col_code=irc_colours[
+                           'c3' if song.requestable else 'c4'],
+                   meta=song.metadata, trackid=song.id,
+                   lp=format_date(song.lpd), **irc_colours) for
+                   song in manager.Song.search(query)]
     if (len(message) > 0):
         message = u" | ".join(message)
     else:
@@ -473,17 +518,21 @@ def search(server, nick, channel, text, hostmask):
         server.privmsg(channel, message)
     else:
         server.notice(nick, message)
-        
+
 search.handler = ("on_text", r'[.!@]s(earch)?\b',
-                   irc.ALL_NICKS, irc.ALL_CHANNELS)
+                  irc.ALL_NICKS, irc.ALL_CHANNELS)
+
 
 def request(server, nick, channel, text, hostmask):
-    #this should probably be fixed to remove the nick thing, but i can't into regex
-    match = re.match(r"^(?P<mode>[.!@])r(equest)?\s(?P<query>.*)", text, re.I|re.U)
+    # this should probably be fixed to remove the nick thing, but i can't into
+    # regex
+    match = re.match(
+        r"^(?P<mode>[.!@])r(equest)?\s(?P<query>.*)", text, re.I | re.U)
     if (match):
         mode, query = match.group('mode', 'query')
     else:
-        server.notice(nick, u"You forgot to give me an ID, do !search <query> first.")
+        server.notice(
+            nick, u"You forgot to give me an ID, do !search <query> first.")
         return
     try:
         trackid = int(query)
@@ -497,7 +546,7 @@ def request(server, nick, channel, text, hostmask):
             manager.Queue().append_request(song)
             request_announce(server, song)
             return
-        elif (response == 1): #wasn't song
+        elif (response == 1):  # wasn't song
             message = u"I don't know of any song with that id..."
         elif (isinstance(response, tuple)):
             message = hanyuu_response(response[0], response[1])
@@ -506,9 +555,10 @@ def request(server, nick, channel, text, hostmask):
 request.handler = ("on_text", r'[.!@]r(equest)?\b',
                    irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
+
 def lastrequest(server, nick, channel, text, hostmask):
     import time
-    match = re.match(r"^(?P<mode>[.!@])lastr(equest)?.*", text, re.I|re.U)
+    match = re.match(r"^(?P<mode>[.!@])lastr(equest)?.*", text, re.I | re.U)
     if (match):
         mode = match.group('mode')
     else:
@@ -517,20 +567,22 @@ def lastrequest(server, nick, channel, text, hostmask):
         with manager.MySQLCursor() as cur:
             cur.execute("SELECT id, UNIX_TIMESTAMP(time) as timestamp \
                 FROM `nickrequesttime` WHERE `host`=%s LIMIT 1;",
-                (hostmask,))
+                        (hostmask,))
             if (cur.rowcount == 1):
                 row = cur.fetchone()
                 host_time = int(row['timestamp'])
             else:
                 host_time = 0
         time_since = int(time.time()) - host_time
-        
-        host_format = time.strftime('%b %d, %H:%M:%S %Z', time.localtime(host_time))
+
+        host_format = time.strftime(
+            '%b %d, %H:%M:%S %Z', time.localtime(host_time))
         since_format = small_time_format(time_since)
         can_request = time_since >= 3600
-        
+
         if (host_time == 0):
-            message = u"You don't seem to have requested on IRC before, {nick}!".format(nick=nick)
+            message = u"You don't seem to have requested on IRC before, {nick}!".format(
+                nick=nick)
         else:
             message = u"You last requested at{c4} {time}{c}, which is{c4} {time_ago}{c} ago.{c3} {can_r}".format(
                 time=host_format,
@@ -540,7 +592,7 @@ def lastrequest(server, nick, channel, text, hostmask):
     except:
         logging.exception("Error in last request function")
         message = "Something broke! Hauu~"
-    
+
     if (mode == '@'):
         server.privmsg(channel, message)
     else:
@@ -548,6 +600,7 @@ def lastrequest(server, nick, channel, text, hostmask):
 
 lastrequest.handler = ("on_text", r'[.!@]lastr(equest)?.*',
                        irc.ALL_NICKS, irc.MAIN_CHANNELS)
+
 
 def info(server, nick, channel, text, hostmask):
     """Returns info about a song ID"""
@@ -572,14 +625,20 @@ def info(server, nick, channel, text, hostmask):
             rc = '?'
             sp = '?'
             with manager.MySQLCursor() as cur:
-                cur.execute("SELECT requestcount, priority FROM tracks WHERE id=%s", (id,))
+                cur.execute(
+                    "SELECT requestcount, priority, accepter, tags FROM tracks WHERE id=%s", (id,))
                 if cur.rowcount == 1:
                     row = cur.fetchone()
                     rc = row['requestcount']
                     sp = row['priority']
-            message = u"{c7}ID: {id} Title: {title} Faves: {faves} Plays: {plays} RC: {rc} SP: {sp} CD: {cd}"\
-                .format(id=id, title=song.metadata, faves=song.favecount, plays=song.playcount,
-                        rc=rc, sp=sp, cd=small_time_format(requests_.songdelay(rc), False), **irc_colours)
+                    ac = row['accepter'] if row['accepter'] else "N/A"
+                    tags = row['tags']
+            message = u"{c7}ID: {id} Title: {title} Faves: {faves} Plays: {plays} Requests: {rc} Priority: {sp} CD: {cd} Accepter: {ac} Tags: {tags}"\
+                .format(
+                    id=id, title=song.metadata, faves=song.favecount, plays=song.playcount,
+                    rc=rc, sp=sp, cd=small_time_format(
+                        requests_.songdelay(rc), False),
+                    ac=ac, tags=tags, **irc_colours)
     else:
         # Show some kind of info lol
         message = u"Missing ID"
@@ -587,23 +646,27 @@ def info(server, nick, channel, text, hostmask):
         server.privmsg(channel, message)
     else:
         server.notice(nick, message)
-        
-info.handler = ("on_text", r"[.!@]i(nfo)?", irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
+
+info.handler = (
+    "on_text", r"[.!@]i(nfo)?", irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
+
 
 def request_help(server, nick, channel, text, hostmask):
-    message = u"{nick}: http://r-a-d.io/search {c5}Thank you for listening to r/a/dio!".format(nick=nick, **irc_colours)
+    message = u"{nick}: http://r-a-d.io/search {c5}Thank you for listening to r/a/dio!".format(
+        nick=nick, **irc_colours)
     server.privmsg(channel, message)
-    
+
 request_help.handler = ("on_text", r'.*how.+request',
                         irc.ALL_NICKS, irc.MAIN_CHANNELS)
+
 
 def lastfm_listening(server, nick, channel, text, hostmask):
     import pylast
     message = u''
-    match = re.match(r"[.@!]fm?\s(?P<nick>.*)", text, re.I|re.U)
+    match = re.match(r"[.@!]fm?\s(?P<nick>.*)", text, re.I | re.U)
     if match and match.group('nick') != '':
         nick = match.group('nick')
-        
+
     with manager.MySQLCursor() as cur:
         cur.execute("SELECT * FROM lastfm WHERE nick=%s;", (nick.lower(),))
         if cur.rowcount == 1:
@@ -611,13 +674,15 @@ def lastfm_listening(server, nick, channel, text, hostmask):
             username = row['user']
         else:
             username = nick
-        network = pylast.LastFMNetwork(api_key=config.lastfm_key, api_secret=config.lastfm_secret)
+        network = pylast.LastFMNetwork(
+            api_key=config.lastfm_key, api_secret=config.lastfm_secret)
         user = network.get_user(username)
         try:
             try:
                 np = user.get_now_playing()
-            except(IndexError): #broken api
-                message = u"{c4}You should listen to something first!".format(**irc_colours)
+            except(IndexError):  # broken api
+                message = u"{c4}You should listen to something first!".format(
+                    **irc_colours)
             else:
                 if np:
                     track = np
@@ -635,48 +700,54 @@ def lastfm_listening(server, nick, channel, text, hostmask):
                     tags = []
                 # Sort by weight
                 tags.sort(key=lambda tag: int(tag.weight), reverse=True)
-                tags = tags[:5] # Get top 5
+                tags = tags[:5]  # Get top 5
                 tags = [u"{c6}{tag}{c}".format(tag=tag.item.name, **irc_colours)
                         for tag in tags]
                 message = (u"{c5}{username}{c} {state} listening to{c7} "
                            u"{artist}{c} -{c4} {title}{c} ({tags})").format(
-                                    username=username, 
-                                    artist=artist,
-                                    title=title,
-                                    state=(u"is currently" if np 
-                                           else u"was last seen"),
-                                    tags=(u"{c6}no tags{c}".format(**irc_colours)
-                                          if len(tags) == 0 else 
-                                          u", ".join(tags)), 
-                                    **irc_colours)
+                               username=username,
+                               artist=artist,
+                               title=title,
+                               state=(u"is currently" if np
+                                      else u"was last seen"),
+                               tags=(u"{c6}no tags{c}".format(**irc_colours)
+                                     if len(tags) == 0 else
+                                     u", ".join(tags)),
+                               **irc_colours)
         except pylast.WSError as err:
             message = u"{c4}{error}!".format(error=err.details, **irc_colours)
         except:
             logging.exception('Error in lastfm listen handler')
             message = u"{c4}Something went wrong!".format(**irc_colours)
-    
+
     server.privmsg(channel, message)
 
 lastfm_listening.handler = ("on_text", r'[.@!]fm(\s|$).*',
-                          irc.ALL_NICKS, irc.MAIN_CHANNELS)
+                            irc.ALL_NICKS, irc.MAIN_CHANNELS)
+
 
 def lastfm_setuser(server, nick, channel, text, hostmask):
     import pylast
-    match = re.match(r"[.@!]fma?\s(?P<user>.*)", text, re.I|re.U)
+    match = re.match(r"[.@!]fma?\s(?P<user>.*)", text, re.I | re.U)
     message = u''
     if match and match.group('user') != '':
         username = match.group('user')
-        network = pylast.LastFMNetwork(api_key=config.lastfm_key, api_secret=config.lastfm_secret)
+        network = pylast.LastFMNetwork(
+            api_key=config.lastfm_key, api_secret=config.lastfm_secret)
         try:
             user = network.get_user(username)
             user.get_recent_tracks()
             with manager.MySQLCursor() as cur:
-                cur.execute("SELECT * FROM lastfm WHERE nick=%s;", (nick.lower(),))
+                cur.execute(
+                    "SELECT * FROM lastfm WHERE nick=%s;", (nick.lower(),))
                 if cur.rowcount == 1:
-                    cur.execute("UPDATE lastfm SET user=%s WHERE nick=%s;", (username, nick.lower()))
+                    cur.execute(
+                        "UPDATE lastfm SET user=%s WHERE nick=%s;", (username, nick.lower()))
                 else:
-                    cur.execute("INSERT INTO lastfm (user, nick) VALUES (%s, %s);", (username, nick.lower()))
-            message = u"You are now registered as '{user}', {nick}!".format(user=username, nick=nick)
+                    cur.execute(
+                        "INSERT INTO lastfm (user, nick) VALUES (%s, %s);", (username, nick.lower()))
+            message = u"You are now registered as '{user}', {nick}!".format(
+                user=username, nick=nick)
         except pylast.WSError as err:
             message = u"{c4}{error}!".format(error=err.details, **irc_colours)
     else:
@@ -693,8 +764,10 @@ def lastfm_setuser(server, nick, channel, text, hostmask):
 lastfm_setuser.handler = ("on_text", r'[.@!]fma.*',
                           irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
+
 def favorite_list(server, nick, channel, text, hostmask):
-    match = re.match(r'^(?P<mode>[.!@])f(ave|avorite)?l(ist)?($|\s)(?P<fnick>.*)', text, re.I|re.U)
+    match = re.match(
+        r'^(?P<mode>[.!@])f(ave|avorite)?l(ist)?($|\s)(?P<fnick>.*)', text, re.I | re.U)
 
     if (match):
         mode, fnick = match.group('mode', 'fnick')
@@ -704,7 +777,8 @@ def favorite_list(server, nick, channel, text, hostmask):
         server.notice(nick, 'Something went wrong')
         return
 
-    message = u'Favorites are at: https://r-a-d.io/#/favorites/{nick}'.format(nick=fnick)
+    message = u'Favorites are at: https://r-a-d.io/#/favorites/{nick}'.format(
+        nick=fnick)
 
     if (mode == '@'):
         server.privmsg(channel, message)
@@ -718,20 +792,33 @@ favorite_list.handler = ('on_text', r'[.!@]f(ave|avorite)?l(ist)?',
 def hanyuu_response(response, delay):
     """Gets a chat response for a specific delay type and delay time.
     """
-    self_messages = [(60*10, irc_colours['c3'] + u"Only less than ten minutes before you can request again!"),
-                     (60*30, irc_colours['c2'] + u"You need to wait at most another half hour until you can request!"),
-                     (60*61, irc_colours['c5'] + u"You still have quite a lot of time before you can request again..."),
-                     (20000000, irc_colours['c4'] + u"No.")]
-    song_messages = [(60*5, irc_colours['c3'] + u"Only five more minutes before I'll let you request that!"),
-                     (60*15, irc_colours['c3'] + u"Just another 15 minutes to go for that song!"),
-                     (60*40, irc_colours['c2'] + u"Only less than 40 minutes to go for that song!"),
-                     (60*60, irc_colours['c2'] + u"You need to wait at most an hour for that song!"),
-                     (60*60*4, irc_colours['c2'] + u"That song can be requested in a few hours!"),
-                     (60*60*24, irc_colours['c5'] + u"You'll have to wait at most a day for that song..."),
-                     (60*60*24*3, irc_colours['c5'] + u"That song can only be requested in a few days' time..."),
-                     (60*60*24*7, irc_colours['c5'] + u"You might want to go do something else while you wait for that song."),
-                     (20000000, irc_colours['c4'] + u"No.")]
-    
+    self_messages = [(
+        60 * 10, irc_colours[
+            'c3'] + u"Only less than ten minutes before you can request again!"),
+        (60 * 30, irc_colours[
+         'c2'] + u"You need to wait at most another half hour until you can request!"),
+        (60 * 61, irc_colours[
+         'c5'] + u"You still have quite a lot of time before you can request again..."),
+        (20000000, irc_colours['c4'] + u"No.")]
+    song_messages = [(
+        60 * 5, irc_colours[
+            'c3'] + u"Only five more minutes before I'll let you request that!"),
+        (60 * 15, irc_colours[
+         'c3'] + u"Just another 15 minutes to go for that song!"),
+        (60 * 40, irc_colours[
+         'c2'] + u"Only less than 40 minutes to go for that song!"),
+        (60 * 60, irc_colours[
+         'c2'] + u"You need to wait at most an hour for that song!"),
+        (60 * 60 * 4, irc_colours[
+         'c2'] + u"That song can be requested in a few hours!"),
+        (60 * 60 * 24, irc_colours[
+         'c5'] + u"You'll have to wait at most a day for that song..."),
+        (60 * 60 * 24 * 3, irc_colours[
+         'c5'] + u"That song can only be requested in a few days' time..."),
+        (60 * 60 * 24 * 7, irc_colours[
+         'c5'] + u"You might want to go do something else while you wait for that song."),
+        (20000000, irc_colours['c4'] + u"No.")]
+
     if (response == 2):
         for (d, r) in self_messages:
             if delay <= d:
@@ -744,13 +831,14 @@ def hanyuu_response(response, delay):
                 return r
     return u"I have no idea what's happening~"
 
+
 def small_time_format(t, long_time=True):
-    if (t > 4*3600*24 and long_time):
+    if (t > 4 * 3600 * 24 and long_time):
         return 'a long time'
     if (t == 0):
         return '0s'
     retval = ''
-    b, t = divmod(t, 3600*24)
+    b, t = divmod(t, 3600 * 24)
     if b != 0:
         retval += (str(b) + 'd')
     b, t = divmod(t, 3600)
@@ -764,6 +852,7 @@ def small_time_format(t, long_time=True):
         retval += (str(b) + 's')
     return retval
 
+
 def nick_request_song(trackid, host=None):
     """Gets data about the specified song, for the specified hostmask.
     If the song didn't exist, it returns 1.
@@ -775,7 +864,7 @@ def nick_request_song(trackid, host=None):
     # TODO:
     # rewrite shit man
     import time
-    import requests_ # fixed import
+    import requests_  # fixed import
     with manager.MySQLCursor() as cur:
         try:
             song = manager.Song(trackid)
@@ -783,17 +872,18 @@ def nick_request_song(trackid, host=None):
             return 1
         can_request = True
         hostmask_id = None
-        delaytime = 0;
+        delaytime = 0
         if host:
             cur.execute("SELECT id, UNIX_TIMESTAMP(time) as timestamp \
                 FROM `nickrequesttime` WHERE `host`=%s LIMIT 1;",
-                (host,))
+                        (host,))
             if cur.rowcount == 1:
                 row = cur.fetchone()
                 hostmask_id = int(row['id'])
                 if int(time.time()) - int(row['timestamp']) < 3600:
                     can_request = False
-                    delaytime = 3600 - (int(time.time()) - int(row['timestamp']))
+                    delaytime = 3600 - \
+                        (int(time.time()) - int(row['timestamp']))
         can_afk = True
         cur.execute("SELECT isafkstream FROM `streamstatus` WHERE `id`=0;")
         if cur.rowcount == 1:
@@ -804,7 +894,8 @@ def nick_request_song(trackid, host=None):
         else:
             can_afk = False
         can_song = True
-        cur.execute("SELECT UNIX_TIMESTAMP(lastplayed) as lp, UNIX_TIMESTAMP(lastrequested) as lr, requestcount from `tracks` WHERE `id`=%s", (trackid,))
+        cur.execute(
+            "SELECT UNIX_TIMESTAMP(lastplayed) as lp, UNIX_TIMESTAMP(lastrequested) as lr, requestcount from `tracks` WHERE `id`=%s", (trackid,))
         if cur.rowcount == 1:
             row = cur.fetchone()
             song_lp = row['lp']
@@ -812,10 +903,12 @@ def nick_request_song(trackid, host=None):
             if int(time.time()) - song_lp < requests_.songdelay(row['requestcount']) or int(time.time()) - song_lr < requests_.songdelay(row['requestcount']):
                 can_song = False
                 if delaytime == 0:
-                    lp_delay = requests_.songdelay(row['requestcount']) - (int(time.time()) - song_lp)
-                    lr_delay = requests_.songdelay(row['requestcount']) - (int(time.time()) - song_lr)
+                    lp_delay = requests_.songdelay(
+                        row['requestcount']) - (int(time.time()) - song_lp)
+                    lr_delay = requests_.songdelay(
+                        row['requestcount']) - (int(time.time()) - song_lr)
                     delaytime = max(lp_delay, lr_delay)
-                        
+
         if (not can_request):
             return (2, delaytime)
         elif (not can_afk):
@@ -825,8 +918,11 @@ def nick_request_song(trackid, host=None):
         else:
             if host:
                 if hostmask_id:
-                    cur.execute("UPDATE `nickrequesttime` SET `time`=NOW() WHERE `id`=%s LIMIT 1;", (hostmask_id,))
+                    cur.execute(
+                        "UPDATE `nickrequesttime` SET `time`=NOW() WHERE `id`=%s LIMIT 1;", (hostmask_id,))
                 else:
-                    cur.execute("INSERT INTO `nickrequesttime` (host, time) VALUES (%s, NOW());", (host,))
-            cur.execute("UPDATE `tracks` SET `lastrequested`=NOW() WHERE `id`=%s", (trackid,))
+                    cur.execute(
+                        "INSERT INTO `nickrequesttime` (host, time) VALUES (%s, NOW());", (host,))
+            cur.execute(
+                "UPDATE `tracks` SET `lastrequested`=NOW() WHERE `id`=%s", (trackid,))
             return song

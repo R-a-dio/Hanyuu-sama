@@ -92,12 +92,15 @@ DEBUG = 0
 # ERROR from the server triggers the error event and the disconnect event.
 # dropping of the connection triggers the disconnect event.
 
+
 class IRCError(Exception):
+
     """Represents an IRC exception."""
     pass
 
 
 class IRC:
+
     """Class that handles one or several IRC server connections.
 
     When an IRC object has been instantiated, it can be used to create
@@ -162,10 +165,11 @@ class IRC:
         self.fn_to_add_timeout = fn_to_add_timeout
         self.connections = []
         self.handlers = {}
-        self.delayed_commands = [] # list of tuples in the format (time, function, arguments)
+        self.delayed_commands = []
+            # list of tuples in the format (time, function, arguments)
         self.encoding = encoding
         self.add_global_handler("ping", _ping_ponger, -42)
-        
+
     def server(self):
         """Creates and returns a ServerConnection object."""
 
@@ -211,7 +215,7 @@ class IRC:
             if c.send_time >= 1.9:
                 c.send_time = 0
                 c.sent_bytes = 0
-            
+
             while not c.message_queue.empty():
                 if c.sent_bytes <= 2500:
                     message = c.message_queue.get()
@@ -241,7 +245,7 @@ class IRC:
         at the process_forever method.
         """
         sockets = map(lambda x: x._get_socket(), self.connections)
-        sockets = filter(lambda x: x != None, sockets)
+        sockets = filter(lambda x: x is not None, sockets)
         if sockets:
             (i, o, e) = select.select(sockets, [], [], timeout)
             self.process_data(i)
@@ -258,7 +262,7 @@ class IRC:
                 connection.reconnect("Ping timeout: 260 seconds")
         self.send_once()
         self.process_timeout()
-        
+
     def process_forever(self, timeout=0.2):
         """Run an infinite loop, processing data from connections.
 
@@ -268,7 +272,7 @@ class IRC:
 
             timeout -- Parameter to pass to process_once.
         """
-        while 1:
+        while True:
             self.process_once(timeout)
 
     def disconnect_all(self, message=""):
@@ -330,7 +334,7 @@ class IRC:
 
             arguments -- Arguments to give the function.
         """
-        self.execute_delayed(at-time.time(), function, arguments)
+        self.execute_delayed(at - time.time(), function, arguments)
 
     def execute_delayed(self, delay, function, arguments=()):
         """Execute a function after a specified time.
@@ -343,7 +347,11 @@ class IRC:
 
             arguments -- Arguments to give the function.
         """
-        bisect.insort(self.delayed_commands, (delay+time.time(), function, arguments))
+        bisect.insort(
+            self.delayed_commands,
+            (delay + time.time(),
+                     function,
+                     arguments))
         if self.fn_to_add_timeout:
             self.fn_to_add_timeout(delay)
 
@@ -374,21 +382,26 @@ class IRC:
         if self.fn_to_remove_socket:
             self.fn_to_remove_socket(connection._get_socket())
 
-_rfc_1459_command_regexp = re.compile("^(:(?P<prefix>[^ ]+) +)?(?P<command>[^ ]+)( *(?P<argument> .+))?", re.UNICODE)
+_rfc_1459_command_regexp = re.compile(
+    "^(:(?P<prefix>[^ ]+) +)?(?P<command>[^ ]+)( *(?P<argument> .+))?",
+    re.UNICODE)
+
 
 class Connection:
+
     """Base class for IRC connections.
 
     Must be overridden.
     """
+
     def __init__(self, irclibobj):
         self.irclibobj = irclibobj
 
     def _get_socket(self):
-        raise IRCError, "Not overridden"
+        raise IRCError("Not overridden")
 
-    ##############################
-    ### Convenience wrappers.
+    #
+    # Convenience wrappers.
 
     def execute_at(self, at, function, arguments=()):
         self.irclibobj.execute_at(at, function, arguments)
@@ -400,6 +413,7 @@ class Connection:
 class ServerConnectionError(IRCError):
     pass
 
+
 class ServerNotConnectedError(ServerConnectionError):
     pass
 
@@ -408,7 +422,9 @@ class ServerNotConnectedError(ServerConnectionError):
 # use \n as message separator!  :P
 _linesep_regexp = re.compile("\r?\n")
 
+
 class ServerConnection(Connection):
+
     """This class represents an IRC server connection.
 
     ServerConnection objects are instantiated by calling the server
@@ -428,7 +444,7 @@ class ServerConnection(Connection):
         self._last_ping = time.time()
         self.encoding = irclibobj.encoding
         self.featurelist = {}
-        
+
     def connect(self, server, port, nickname, password=None, username=None,
                 ircname=None, localaddress="", localport=0,
                 ssl=False, ipv6=False, encoding='utf-8'):
@@ -488,10 +504,10 @@ class ServerConnection(Connection):
             self.socket.connect((self.server, self.port))
             if ssl:
                 self.ssl = socket.ssl(self.socket)
-        except socket.error, x:
+        except socket.error as x:
             self.socket.close()
             self.socket = None
-            raise ServerConnectionError, "Couldn't connect to socket: %s" % x
+            raise ServerConnectionError("Couldn't connect to socket: %s" % x)
         self.connected = 1
         if self.irclibobj.fn_to_add_socket:
             self.irclibobj.fn_to_add_socket(self.socket)
@@ -543,10 +559,10 @@ class ServerConnection(Connection):
 
         try:
             if self.ssl:
-                new_data = self.ssl.read(2**14)
+                new_data = self.ssl.read(2 ** 14)
             else:
-                new_data = self.socket.recv(2**14)
-        except socket.error, x:
+                new_data = self.socket.recv(2 ** 14)
+        except socket.error as x:
             # The server hung up.
             self.disconnect("Connection reset by peer")
             return
@@ -620,7 +636,7 @@ class ServerConnection(Connection):
                         command = "privnotice"
 
                 for m in messages:
-                    if type(m) is types.TupleType:
+                    if isinstance(m, tuple):
                         if command in ["privmsg", "pubmsg"]:
                             command = "ctcp"
                         else:
@@ -632,7 +648,8 @@ class ServerConnection(Connection):
                                 command, prefix, target, m)
                         self._handle_event(Event(command, prefix, target, m))
                         if command == "ctcp" and m[0] == "ACTION":
-                            self._handle_event(Event("action", prefix, target, m[1:]))
+                            self._handle_event(
+                                Event("action", prefix, target, m[1:]))
                     else:
                         if DEBUG:
                             print "command: %s, source: %s, target: %s, arguments: %s" % (
@@ -671,12 +688,15 @@ class ServerConnection(Connection):
                     if 'CHANMODES' in self.featurelist:
                         chanmodes = self.featurelist['CHANMODES']
                         chansplit = chanmodes.split(',')
-                        self.sqlite.argmodes = ''.join(chansplit[:3]) #first three groups are argmodes
+                        self.sqlite.argmodes = ''.join(
+                            chansplit[:3])  # first three groups are argmodes
                     if 'PREFIX' in self.featurelist:
-                        match = re.match(r"\((.*?)\)(.*?)$", self.featurelist['PREFIX'])
+                        match = re.match(
+                            r"\((.*?)\)(.*?)$",
+                            self.featurelist['PREFIX'])
                         self.sqlite.nickchars = match.groups()[1]
                         self.sqlite.nickmodes = match.groups()[0]
-                        self.sqlite.argmodes += self.sqlite.nickmodes #nickmodes are also argmodes
+                        self.sqlite.argmodes += self.sqlite.nickmodes  # nickmodes are also argmodes
                 elif command == "namreply":
                     chan = arguments[1]
                     names = arguments[2].strip().split(' ')
@@ -703,7 +723,7 @@ class ServerConnection(Connection):
                     miter = titer = 0
                     while miter < len(modes):
                         mode = modes[miter]
-                        if mode in ['+', '-']: #FUCK IRC
+                        if mode in ['+', '-']:  # FUCK IRC
                             operator = mode
                         if mode in self.sqlite.nickmodes:
                             nick = targets[titer]
@@ -758,7 +778,9 @@ class ServerConnection(Connection):
     def ctcp(self, ctcptype, target, parameter=""):
         """Send a CTCP command."""
         ctcptype = ctcptype.upper()
-        self.privmsg(target, "\001%s%s\001" % (ctcptype, parameter and (" " + parameter) or ""))
+        self.privmsg(
+            target, "\001%s%s\001" %
+            (ctcptype, parameter and (" " + parameter) or ""))
 
     def ctcp_reply(self, target, parameter):
         """Send a CTCP REPLY command."""
@@ -780,7 +802,7 @@ class ServerConnection(Connection):
 
         try:
             self.socket.close()
-        except socket.error, x:
+        except socket.error as x:
             pass
         self.socket = None
         self._handle_event(Event("disconnect", self.server, "", [message]))
@@ -788,7 +810,7 @@ class ServerConnection(Connection):
     def get_topic(self, channel):
         """Return the topic of channel"""
         return self.sqlite.topic(channel)
-    
+
     def globops(self, text):
         """Send a GLOBOPS command."""
         self.send_raw("GLOBOPS :" + text)
@@ -796,11 +818,11 @@ class ServerConnection(Connection):
     def hasaccess(self, channel, nick):
         """Check if nick is halfop or higher"""
         return self.sqlite.has_modes(channel, nick, 'oaqh', 'or')
-    
+
     def inchannel(self, channel, nick):
         """Check if nick is in channel"""
         return self.sqlite.in_chan(channel, nick)
-        
+
     def info(self, server=""):
         """Send an INFO command."""
         self.send_raw(" ".join(["INFO", server]).strip())
@@ -812,11 +834,11 @@ class ServerConnection(Connection):
     def ishop(self, channel, nick):
         """Check if nick is half operator on channel"""
         return self.sqlite.has_modes(channel, nick, 'h')
-    
+
     def isnormal(self, channel, nick):
         """Check if nick is a normal on channel"""
         return not self.sqlite.has_modes(channel, nick, 'oaqvh', 'or')
-    
+
     def ison(self, nicks):
         """Send an ISON command.
 
@@ -825,6 +847,7 @@ class ServerConnection(Connection):
             nicks -- List of nicks.
         """
         self.send_raw("ISON " + " ".join(nicks))
+
     def isop(self, channel, nick):
         """Check if nick is operator or higher on channel"""
         return self.sqlite.has_modes(channel, nick, 'oaq', 'or')
@@ -832,14 +855,16 @@ class ServerConnection(Connection):
     def isvoice(self, channel, nick):
         """Check if nick is voice on channel"""
         return self.sqlite.has_modes(channel, nick, 'v')
-    
+
     def join(self, channel, key=""):
         """Send a JOIN command."""
         self.send_raw("JOIN %s%s" % (channel, (key and (" " + key))))
 
     def kick(self, channel, nick, comment=""):
         """Send a KICK command."""
-        self.send_raw("KICK %s %s%s" % (channel, nick, (comment and (" :" + comment))))
+        self.send_raw(
+            "KICK %s %s%s" %
+            (channel, nick, (comment and (" :" + comment))))
 
     def links(self, remote_server="", server_mask=""):
         """Send a LINKS command."""
@@ -873,7 +898,8 @@ class ServerConnection(Connection):
 
     def names(self, channels=None):
         """Send a NAMES command."""
-        self.send_raw(u"NAMES" + (channels and (u" " + u",".join(channels)) or u""))
+        self.send_raw(
+            u"NAMES" + (channels and (u" " + u",".join(channels)) or u""))
 
     def nick(self, newnick):
         """Send a NICK command."""
@@ -890,10 +916,11 @@ class ServerConnection(Connection):
 
     def part(self, channels, message=""):
         """Send a PART command."""
-        if type(channels) == types.StringType:
+        if isinstance(channels, bytes):
             self.send_raw(u"PART " + channels + (message and (u" " + message)))
         else:
-            self.send_raw(u"PART " + u",".join(channels) + (message and (u" " + message)))
+            self.send_raw(u"PART " + u",".join(
+                channels) + (message and (u" " + message)))
 
     def pass_(self, password):
         """Send a PASS command."""
@@ -901,11 +928,15 @@ class ServerConnection(Connection):
 
     def ping(self, target, target2=""):
         """Send a PING command."""
-        self.send_raw_instant(u"PING %s%s" % (target, target2 and (u" " + target2)))
+        self.send_raw_instant(
+            u"PING %s%s" %
+            (target, target2 and (u" " + target2)))
 
     def pong(self, target, target2=""):
         """Send a PONG command."""
-        self.send_raw_instant(u"PONG %s%s" % (target, target2 and (u" " + target2)))
+        self.send_raw_instant(
+            u"PONG %s%s" %
+            (target, target2 and (u" " + target2)))
 
     def privmsg(self, target, text):
         """Send a PRIVMSG command."""
@@ -927,15 +958,16 @@ class ServerConnection(Connection):
         """Disconnect and connect with same parameters"""
         self.disconnect(message)
         self.connect(self.server, self.port, self.nickname, self.password,
-                    self.username, self.ircname, self.localaddress,
-                    self.localport, self._ssl, self._ipv6)
+                     self.username, self.ircname, self.localaddress,
+                     self.localport, self._ssl, self._ipv6)
+
     def send_raw_instant(self, string):
         """Send raw string bypassing the flood protection"""
         if self.socket is None:
-            raise ServerNotConnectedError, "Not connected."
+            raise ServerNotConnectedError("Not connected.")
         try:
             message = string + u'\r\n'
-            if (type(message) == unicode):
+            if (isinstance(message, unicode)):
                 message = message.encode(self.encoding)
             if self.ssl:
                 self.ssl.write(message)
@@ -943,15 +975,16 @@ class ServerConnection(Connection):
                 self.socket.sendall(message)
             if DEBUG:
                 print "TO SERVER:", message
-        except socket.error, x:
+        except socket.error as x:
             self.disconnect("Connection reset by peer.")
+
     def send_raw(self, string):
         """Send raw string to the server.
 
         The string will be padded with appropriate CR LF.
         """
         if self.socket is None:
-            raise ServerNotConnectedError, "Not connected."
+            raise ServerNotConnectedError("Not connected.")
         try:
             self.message_queue.put(string)
         except (Full):
@@ -1003,7 +1036,9 @@ class ServerConnection(Connection):
 
     def who(self, target="", op=""):
         """Send a WHO command."""
-        self.send_raw(u"WHO%s%s" % (target and (u" " + target), op and (u" o")))
+        self.send_raw(
+            u"WHO%s%s" %
+            (target and (u" " + target), op and (u" o")))
 
     def whois(self, targets):
         """Send a WHOIS command."""
@@ -1012,39 +1047,49 @@ class ServerConnection(Connection):
     def whowas(self, nick, max="", server=""):
         """Send a WHOWAS command."""
         self.send_raw(u"WHOWAS %s%s%s" % (nick,
-                                         max and (u" " + max),
-                                         server and (u" " + server)))
+                                          max and (u" " + max),
+                      server and (u" " + server)))
+
 
 class SqliteCursor:
+
     def __init__(self, conn):
         if isinstance(conn, SqliteConnection):
             self.__conn = conn._conn
         elif isinstance(conn, sqlite3.Connection):
             self.__conn = conn
+
     def __enter__(self):
         self.__cur = self.__conn.cursor()
         return self.__cur
+
     def __exit__(self, type, value, traceback):
         self.__cur.close()
         self.__conn.commit()
         return
 
+
 class SqliteConnection:
+
     def __init__(self):
         self._conn = sqlite3.connect(":memory:", check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         with SqliteCursor(self) as cur:
-            cur.execute("create table nicks (id integer primary key autoincrement, nick varchar(50) collate nocase);")
-            cur.execute("create table channels (id integer primary key autoincrement, chan varchar(100) collate nocase, topic text);")
-            cur.execute("create table nick_chan_link (id integer primary key autoincrement, nick_id integer not null constraint fk_n_c REFERENCES nicks(id), chan_id integer not null constraint fk_c_n REFERENCES channels(id), modes varchar(20));")
-            
-            #cur.execute("insert into nicks (nick, lastrequested) values ('Vin', datetime('now'))")
-            #cur.execute("insert into nicks (nick, lastrequested) values ('Wessie', datetime('now'))")
-            #cur.execute("insert into channels (chan, topic) values ('#r/a/dio', 'radio topic')")
-            #cur.execute("insert into nick_chan_link (nick_id, chan_id, modes) values (1, 1, 'ov')")
+            cur.execute(
+                "create table nicks (id integer primary key autoincrement, nick varchar(50) collate nocase);")
+            cur.execute(
+                "create table channels (id integer primary key autoincrement, chan varchar(100) collate nocase, topic text);")
+            cur.execute(
+                "create table nick_chan_link (id integer primary key autoincrement, nick_id integer not null constraint fk_n_c REFERENCES nicks(id), chan_id integer not null constraint fk_c_n REFERENCES channels(id), modes varchar(20));")
+
+            # cur.execute("insert into nicks (nick, lastrequested) values ('Vin', datetime('now'))")
+            # cur.execute("insert into nicks (nick, lastrequested) values ('Wessie', datetime('now'))")
+            # cur.execute("insert into channels (chan, topic) values ('#r/a/dio', 'radio topic')")
+            # cur.execute("insert into nick_chan_link (nick_id, chan_id, modes)
+            # values (1, 1, 'ov')")
         self.nickmodes = ''
         self.nickchars = ''
-        self.argmodes = '' #lol i'm lazy. just assuming that bkl are all argument modes
+        self.argmodes = ''  # lol i'm lazy. just assuming that bkl are all argument modes
 
     def join(self, chan, nick):
         chan_id = self.__get_chan_id(chan)
@@ -1054,73 +1099,90 @@ class SqliteConnection:
                 cur.execute("INSERT INTO nicks (nick) VALUES (?)", (nick,))
                 nick_id = self.__get_nick_id(nick)
             if not chan_id:
-                cur.execute("INSERT INTO channels (chan, topic) VALUES (?, '')", (chan,))
+                cur.execute(
+                    "INSERT INTO channels (chan, topic) VALUES (?, '')", (chan,))
                 chan_id = self.__get_chan_id(chan)
             if not self.in_chan(chan, nick):
-                cur.execute("INSERT INTO nick_chan_link (nick_id, chan_id, modes) VALUES (?, ?, '')", (nick_id, chan_id))
+                cur.execute(
+                    "INSERT INTO nick_chan_link (nick_id, chan_id, modes) VALUES (?, ?, '')", (nick_id, chan_id))
         pass
-    
+
     def part(self, chan, nick):
         if self.in_chan(chan, nick):
             chan_id = self.__get_chan_id(chan)
             nick_id = self.__get_nick_id(nick)
             with SqliteCursor(self) as cur:
-                cur.execute("DELETE FROM nick_chan_link WHERE nick_id=? AND chan_id=?", (nick_id, chan_id))
-                
-                cur.execute("SELECT * FROM nick_chan_link WHERE nick_id=?", (nick_id,))
+                cur.execute(
+                    "DELETE FROM nick_chan_link WHERE nick_id=? AND chan_id=?", (nick_id, chan_id))
+
+                cur.execute(
+                    "SELECT * FROM nick_chan_link WHERE nick_id=?", (nick_id,))
                 res = cur.fetchall()
                 if len(res) == 0:
                     cur.execute("DELETE FROM nicks WHERE id=?", (nick_id,))
-                cur.execute("SELECT * FROM nick_chan_link WHERE chan_id=?", (chan_id,))
+                cur.execute(
+                    "SELECT * FROM nick_chan_link WHERE chan_id=?", (chan_id,))
                 res = cur.fetchall()
                 if len(res) == 0:
                     cur.execute("DELETE FROM channels WHERE id=?", (chan_id,))
-    
+
     def quit(self, nick):
         if self.has_nick(nick):
             nick_id = self.__get_nick_id(nick)
             with SqliteCursor(self) as cur:
-                cur.execute("SELECT chan_id FROM nick_chan_link WHERE nick_id=?", (nick_id,))
+                cur.execute(
+                    "SELECT chan_id FROM nick_chan_link WHERE nick_id=?", (nick_id,))
                 res = cur.fetchall()
                 for row in res:
                     chan_id = row[0]
-                    cur.execute("SELECT chan FROM channels WHERE id=?", (chan_id,))
+                    cur.execute(
+                        "SELECT chan FROM channels WHERE id=?", (chan_id,))
                     chan = cur.fetchone()[0]
                     self.part(chan, nick)
-    
+
     def nick(self, nick, newnick):
         if self.has_nick(nick):
             nick_id = self.__get_nick_id(nick)
             with SqliteCursor(self) as cur:
-                cur.execute("UPDATE nicks SET nick=? WHERE id=?", (newnick, nick_id))
-    
+                cur.execute(
+                    "UPDATE nicks SET nick=? WHERE id=?", (newnick, nick_id))
+
     def add_mode(self, chan, nick, mode):
         if self.in_chan(chan, nick) and not self.has_modes(chan, nick, mode):
             chan_id = self.__get_chan_id(chan)
             nick_id = self.__get_nick_id(nick)
             with SqliteCursor(self) as cur:
-                cur.execute("UPDATE nick_chan_link SET modes=modes||? WHERE nick_id=? AND chan_id=?", (mode, nick_id, chan_id))
-    
+                cur.execute(
+                    "UPDATE nick_chan_link SET modes=modes||? WHERE nick_id=? AND chan_id=?",
+                    (mode,
+                     nick_id,
+                     chan_id))
+
     def rem_mode(self, chan, nick, mode):
         if self.in_chan(chan, nick) and self.has_modes(chan, nick, mode):
             chan_id = self.__get_chan_id(chan)
             nick_id = self.__get_nick_id(nick)
             with SqliteCursor(self) as cur:
-                cur.execute("UPDATE nick_chan_link SET modes=replace(modes, ?, '') WHERE nick_id=? AND chan_id=?", (mode, nick_id, chan_id))
-    
+                cur.execute(
+                    "UPDATE nick_chan_link SET modes=replace(modes, ?, '') WHERE nick_id=? AND chan_id=?",
+                    (mode,
+                     nick_id,
+                     chan_id))
+
     def topic(self, chan, topic=None):
         if self.has_chan(chan):
-            if topic == None:
+            if topic is None:
                 with SqliteCursor(self) as cur:
-                    cur.execute("SELECT topic FROM channels WHERE chan=?", (chan,))
+                    cur.execute(
+                        "SELECT topic FROM channels WHERE chan=?", (chan,))
                     return cur.fetchone()[0]
             else:
                 with SqliteCursor(self) as cur:
-                    cur.execute("UPDATE channels SET topic=? WHERE chan=?", (topic, chan))
+                    cur.execute(
+                        "UPDATE channels SET topic=? WHERE chan=?", (topic, chan))
                     return
         return None
-    
-    
+
     def has_nick(self, nick):
         with SqliteCursor(self) as cur:
             cur.execute("SELECT * FROM nicks WHERE nick=? LIMIT 1", (nick,))
@@ -1135,25 +1197,27 @@ class SqliteConnection:
             res = cur.fetchall()
             if len(res) == 1:
                 return True
-        return False 
-    
+        return False
+
     def in_chan(self, chan, nick):
         if self.has_chan(chan) and self.has_nick(nick):
             with SqliteCursor(self) as cur:
                 chan_id = self.__get_chan_id(chan)
                 nick_id = self.__get_nick_id(nick)
-                cur.execute("SELECT * FROM nick_chan_link WHERE nick_id=? AND chan_id=?", (nick_id, chan_id))
+                cur.execute(
+                    "SELECT * FROM nick_chan_link WHERE nick_id=? AND chan_id=?", (nick_id, chan_id))
                 res = cur.fetchall()
                 if len(res) == 1:
                     return True
         return False
-    
+
     def has_modes(self, chan, nick, modes, operator='and'):
         if self.in_chan(chan, nick):
             chan_id = self.__get_chan_id(chan)
             nick_id = self.__get_nick_id(nick)
             with SqliteCursor(self) as cur:
-                cur.execute("SELECT modes FROM nick_chan_link WHERE nick_id=? AND chan_id=?", (nick_id, chan_id))
+                cur.execute(
+                    "SELECT modes FROM nick_chan_link WHERE nick_id=? AND chan_id=?", (nick_id, chan_id))
                 nick_modes = cur.fetchone()[0]
                 for mode in modes:
                     if (operator == 'and'):
@@ -1164,7 +1228,7 @@ class SqliteConnection:
                             return True
                 return True if operator == 'and' else False
         return False
-    
+
     def __get_nick_id(self, nick):
         with SqliteCursor(self) as cur:
             cur.execute("select * from nicks where nick=? limit 1", (nick,))
@@ -1172,7 +1236,7 @@ class SqliteConnection:
             if len(res) == 1:
                 return res[0][0]
         return None
-    
+
     def __get_chan_id(self, chan):
         with SqliteCursor(self) as cur:
             cur.execute("select * from channels where chan=? limit 1", (chan,))
@@ -1180,25 +1244,28 @@ class SqliteConnection:
             if len(res) == 1:
                 return res[0][0]
             return None
-    
+
     def execute(self, query):
         with SqliteCursor(self) as cur:
             cur.execute(query)
             return cur.fetchall()
-    
+
     def close(self):
         self._conn.close()
-    
+
+
 class DCCConnectionError(IRCError):
     pass
 
 
 class DCCConnection(Connection):
+
     """This class represents a DCC connection.
 
     DCCConnection objects are instantiated by calling the dcc
     method on an IRC object.
     """
+
     def __init__(self, irclibobj, dcctype, dccinfo=(None, None)):
         Connection.__init__(self, irclibobj)
         self.connected = 0
@@ -1231,8 +1298,8 @@ class DCCConnection(Connection):
         self.passive = 0
         try:
             self.socket.connect((self.peeraddress, self.peerport))
-        except socket.error, x:
-            raise DCCConnectionError, "Couldn't connect to socket: %s" % x
+        except socket.error as x:
+            raise DCCConnectionError("Couldn't connect to socket: %s" % x)
         self.connected = 1
         if self.irclibobj.fn_to_add_socket:
             self.irclibobj.fn_to_add_socket(self.socket)
@@ -1256,8 +1323,8 @@ class DCCConnection(Connection):
             self.socket.bind((socket.gethostbyname(socket.gethostname()), 0))
             self.localaddress, self.localport = self.socket.getsockname()
             self.socket.listen(10)
-        except socket.error, x:
-            raise DCCConnectionError, "Couldn't bind socket: %s" % x
+        except socket.error as x:
+            raise DCCConnectionError("Couldn't bind socket: %s" % x)
         return self
 
     def disconnect(self, message=""):
@@ -1273,7 +1340,7 @@ class DCCConnection(Connection):
         self.connected = 0
         try:
             self.socket.close()
-        except socket.error, x:
+        except socket.error as x:
             pass
         self.socket = None
         self.irclibobj._handle_event(
@@ -1298,8 +1365,8 @@ class DCCConnection(Connection):
             return
 
         try:
-            new_data = self.socket.recv(2**14)
-        except socket.error, x:
+            new_data = self.socket.recv(2 ** 14)
+        except socket.error as x:
             # The server hung up.
             self.disconnect("Connection reset by peer")
             return
@@ -1315,7 +1382,7 @@ class DCCConnection(Connection):
 
             # Save the last, unfinished line.
             self.previous_buffer = chunks[-1]
-            if len(self.previous_buffer) > 2**14:
+            if len(self.previous_buffer) > 2 ** 14:
                 # Bad peer! Naughty peer!
                 self.disconnect()
                 return
@@ -1364,11 +1431,13 @@ class DCCConnection(Connection):
                 self.socket.send("\n")
             if DEBUG:
                 print "TO PEER: %s\n" % string
-        except socket.error, x:
+        except socket.error as x:
             # Ouch!
             self.disconnect("Connection reset by peer.")
 
+
 class SimpleIRCClient:
+
     """A simple single-server IRC client class.
 
     This is an example of an object-oriented wrapper of the IRC
@@ -1389,12 +1458,16 @@ class SimpleIRCClient:
 
         dcc_connections -- A list of DCCConnection instances.
     """
+
     def __init__(self):
         self.ircobj = IRC()
         self.connection = self.ircobj.server()
         self.dcc_connections = []
         self.ircobj.add_global_handler("all_events", self._dispatcher, -10)
-        self.ircobj.add_global_handler("dcc_disconnect", self._dcc_disconnect, -10)
+        self.ircobj.add_global_handler(
+            "dcc_disconnect",
+            self._dcc_disconnect,
+            -10)
 
     def _dispatcher(self, c, e):
         """[Internal]"""
@@ -1469,7 +1542,9 @@ class SimpleIRCClient:
 
 
 class Event:
+
     """Class representing an IRC event."""
+
     def __init__(self, eventtype, source, target, arguments=None):
         """Constructor of Event objects.
 
@@ -1520,6 +1595,7 @@ _low_level_mapping = {
 
 _low_level_regexp = re.compile(_LOW_LEVEL_QUOTE + "(.)", re.UNICODE)
 
+
 def mask_matches(nick, mask):
     """Check if a nick matches a mask.
 
@@ -1538,7 +1614,8 @@ def mask_matches(nick, mask):
 _special = "-[]\\`^{}"
 nick_characters = string.ascii_letters + string.digits + _special
 _ircstring_translation = string.maketrans(string.ascii_uppercase + "[]\\^",
-                                        string.ascii_lowercase + "{}|~")
+                                          string.ascii_lowercase + "{}|~")
+
 
 def irc_lower(s):
     """Returns a lowercased string.
@@ -1546,9 +1623,10 @@ def irc_lower(s):
     The definition of lowercased comes from the IRC specification (RFC
     1459).
     """
-    if (type(s) == unicode):
+    if (isinstance(s, unicode)):
         s = s.encode('utf-8')
     return s.translate(_ircstring_translation)
+
 
 def _ctcp_dequote(message):
     """[Internal] Dequote a message according to CTCP specifications.
@@ -1584,14 +1662,14 @@ def _ctcp_dequote(message):
 
         messages = []
         i = 0
-        while i < len(chunks)-1:
+        while i < len(chunks) - 1:
             # Add message if it's non-empty.
             if len(chunks[i]) > 0:
                 messages.append(chunks[i])
 
-            if i < len(chunks)-2:
+            if i < len(chunks) - 2:
                 # Aye!  CTCP tagged data ahead!
-                messages.append(tuple(chunks[i+1].split(" ", 1)))
+                messages.append(tuple(chunks[i + 1].split(" ", 1)))
 
             i = i + 2
 
@@ -1604,12 +1682,14 @@ def _ctcp_dequote(message):
 
         return messages
 
+
 def is_channel(string):
     """Check if a string is a channel name.
 
     Returns true if the argument is a channel name, otherwise false.
     """
     return string and string[0] in "#&+!"
+
 
 def ip_numstr_to_quad(num):
     """Convert an IP number as an integer given in ASCII
@@ -1619,6 +1699,7 @@ def ip_numstr_to_quad(num):
     p = map(str, map(int, [n >> 24 & 0xFF, n >> 16 & 0xFF,
                            n >> 8 & 0xFF, n & 0xFF]))
     return ".".join(p)
+
 
 def ip_quad_to_numstr(quad):
     """Convert an IP address string (e.g. '192.168.0.1') to an IP
@@ -1630,12 +1711,14 @@ def ip_quad_to_numstr(quad):
         s = s[:-1]
     return s
 
+
 def nm_to_n(s):
     """Get the nick part of a nickmask.
 
     (The source of an Event is a nickmask.)
     """
     return s.split("!")[0]
+
 
 def nm_to_uh(s):
     """Get the userhost part of a nickmask.
@@ -1644,12 +1727,14 @@ def nm_to_uh(s):
     """
     return s.split("!")[1]
 
+
 def nm_to_h(s):
     """Get the host part of a nickmask.
 
     (The source of an Event is a nickmask.)
     """
     return s.split("@")[1]
+
 
 def nm_to_u(s):
     """Get the user part of a nickmask.
@@ -1658,6 +1743,7 @@ def nm_to_u(s):
     """
     s = s.split("!")[1]
     return s.split("@")[0]
+
 
 def parse_nick_modes(mode_string):
     """Parse a nick mode string.
@@ -1674,6 +1760,7 @@ def parse_nick_modes(mode_string):
 
     return _parse_modes(mode_string, "")
 
+
 def parse_channel_modes(mode_string):
     """Parse a channel mode string.
 
@@ -1688,6 +1775,7 @@ def parse_channel_modes(mode_string):
     """
 
     return _parse_modes(mode_string, "bklvo")
+
 
 def _parse_modes(mode_string, unary_modes=""):
     """[Internal]"""
@@ -1719,6 +1807,7 @@ def _parse_modes(mode_string, unary_modes=""):
         else:
             modes.append([sign, ch, None])
     return modes
+
 
 def _ping_ponger(connection, event):
     """[Internal]"""
@@ -1851,7 +1940,7 @@ numeric_events = {
     "423": "noadmininfo",
     "424": "fileerror",
     "431": "nonicknamegiven",
-    "432": "erroneusnickname", # Thiss iz how its speld in thee RFC.
+    "432": "erroneusnickname",  # Thiss iz how its speld in thee RFC.
     "433": "nicknameinuse",
     "436": "nickcollision",
     "437": "unavailresource",  # "Nick temporally unavailable"
@@ -1866,7 +1955,7 @@ numeric_events = {
     "462": "alreadyregistered",
     "463": "nopermforhost",
     "464": "passwdmismatch",
-    "465": "yourebannedcreep", # I love this one...
+    "465": "yourebannedcreep",  # I love this one...
     "466": "youwillbebanned",
     "467": "keyset",
     "471": "channelisfull",

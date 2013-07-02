@@ -32,7 +32,7 @@ The new methods are:
   d.allkeys()
   d.allvalues()
   d.allitems()
-  
+
   >>> import MultiDict
   >>> od = MultiDict.OrderedMultiDict()
   >>> od["Name"] = "Andrew"
@@ -82,7 +82,10 @@ from __future__ import generators
 # Performance-wise, Ordered has a slower (O(n)) than Unordered (O(1)).
 # Convince me otherwise and I'll change.  Besides, hierarchies are
 # overrated.
+
+
 class _BaseMultiDict:
+
     def __str__(self):
         """shows contents as if this is a dictionary
 
@@ -93,6 +96,7 @@ class _BaseMultiDict:
         for k in self.data:
             d[k] = self.data[k][-1]
         return str(d)
+
     def __len__(self):
         """the number of unique keys"""
         return len(self.data)
@@ -104,14 +108,14 @@ class _BaseMultiDict:
         """
         return self.data[key][-1]
 
-    def get(self, key, default = None):
+    def get(self, key, default=None):
         """value for the given key; default = None if not present
-        
+
         If more than one value exists for the key, use the one added
         most recently.
         """
         return self.data.get(key, [default])[-1]
-    
+
     def __contains__(self, key):
         """check if the key exists"""
         return key in self.data
@@ -127,7 +131,7 @@ class _BaseMultiDict:
         added most recently.
         """
         return [x[-1] for x in self.data.values()]
-    
+
     def items(self):
         """unordered list of key/value pairs
 
@@ -148,8 +152,9 @@ class _BaseMultiDict:
         """iterate through the list of unique keys"""
         return iter(self.data)
 
-    
+
 class OrderedMultiDict(_BaseMultiDict):
+
     """Store key/value mappings.
 
     Acts like a standard dictionary with the following features:
@@ -174,7 +179,8 @@ class OrderedMultiDict(_BaseMultiDict):
     allitems() method that returns a list of key/value pairs.
 
     """
-    def __init__(self, multidict = None):
+
+    def __init__(self, multidict=None):
         self.data = {}
         self.order_data = []
         if multidict is not None:
@@ -182,13 +188,15 @@ class OrderedMultiDict(_BaseMultiDict):
                 multidict = multidict.allitems()
             for k, v in multidict:
                 self[k] = v
+
     def __eq__(self, other):
         """Does this OrderedMultiDict have the same contents and order as another?"""
         return self.order_data == other.order_data
+
     def __ne__(self, other):
         """Does this OrderedMultiDict have different contents or order as another?"""
         return self.order_data != other.order_data
-    
+
     def __repr__(self):
         return "<OrderedMultiDict %s>" % (self.order_data,)
 
@@ -212,17 +220,19 @@ class OrderedMultiDict(_BaseMultiDict):
         """iterate over all keys in input order"""
         for x in self.order_data:
             yield x[0]
+
     def allvalues(self):
         """iterate over all values in input order"""
         for x in self.order_data:
             yield x[1]
+
     def allitems(self):
         """iterate over all key/value pairs in input order"""
         return iter(self.order_data)
 
 
-    
 class UnorderedMultiDict(_BaseMultiDict):
+
     """Store key/value mappings.
 
     Acts like a standard dictionary with the following features:
@@ -247,7 +257,8 @@ class UnorderedMultiDict(_BaseMultiDict):
     allitems() method that returns a list of key/value pairs.
 
     """
-    def __init__(self, multidict = None):
+
+    def __init__(self, multidict=None):
         self.data = {}
         if multidict is not None:
             if hasattr(multidict, "allitems"):
@@ -378,7 +389,7 @@ __test__ = {
         >>> s = str(od2)
         >>> s = repr(od2)
     """,
-   "test_unordered_multidict": """
+    "test_unordered_multidict": """
         >>> ud = UnorderedMultiDict()
         >>> ud["Name"] = "Andrew"
         >>> ud["Color"] = "BLUE"
@@ -473,13 +484,14 @@ __test__ = {
         >>> s = str(ud2)
         >>> s = repr(ud2)
    """,
-  "__doc__": __doc__,
+    "__doc__": __doc__,
 }
 
+
 def _test():
-    import doctest, MultiDict
+    import doctest
+    import MultiDict
     return doctest.testmod(MultiDict)
 
 if __name__ == "__main__":
     _test()
-
