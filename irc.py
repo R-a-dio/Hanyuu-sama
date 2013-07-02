@@ -54,23 +54,28 @@ class Session(object):
         # We really only need one server
         if (not self.active.is_set()):
             self._server = self._irc.server()
-            self._server.connect(config.irc_server,
-                                config.irc_port,
-                                config.irc_name)
+            self._server.connect(
+                config.irc_server,
+                config.irc_port,
+                config.irc_name,
+                ssl=config.irc_port == 6697,
+                localaddress=getattr(config, "irc_local_address", None),
+                localport=getattr(config, "irc_local_port", None),
+            )
         else:
             raise AssertionError("Can't connect closed Session")
-        
+
     def connected(self):
         return self._server.is_connected()
-    
+
     def disconnect(self):
         self._irc.disconnect_all("Disconnected on command")
-        
+
     def shutdown(self):
         self.active.set()
         self._irc.disconnect_all("Leaving...")
         self.processor_thread.join()
-        
+
     def load_handlers(self, load=False):
         # load was ment to be reload, but that fucks up the reload command
         logging.debug("Loading IRC Handlers")
@@ -256,7 +261,7 @@ class Session(object):
                             if (etype == "privmsg" and chans != PRIVATE_MESSAGE):
                                 continue
                                 # a private message, special privilege yo
-                                
+
                         else:
                             # We don't even know just ignore it
                             # Send to debugging for cleanness
@@ -270,7 +275,7 @@ class Session(object):
                         handler[1](server, nick, channel, text, userhost)
                     except:
                         logging.exception("IRC Handler exception")
-                        
+
 class IRCManager(BaseManager):
     pass
 
@@ -292,7 +297,7 @@ def start():
     manager = IRCManager(address=config.manager_irc, authkey=config.authkey)
     server = manager.get_server()
     server.serve_forever()
-    
+
 def launch_server():
     import os
     try:
