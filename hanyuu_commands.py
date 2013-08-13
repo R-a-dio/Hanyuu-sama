@@ -288,7 +288,7 @@ def topic(server, nick, channel, text, hostmask):
                 server.topic(channel, u"".join(result))
             else:
                 server.privmsg(
-                    channel, "Topic is the wrong format, can't set new topic")
+                    channel, u"Topic is the wrong format, can't set new topic")
 
     else:
         topic = server.get_topic(channel)
@@ -303,38 +303,25 @@ killing_stream = False
 
 
 def kill_afk(server, nick, channel, text, hostmask):
+    if u"force" in text.split(u' ') and nick in irc.DEV_NICKS:
+        force = True
+    else:
+        force=False
+
     if (server.isop(channel, nick)):
         try:
             stream = main.connect()
-            stream.switch_dj(force=True)
-            message = u"Forced AFK Streamer down,\
-                        please connect in 15 seconds or less."
+            stream.switch_dj(force=force)
+            message = u"Disconnecting the AFK Streamer {}".format(u"(forced)" if force else u"after the current track.")
         except:
-            message = u"Something went wrong, please punch Wessie."
+            message = u"Something went wrong ;_;, trying again will only make it worse, hauu~"
             logging.exception("AFK kill failed")
         server.privmsg(channel, message)
     else:
         server.notice(nick, u"You don't have high enough access to do this.")
 
-kill_afk.handler = ("on_text", r'[.!@]kill',
-                    irc.DEV_NICKS, irc.ALL_CHANNELS)
-
-# TODO:
-#    same as above
-
-
-def shut_afk(server, nick, channel, text, hostmask):
-    try:
-        stream = main.connect()
-        stream.switch_dj()
-        message = u'Disconnecting after current track. Start streaming a fallback song before the AFK Streamer disconnects.'
-    except:
-        message = u"Something went wrong, please try again."
-        logging.exception("AFK cleankill failed")
-    server.privmsg(channel, message)
-
-shut_afk.handler = ("on_text", r'[.!@]cleankill',
-                    irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
+kill_afk.handler = ("on_text", r'[.!@]kill.*',
+                    irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 
 spam = bootstrap.Switch(True)
