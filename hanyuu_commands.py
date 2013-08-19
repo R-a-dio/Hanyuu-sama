@@ -305,16 +305,16 @@ killing_stream = False
 def kill_afk(server, nick, channel, text, hostmask):
     if u"force" in text.split(u" ") and nick in irc.DEV_NICKS:
         force = True
-        message = u"after the current track."
+        kill_status = u"after the current track."
     else:
         force = False
-        message = u"(forced)"
+        kill_status = u"(forced)"
 
-    if (server.isop(channel, nick)):
+    if (server.ishalfop(channel, nick)):
         try:
             stream = main.connect()
             stream.switch_dj(force=force)
-            message = u"Disconnecting the AFK Streamer {0}".format(message)
+            message = u"Disconnecting the AFK Streamer {0}".format(kill_status)
         except:
             message = u"Something went wrong ;_;, trying again will only make it worse, hauu~"
             logging.exception("AFK kill failed")
