@@ -69,7 +69,7 @@ irc_colours = {"c": u"\x03", "c1": u"\x0301", "c2": u"\x0302",
 def np(server, nick, channel, text, hostmask):
     status = manager.Status()
     np = manager.NP()
-    if (status.online):
+    if status.online:
         message = u"Now playing:{c4} '{np}' {c}[{curtime}/{length}]({listeners} listeners), {faves} fave{fs}, played {times} time{ts}, {c3}LP:{c} {lp}".format(
             np=np.metadata, curtime=np.positionf,
             length=np.lengthf, listeners=status.listeners,
@@ -90,15 +90,15 @@ def create_faves_code(server, nick, channel, text, hostmask):
     with manager.MySQLCursor() as cur:
         cur.execute("SELECT * FROM enick WHERE `nick`=%s", (nick,))
         authcode = None
-        if (cur.rowcount > 0):
+        if cur.rowcount > 0:
             authcode = cur.fetchone()['authcode']
             print authcode
-        if (not authcode):
+        if not authcode:
             while True:
                 authcode = str(_random.getrandbits(24))
                 cur.execute(
                     "SELECT * FROM enick WHERE `authcode`=%s", (authcode,))
-                if (cur.rowcount == 0):
+                if cur.rowcount == 0:
                     break
             cur.execute("INSERT INTO enick (nick, authcode) VALUES (%(nick)s, "
                         "%(authcode)s) ON DUPLICATE KEY UPDATE `authcode`="
@@ -111,7 +111,7 @@ create_faves_code.handler = ("on_text", r'SEND CODE',
 
 def lp(server, nick, channel, text, hostmask):
     lastplayed = manager.LP().get()
-    if (len(lastplayed) > 0):
+    if len(lastplayed) > 0:
         message = u"{c3}Last Played:{c} ".format(**irc_colours) + \
             " {c3}|{c} ".format(**irc_colours).join(
             [song.metadata for song in lastplayed])
@@ -131,10 +131,10 @@ def queue(server, nick, channel, text, hostmask):
     if match.group("command"):
         request_queue = regular_queue = requests_ = regulars = 0
         for song in manager.Queue().iter(None):
-            if (song.type == manager.REQUEST):
+            if song.type == manager.REQUEST:
                 request_queue += song.length
                 requests_ += 1
-            elif (song.type == manager.REGULAR):
+            elif song.type == manager.REGULAR:
                 regular_queue += song.length
                 regulars += 1
         message = u"There are {req} requests ({req_time}), {norm} randoms ({norm_time}), total of {total} songs ({total_time})".\
@@ -147,10 +147,10 @@ def queue(server, nick, channel, text, hostmask):
                       'total': requests_ + regulars})
     else:
         queue = list(manager.Queue())
-        if (len(queue) > 0):
+        if len(queue) > 0:
             request_time = 0
             for song in manager.Queue().iter(None):
-                if (song.type == manager.REQUEST):
+                if song.type == manager.REQUEST:
                     request_time += song.length
 
             time_str = ""
@@ -172,17 +172,17 @@ queue.handler = (
 def dj(server, nick, channel, text, hostmask):
     tokens = text.split(' ')
     new_dj = " ".join(tokens[1:])
-    if (new_dj != ''):
-        if (server.hasaccess(channel, nick)):
-            if (new_dj):
-                if (new_dj == 'None'):
+    if new_dj != '':
+        if server.hasaccess(channel, nick):
+            if new_dj:
+                if new_dj == 'None':
                     new_status = 'DOWN'
-                elif (new_dj):
+                elif new_dj:
                     new_status = 'UP'
                 topic = server.get_topic(channel)
                 regex = re.compile(r"((.*?r/)(.*)(/dio.*?))\|(.*?)\|(.*)")
                 result = regex.match(topic)
-                if (result is not None):
+                if result is not None:
                     result = list(result.groups())
                     result[1:5] = u'|{c7} Stream:{c4} {status} {c7}DJ:{c4} {dj} {c11} http://r-a-d.io{c} |'.format(
                         status=new_status, dj=new_dj, **irc_colours)
@@ -207,16 +207,16 @@ def favorite(server, nick, channel, text, hostmask):
     song = manager.NP()
     if match:
         mode, command = match.group("mode", "command")
-        if (command.strip().lower() == "last" or command.strip().lower() == "l"):
+        if command.strip().lower() == "last" or command.strip().lower() == "l":
             song = manager.LP().get(1)[0]
-        if (command.strip().isdigit()):
+        if command.strip().isdigit():
             id = int(command.strip())
             try:
                 song = manager.Song(id=id)
             except:
                 server.notice(nick, u"I don't know of a song with that ID...")
                 return
-    if (nick in song.faves):
+    if nick in song.faves:
         message = u"You already have {c3}'{song}'{c} favorited"\
             .format(song=song.metadata, **irc_colours)
     else:
@@ -235,16 +235,16 @@ def unfavorite(server, nick, channel, text, hostmask):
     song = manager.NP()
     if match:
         mode, command = match.group("mode", "command")
-        if (command.strip() == "last" or command.strip() == "l"):
+        if command.strip() == "last" or command.strip() == "l":
             song = manager.LP().get(1)[0]
-        if (command.strip().isdigit()):
+        if command.strip().isdigit():
             id = int(command.strip())
             try:
                 song = manager.Song(id=id)
             except:
                 server.notice(nick, u"I don't know of a song with that ID...")
                 return
-    if (nick in song.faves):
+    if nick in song.faves:
         song.faves.remove(nick)
         message = u"{c3}'{song}'{c} is removed from your favorites."\
             .format(song=song.metadata, **irc_colours)
@@ -282,7 +282,7 @@ def topic(server, nick, channel, text, hostmask):
             print(u"Topic: {0}".format(topic))
             regex = re.compile(ur"(.*?r/)(.*)(/dio.*?)(.*)")
             result = regex.match(topic)
-            if (result is not None):
+            if result is not None:
                 result = list(result.groups())
                 result[1] = u"{param}{c7}".format(param=param, **irc_colours)
                 server.topic(channel, u"".join(result))
@@ -305,12 +305,12 @@ killing_stream = False
 def kill_afk(server, nick, channel, text, hostmask):
     if u"force" in text.split(u" ") and nick in irc.DEV_NICKS:
         force = True
-        kill_status = u"after the current track."
+        kill_status = u"(forced)"
     else:
         force = False
-        kill_status = u"(forced)"
+        kill_status = u"after the current track."
 
-    if (server.ishalfop(channel, nick)):
+    if server.ishalfop(channel, nick):
         try:
             stream = main.connect()
             stream.switch_dj(force=force)
@@ -346,7 +346,7 @@ def announce(server, spam=spam):
         server.privmsg("#r/a/dio", message)
         spam.reset()
     for nick in np.faves:
-        if (server.inchannel("#r/a/dio", nick)):
+        if server.inchannel("#r/a/dio", nick):
             server.notice(nick, u"Fave: {0} is playing."
                           .format(np.metadata))
 
@@ -371,7 +371,7 @@ request_announce.exposed = True
 def random(server, nick, channel, text, hostmask):
     match = re.match(
         r"^(?P<mode>[.!@])ra(ndom)?\b(?P<command>.*)", text, re.I | re.U)
-    if (match):
+    if match:
         mode, command = match.group("mode", "command")
     else:
         return
@@ -380,21 +380,21 @@ def random(server, nick, channel, text, hostmask):
         while len(songs) > 0:
             song = songs.pop(_random.randrange(len(songs)))
             value = nick_request_song(song.id, hostmask)
-            if (isinstance(value, tuple)):
+            if isinstance(value, tuple):
                 message = hanyuu_response(value[0], value[1])
-                if (value[0] == 4):
+                if value[0] == 4:
                     continue
                 else:
                     break
-            elif (isinstance(value, manager.Song)):
+            elif isinstance(value, manager.Song):
                 manager.Queue().append_request(song)
                 request_announce(server, song)
                 return
-    if (command.lower().strip() == "fave" or command.lower().strip() == "f" or command.lower().strip() == "favorite"):
+    if command.lower().strip() == "fave" or command.lower().strip() == "f" or command.lower().strip() == "favorite":
         songs = manager.Song.nick(nick, limit=None, tracks=True)
         request_from_list(songs)
         return
-    elif (re.match(r"^f(ave|avorite)? (.*)", command)):
+    elif re.match(r"^f(ave|avorite)? (.*)", command):
         fave_nick = re.match(r"^f(ave|avorite)? (.*)", command).groups()[2]
         songs = manager.Song.nick(fave_nick, limit=None, tracks=True)
         request_from_list(songs)
@@ -403,17 +403,17 @@ def random(server, nick, channel, text, hostmask):
         while True:
             song = manager.Song.random()
             value = nick_request_song(song.id, hostmask)
-            if (isinstance(value, tuple)):
+            if isinstance(value, tuple):
                 message = hanyuu_response(value[0], value[1])
-                if (value[0] == 4):
+                if value[0] == 4:
                     continue
                 else:
                     break
-            elif (isinstance(value, manager.Song)):
+            elif isinstance(value, manager.Song):
                 manager.Queue().append_request(song)
                 request_announce(server, song)
                 return
-    if (mode == "@"):
+    if mode == "@":
         server.privmsg(channel, message)
     else:
         server.notice(nick, message)
@@ -425,7 +425,7 @@ random.handler = (
 def lucky(server, nick, channel, text, hostmask):
     match = re.match(
         r"^(?P<mode>[.!@])l(ucky)?\s(?P<query>.*)", text, re.I | re.U)
-    if (match):
+    if match:
         mode, query = match.group("mode", "query")
     else:
         message = u"Hauu~ you didn't have a search query!"
@@ -435,19 +435,19 @@ def lucky(server, nick, channel, text, hostmask):
     message = None
     for song in result:
         value = nick_request_song(song.id, hostmask)
-        if (isinstance(value, tuple)):
+        if isinstance(value, tuple):
             message = hanyuu_response(value[0], value[1])
-            if (value[0] == 4):
+            if value[0] == 4:
                 continue
             else:
                 break
-        elif (isinstance(value, manager.Song)):
+        elif isinstance(value, manager.Song):
             manager.Queue().append_request(song)
             request_announce(server, song)
             return
-    if (message is None):
+    if message is None:
         message = u"Your query did not have any results"
-    if (mode == "@"):
+    if mode == "@":
         server.privmsg(channel, message)
     else:
         server.notice(nick, message)
@@ -458,7 +458,7 @@ lucky.handler = (
 
 def search(server, nick, channel, text, hostmask):
     def format_date(dt):
-        if (dt is None):
+        if dt is None:
             return 'Never'
         else:
             dt = datetime.now() - dt
@@ -473,7 +473,7 @@ def search(server, nick, channel, text, hostmask):
 
     match = re.match(
         r"^(?P<mode>[.!@])s(earch)?\s(?P<query>.*)", text, re.I | re.U)
-    if (match):
+    if match:
         mode, query = match.group('mode', 'query')
     else:
         message = u"Hauu~ you forgot a search query"
@@ -499,11 +499,11 @@ def search(server, nick, channel, text, hostmask):
                    meta=song.metadata, trackid=song.id,
                    lp=format_date(song.lpd), **irc_colours) for
                    song in manager.Song.search(query)]
-    if (len(message) > 0):
+    if len(message) > 0:
         message = u" | ".join(message)
     else:
         message = u"Your search returned no results"
-    if (mode == "@"):
+    if mode == "@":
         server.privmsg(channel, message)
     else:
         server.notice(nick, message)
@@ -517,7 +517,7 @@ def request(server, nick, channel, text, hostmask):
     # regex
     match = re.match(
         r"^(?P<mode>[.!@])r(equest)?\s(?P<query>.*)", text, re.I | re.U)
-    if (match):
+    if match:
         mode, query = match.group('mode', 'query')
     else:
         server.notice(
@@ -530,14 +530,14 @@ def request(server, nick, channel, text, hostmask):
         return
     else:
         response = nick_request_song(trackid, hostmask)
-        if (isinstance(response, manager.Song)):
+        if isinstance(response, manager.Song):
             song = manager.Song(trackid)
             manager.Queue().append_request(song)
             request_announce(server, song)
             return
-        elif (response == 1):  # wasn't song
+        elif response == 1:  # wasn't song
             message = u"I don't know of any song with that id..."
-        elif (isinstance(response, tuple)):
+        elif isinstance(response, tuple):
             message = hanyuu_response(response[0], response[1])
     server.privmsg(channel, message)
 
@@ -548,7 +548,7 @@ request.handler = ("on_text", r'[.!@]r(equest)?\b',
 def lastrequest(server, nick, channel, text, hostmask):
     import time
     match = re.match(r"^(?P<mode>[.!@])lastr(equest)?.*", text, re.I | re.U)
-    if (match):
+    if match:
         mode = match.group('mode')
     else:
         mode = '.'
@@ -557,7 +557,7 @@ def lastrequest(server, nick, channel, text, hostmask):
             cur.execute("SELECT id, UNIX_TIMESTAMP(time) as timestamp \
                 FROM `nickrequesttime` WHERE `host`=%s LIMIT 1;",
                         (hostmask,))
-            if (cur.rowcount == 1):
+            if cur.rowcount == 1:
                 row = cur.fetchone()
                 host_time = int(row['timestamp'])
             else:
@@ -569,7 +569,7 @@ def lastrequest(server, nick, channel, text, hostmask):
         since_format = small_time_format(time_since)
         can_request = time_since >= 3600
 
-        if (host_time == 0):
+        if host_time == 0:
             message = u"You don't seem to have requested on IRC before, {nick}!".format(
                 nick=nick)
         else:
@@ -582,7 +582,7 @@ def lastrequest(server, nick, channel, text, hostmask):
         logging.exception("Error in last request function")
         message = "Something broke! Hauu~"
 
-    if (mode == '@'):
+    if mode == '@':
         server.privmsg(channel, message)
     else:
         server.notice(nick, message)
@@ -631,7 +631,7 @@ def info(server, nick, channel, text, hostmask):
     else:
         # Show some kind of info lol
         message = u"Missing ID"
-    if (mode == '@'):
+    if mode == '@':
         server.privmsg(channel, message)
     else:
         server.notice(nick, message)
@@ -758,9 +758,9 @@ def favorite_list(server, nick, channel, text, hostmask):
     match = re.match(
         r'^(?P<mode>[.!@])f(ave|avorite)?l(ist)?($|\s)(?P<fnick>.*)', text, re.I | re.U)
 
-    if (match):
+    if match:
         mode, fnick = match.group('mode', 'fnick')
-        if (fnick == ''):
+        if fnick == '':
             fnick = nick
     else:
         server.notice(nick, 'Something went wrong')
@@ -769,7 +769,7 @@ def favorite_list(server, nick, channel, text, hostmask):
     message = u'Favorites are at: https://r-a-d.io/#/favorites/{nick}'.format(
         nick=fnick)
 
-    if (mode == '@'):
+    if mode == '@':
         server.privmsg(channel, message)
     else:
         server.notice(nick, message)
@@ -808,13 +808,13 @@ def hanyuu_response(response, delay):
          'c5'] + u"You might want to go do something else while you wait for that song."),
         (20000000, irc_colours['c4'] + u"No.")]
 
-    if (response == 2):
+    if response == 2:
         for (d, r) in self_messages:
             if delay <= d:
                 return r
-    elif (response == 3):
+    elif response == 3:
         return u"I'm not streaming right now!"
-    elif (response == 4):
+    elif response == 4:
         for (d, r) in song_messages:
             if delay <= d:
                 return r
@@ -822,9 +822,9 @@ def hanyuu_response(response, delay):
 
 
 def small_time_format(t, long_time=True):
-    if (t > 4 * 3600 * 24 and long_time):
+    if t > 4 * 3600 * 24 and long_time:
         return 'a long time'
-    if (t == 0):
+    if t == 0:
         return '0s'
     retval = ''
     b, t = divmod(t, 3600 * 24)
@@ -898,11 +898,11 @@ def nick_request_song(trackid, host=None):
                         row['requestcount']) - (int(time.time()) - song_lr)
                     delaytime = max(lp_delay, lr_delay)
 
-        if (not can_request):
+        if not can_request:
             return (2, delaytime)
-        elif (not can_afk):
+        elif not can_afk:
             return (3, 0)
-        elif (not can_song):
+        elif not can_song:
             return (4, delaytime)
         else:
             if host:
