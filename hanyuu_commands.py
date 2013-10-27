@@ -310,7 +310,7 @@ def kill_afk(server, nick, channel, text, hostmask):
         force = False
         kill_status = u"after the current track."
 
-    if server.ishalfop(channel, nick):
+    if server.ishop(channel, nick):
         try:
             stream = main.connect()
             stream.switch_dj(force=force)
