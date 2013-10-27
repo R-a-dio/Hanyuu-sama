@@ -303,7 +303,7 @@ killing_stream = False
 
 
 def kill_afk(server, nick, channel, text, hostmask):
-    if u"force" in text.split(u" ") and nick in irc.DEV_NICKS:
+    if u"force" in text.split(u" ") and nick in config.irc_devs:
         force = True
         kill_status = u"(forced)"
     else:
