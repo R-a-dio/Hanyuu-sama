@@ -8,6 +8,8 @@ import irc
 from multiprocessing.managers import BaseManager
 import bootstrap
 
+import hashlib
+import hmac
 
 def songdelay(val):
     """Gives the time delay in seconds for a specific song
@@ -25,7 +27,11 @@ def songdelay(val):
     else:
         return int(599955 * math.exp(0.0372 * val) + 0.5)
 
-# class FastCGIServer(Thread):
+
+def check_hmac(value, hash_):
+    key = config.request_key or "DEADBEEFCAFE"
+    signature = hmac.new(key, value, hashlib.sha256).digest()
+    return hash_ == signature
 
 
 class FastCGIServer(object):
@@ -86,8 +92,11 @@ class FastCGIServer(object):
                 trackid = int(splitdata[1])
                 canrequest_ip = False
                 canrequest_song = False
-                if "HTTP_CF_CONNECTING_IP" in environ:
-                    ip = environ["HTTP_CF_CONNECTING_IP"]
+                if "X_RADIO_CLIENT" in environ:
+                    if check_hmac(environ["X_RADIO_CLIENT"], environ["X_RADIO_AUTH"]):
+                        ip = environ["X_RADIO_CLIENT"]
+                    else
+                        ip = environ["REMOTE_ADDR"]
                 else:
                     ip = environ["REMOTE_ADDR"]
                 with manager.MySQLCursor() as cur:
