@@ -336,19 +336,19 @@ class Status(object):
     def thread(self):
         """thread getter, use status.thread"""
         with MySQLCursor() as cur:
-            cur.execute("SELECT `value` FROM `radvars` WHERE \
-            `name`='curthread' LIMIT 1;")
+            cur.execute("SELECT `thread` FROM `streamstatus`;")
             if (cur.rowcount == 0):
                 return u""
-            return cur.fetchone()['value']
+            return cur.fetchone()['thread']
 
     @thread.setter
     def thread(self, url):
         """thread setter, use status.thread = thread"""
         with MySQLCursor() as cur:
-            cur.execute("INSERT INTO `radvars` (name, value) VALUES \
-            ('curthread', %(thread)s) ON DUPLICATE KEY UPDATE \
-            `value`=%(thread)s;", {"thread": url})
+            cur.execute("UPDATE `streamstatus` SET \
+            `thread`=%(thread)s;", {"thread": url})
+            cur.execute("UPDATE `radvars` SET \
+            `value`=%(thread)s WHERE `name`='curthread';", {"thread":url})
 
     @property
     def requests_enabled(self):
@@ -519,7 +519,7 @@ class DJ(object):
 
     @property
     def user(self):
-        from re import escape, search, IGNORECASE
+        from re import escape, match, IGNORECASE
         name = self.name
         if (name is None):
             with MySQLCursor() as cur:
@@ -536,6 +536,7 @@ class DJ(object):
                     name = user
                 else:
                     return None
+
         with open(config.djfile) as djs:
             djname = None
             for line in djs:
@@ -546,7 +547,7 @@ class DJ(object):
                     wildcard = escape(wildcard)
                     '^' + wildcard
                     wildcard = wildcard.replace('*', '.*')
-                    if (search(wildcard, name, IGNORECASE)):
+                    if (match(wildcard, name, IGNORECASE)):
                         djname = djname_temp
                         break
                 if (djname):

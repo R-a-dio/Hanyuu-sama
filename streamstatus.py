@@ -15,11 +15,12 @@ def relay_listeners(server_name, mount=None, port=None):
     Gets the individual listener count for each given relay.
     If given just a name, looks up details using the name
     """
+    
     if mount is None:  # assume not port, too. naivity at its best.
     # (if you dont have one, it's useless anyway)
         with manager.MySQLCursor() as cur:
             cur.execute(
-                "SELECT port, mount FROM `relays` WHERE `relay_name`=%s;",
+                "SELECT port, mount FROM `relays` WHERE `relay_name`=%s AND disabled = 0",
                 (server_name,))
             if cur.rowcount == 1:
                 row = cur.fetchone()
@@ -78,7 +79,7 @@ def get_listener_count():
     import time
     counts = {}
     with manager.MySQLCursor() as cur:
-        cur.execute("SELECT * FROM `relays`;")
+        cur.execute("SELECT * FROM `relays` WHERE disabled = 0;")
         for row in cur:
             name = row['relay_name']
             count = 0
@@ -119,7 +120,7 @@ def get_status(server_name):
         # Pointless but easier to type. Also makes more sense.
     with manager.MySQLCursor() as cur:
         cur.execute(
-            "SELECT port, mount FROM `relays` WHERE relay_name=%s;", (server_name,))
+            "SELECT port, mount FROM `relays` WHERE relay_name=%s AND disabled = 0;", (server_name,))
         if cur.rowcount == 1:
                 row = cur.fetchone()
                 port = row['port']

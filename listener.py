@@ -122,7 +122,7 @@ class Listener(async_chat):
                         metadata = "='".join(part.split("='")[1:])
                 except (IndexError):
                     pass
-            if (metadata == "fallback"):
+            if (metadata in config.fallbacks):
                 self.handle_close()
                 return
             if (metadata != ""):

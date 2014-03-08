@@ -18,8 +18,8 @@ if __name__ == "__main__":
 def logging_setup():
     root = logging.getLogger()
     root.setLevel(config.loglevel)
-    client = SentryHandler(config.sentry_key)
-    setup_logging(client)
+    #client = SentryHandler(config.sentry_key)
+    # setup_logging(client)
 
 
 def stats():

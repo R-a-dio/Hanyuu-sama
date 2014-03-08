@@ -210,7 +210,8 @@ class Session(object):
                 else:
                     server.ctcp_reply(nick, 'VERSION irclib 4.8')
         elif (etype == 'invite'):
-            server.join(event.arguments()[0])
+            #server.join(event.arguments()[0])
+            pass
         elif (etype == 'disconnect'):
             # We disconnected ;_;
             self.ready = False

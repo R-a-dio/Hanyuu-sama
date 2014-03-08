@@ -86,10 +86,14 @@ class FastCGIServer(object):
                 trackid = int(splitdata[1])
                 canrequest_ip = False
                 canrequest_song = False
+                if "HTTP_CF_CONNECTING_IP" in environ:
+                    ip = environ["HTTP_CF_CONNECTING_IP"]
+                else:
+                    ip = environ["REMOTE_ADDR"]
                 with manager.MySQLCursor() as cur:
                     # SQL magic
                     cur.execute("SELECT * FROM `requesttime` WHERE \
-                    `ip`=%s LIMIT 1;", (environ["REMOTE_ADDR"],))
+                    `ip`=%s LIMIT 1;", (ip,))
                     ipcount = cur.rowcount
                     if cur.rowcount >= 1:
                         try:
@@ -145,13 +149,13 @@ class FastCGIServer(object):
                         if ipcount >= 1:
                             cur.execute(
                                 "UPDATE `requesttime` SET `time`=NOW() WHERE `ip`='%s';" %
-                                (environ["REMOTE_ADDR"]))
+                                (ip))
                         else:
                             cur.execute(
                                 "INSERT INTO `requesttime` (`ip`) VALUES ('%s');" %
-                                (environ["REMOTE_ADDR"]))
+                                (ip))
                         song = manager.Song(trackid)
-                        self.queue.append_request(song, environ["REMOTE_ADDR"])
+                        self.queue.append_request(song, ip)
                         try:
                             irc.connect().request_announce(song)
                         except:
