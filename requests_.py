@@ -92,9 +92,9 @@ class FastCGIServer(object):
                 trackid = int(splitdata[1])
                 canrequest_ip = False
                 canrequest_song = False
-                if "X_RADIO_CLIENT" in environ:
-                    if check_hmac(environ["X_RADIO_CLIENT"], environ["X_RADIO_AUTH"]):
-                        ip = environ["X_RADIO_CLIENT"]
+                if "HTTP_X_RADIO_CLIENT" in environ:
+                    if check_hmac(environ["HTTP_X_RADIO_CLIENT"], environ["HTTP_X_RADIO_AUTH"]):
+                        ip = environ["HTTP_X_RADIO_CLIENT"]
                     else:
                         ip = environ["REMOTE_ADDR"]
                 else:
