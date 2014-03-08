@@ -29,8 +29,8 @@ def songdelay(val):
 
 
 def check_hmac(value, hash_):
-    key = config.request_key or "DEADBEEFCAFE"
-    signature = hmac.new(key, value, hashlib.sha256).digest()
+    key = config.request_key
+    signature = hmac.new(key, value, hashlib.sha256).hexdigest()
     return hash_ == signature
 
 
