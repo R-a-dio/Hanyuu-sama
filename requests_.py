@@ -95,7 +95,7 @@ class FastCGIServer(object):
                 if "X_RADIO_CLIENT" in environ:
                     if check_hmac(environ["X_RADIO_CLIENT"], environ["X_RADIO_AUTH"]):
                         ip = environ["X_RADIO_CLIENT"]
-                    else
+                    else:
                         ip = environ["REMOTE_ADDR"]
                 else:
                     ip = environ["REMOTE_ADDR"]
