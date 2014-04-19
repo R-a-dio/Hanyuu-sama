@@ -615,6 +615,7 @@ class Song(object):
                             cur.execute("UPDATE `tracks` SET \
                             `lastplayed`=FROM_UNIXTIME(%s) \
                             WHERE `id`=%s LIMIT 1;", (self._lp, self.id))
+                            self.update_index() # update the search index for the song on the site
                     elif (key == "length"):
                         # change database entries for length data
                         cur.execute("UPDATE `esong` SET `len`=%s WHERE \
@@ -1074,6 +1075,20 @@ class Song(object):
                            meta=row['track'] if row['artist'] == u''
                            else row['artist'] + u' - ' + row['track'],
                            filename=join(config.music_directory, row['path']))
+
+    def update_index(self):
+        """Updates the elasticsearch index for the song when changing it."""
+        if not self.afk:
+            return
+
+        url = config.index_route.format(self.id)
+
+        try:
+            requests.get(url, auth=(config.index_user, config.index_pass))
+        except:
+            # all that matters is that it's pinged.
+            # the response is for sanity checking.
+            pass
 
     def __str__(self):
         return self.__repr__()
