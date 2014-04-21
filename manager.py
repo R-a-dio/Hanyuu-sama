@@ -124,6 +124,7 @@ class Queue(object):
             cur.execute("UPDATE `tracks` SET `lastrequested`=NOW(), \
                         `priority`=priority+4, `requestcount`=requestcount+1 \
                         WHERE `id`=%s;", (song.id,))
+        song.update_index()
         self.check_times()
 
     def append(self, song):

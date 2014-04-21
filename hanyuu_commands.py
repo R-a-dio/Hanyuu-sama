@@ -914,4 +914,5 @@ def nick_request_song(trackid, host=None):
                         "INSERT INTO `nickrequesttime` (host, time) VALUES (%s, NOW());", (host,))
             cur.execute(
                 "UPDATE `tracks` SET `lastrequested`=NOW() WHERE `id`=%s", (trackid,))
+            song.update_index()
             return song
