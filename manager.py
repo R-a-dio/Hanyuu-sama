@@ -14,6 +14,7 @@ from bootstrap import Switch
 import datetime
 import requests
 import requests_  # really now?
+import hanyuu.queue.legacy_client as legacy_queue
 
 bootstrap.logging_setup()
 
@@ -275,10 +276,12 @@ class Queue(object):
         with MySQLCursor(cursortype=MySQLdb.cursors.Cursor) as cur:
             cur.execute(
                 "SELECT trackid, meta, length, type, time FROM queue WHERE trackid=%s LIMIT 1;",
-                (song.id))
+                (song.id,))
             for row in cur:
                 return QSong(*row)
             raise QueueError("Song is not in the queue")
+
+
 
 
 class QueueError(Exception):
@@ -516,7 +519,7 @@ class DJ(object):
         else:
             with MySQLCursor() as cur:
                 cur.execute("UPDATE streamstatus SET djid=%s",
-                            (self.id if self.id else 18))
+                            (self.id if self.id else 18,))
 
     @property
     def user(self):
@@ -1135,6 +1138,11 @@ class QSong(Song):
     @property
     def until(self):
         return get_hms((self.time - datetime.datetime.now()).total_seconds())
+
+legacy_queue.Song = Song
+legacy_queue.QSong = QSong
+legacy_queue.QueueError = QueueError
+Queue = lambda: legacy_queue.Queue(config.queue_url)
 
 
 class NP(Song):

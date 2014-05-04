@@ -150,17 +150,16 @@ def queue(server, nick, channel, text, hostmask):
         if len(queue) > 0:
             request_time = 0
             for song in manager.Queue().iter(None):
-                if song.type == manager.REQUEST:
-                    request_time += song.length
+                request_time += song.length
 
             time_str = ""
             if request_time != 0:
-                time_str = "(/r/ time: {t})".format(
+                time_str = " (/r/ time: {t})".format(
                     t=timedelta(seconds=request_time))
 
-            message = u"{c3}Queue {time}:{c} ".format(time=time_str, **irc_colours) + \
-                " {c3}|{c} ".format(**irc_colours).join(
-                    [song.metadata for song in queue])
+            message = u"{c3}Queue{time}:{c} ".format(time=time_str, **irc_colours) + \
+                " {c5}|{c} ".format(**irc_colours).join(
+                    [("{c3}".format(**irc_colours) if song.type == 1 else "") + song.metadata for song in queue])
         else:
             message = u"No queue at the moment"
     server.privmsg(channel, message)
@@ -356,7 +355,7 @@ announce.exposed = True
 def request_announce(server, song):
     # UNLEASH THE HACK
     try:
-        qsong = manager.Queue.get(song)
+        qsong = manager.Queue().get(song)
     except manager.QueueError:
         message = u"Requested:{c3} '{song}'".format(song=song.metadata,
                                                     **irc_colours)
@@ -388,6 +387,8 @@ def random(server, nick, channel, text, hostmask):
                     break
             elif isinstance(value, manager.Song):
                 manager.Queue().append_request(song)
+                with manager.MySQLCursor() as cur:
+                    cur.execute("UPDATE tracks SET lastrequested=NOW() WHERE id=%s;", (song.id,))
                 request_announce(server, song)
                 return
     if command.lower().strip() == "fave" or command.lower().strip() == "f" or command.lower().strip() == "favorite":
@@ -411,6 +412,8 @@ def random(server, nick, channel, text, hostmask):
                     break
             elif isinstance(value, manager.Song):
                 manager.Queue().append_request(song)
+                with manager.MySQLCursor() as cur:
+                    cur.execute("UPDATE tracks SET lastrequested=NOW() WHERE id=%s;", (song.id,))
                 request_announce(server, song)
                 return
     if mode == "@":

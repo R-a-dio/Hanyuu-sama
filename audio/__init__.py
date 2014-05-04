@@ -38,6 +38,9 @@ class Manager(object):
             self.encoder.start()
             self.icecast.start()
             self.started.set()
+        else:
+            self.close()
+            self.start()
             
     def connected(self):
         """Returns if icecast is connected or not"""
@@ -51,13 +54,12 @@ class Manager(object):
         try:
             audiofile = files.AudioFile(filename)
         except (files.AudioError) as err:
-            logger.exception("Unsupported file.")
+            logger.exception("Unsupported file: " + filename.encode('utf8'))
             return self.give_source()
         except (IOError) as err:
-            logger.exception("Failed opening file.")
+            logger.exception("Failed opening file: " + filename.encode('utf8'))
             return self.give_source()
         else:
-            print meta
             if hasattr(self, 'icecast'):
                 self.icecast.set_metadata(meta)
             return audiofile

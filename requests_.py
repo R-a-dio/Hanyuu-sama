@@ -165,6 +165,8 @@ class FastCGIServer(object):
                                 (ip))
                         song = manager.Song(trackid)
                         self.queue.append_request(song, ip)
+                        cur.execute("UPDATE tracks SET lastrequested=NOW() WHERE id=%s;", (trackid,))
+                        song.update_index()
                         try:
                             irc.connect().request_announce(song)
                         except:

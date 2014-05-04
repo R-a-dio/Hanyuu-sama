@@ -53,10 +53,10 @@ class StatusUpdate(object):
                 # no streamer up, and no mountpoint
                 self.debug("Streamer is not connected")
                 # only allow hanyuu to stream if she is set as DJ first!
-                if m.DJ().id == 18 and (not self.switching):
+                if m.DJ().user == u"AFK" and (not self.switching):
                     logging.debug("Streaming trying to connect")
                     self.streamer.connect()
-                elif m.DJ().id != 18:
+                elif m.DJ().user != u"AFK":
                     logging.debug('Not allowed to connect')
         elif (not self.streamer.connected):
             self.debug(
