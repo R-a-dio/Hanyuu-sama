@@ -182,11 +182,16 @@ def dj(server, nick, channel, text, hostmask):
                 regex = re.compile(r"((.*?r/)(.*)(/dio.*?))\|(.*?)\|(.*)")
                 result = regex.match(topic)
                 if result is not None:
-                    result = list(result.groups())
-                    result[1:5] = u'|{c7} Stream:{c4} {status} {c7}DJ:{c4} {dj} {c11} http://r-a-d.io{c} |'.format(
-                        status=new_status, dj=new_dj, **irc_colours)
-                    server.topic(channel, u"".join(result))
-                    manager.DJ().name = new_dj
+                    try:
+                        manager.DJ().name = new_dj
+                    except TypeError:
+                        server.privmsg(channel,
+                            "I don't know this DJ!")
+                    else:
+                        result = list(result.groups())
+                        result[1:5] = u'|{c7} Stream:{c4} {status} {c7}DJ:{c4} {dj} {c11} http://r-a-d.io{c} |'.format(
+                            status=new_status, dj=new_dj, **irc_colours)
+                        server.topic(channel, u"".join(result))
                 else:
                     server.privmsg(
                         channel, "Topic is the wrong format, can't set new topic")
@@ -388,7 +393,7 @@ def random(server, nick, channel, text, hostmask):
             elif isinstance(value, manager.Song):
                 manager.Queue().append_request(song)
                 with manager.MySQLCursor() as cur:
-                    cur.execute("UPDATE tracks SET lastrequested=NOW() WHERE id=%s;", (song.id,))
+                    cur.execute("UPDATE tracks SET lastrequested=NOW(), requestcount=requestcount+1 WHERE id=%s;", (song.id,))
                 request_announce(server, song)
                 return
     if command.lower().strip() == "fave" or command.lower().strip() == "f" or command.lower().strip() == "favorite":
@@ -413,7 +418,7 @@ def random(server, nick, channel, text, hostmask):
             elif isinstance(value, manager.Song):
                 manager.Queue().append_request(song)
                 with manager.MySQLCursor() as cur:
-                    cur.execute("UPDATE tracks SET lastrequested=NOW() WHERE id=%s;", (song.id,))
+                    cur.execute("UPDATE tracks SET lastrequested=NOW(), requestcount=requestcount+1 WHERE id=%s;", (song.id,))
                 request_announce(server, song)
                 return
     if mode == "@":
