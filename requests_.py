@@ -1,8 +1,10 @@
 import logging
 import config
 import time
+import json
 from threading import Thread
 from flup.server.fcgi import WSGIServer
+import MySQLdb
 import manager
 import irc
 from multiprocessing.managers import BaseManager
@@ -10,6 +12,8 @@ import bootstrap
 
 import hashlib
 import hmac
+
+debug = True
 
 def songdelay(val):
     """Gives the time delay in seconds for a specific song
@@ -28,10 +32,24 @@ def songdelay(val):
         return int(599955 * math.exp(0.0372 * val) + 0.5)
 
 
-def check_hmac(value, hash_):
+def check_hmac(value, hash):
     key = config.request_key
     signature = hmac.new(key, value, hashlib.sha256).hexdigest()
-    return hash_ == signature
+    return hash == signature
+
+def extract_ip_address(environ):
+    """
+    Extracts the correct address to use from an wsgi environ.
+    """
+    if "HTTP_X_RADIO_CLIENT" in environ:
+        if check_hmac(environ["HTTP_X_RADIO_CLIENT"], environ["HTTP_X_RADIO_AUTH"]):
+            ip = environ["HTTP_X_RADIO_CLIENT"]
+        else:
+            ip = environ["REMOTE_ADDR"]
+    else:
+        ip = environ["REMOTE_ADDR"]
+
+    return ip
 
 
 class FastCGIServer(object):
@@ -92,60 +110,47 @@ class FastCGIServer(object):
                 trackid = int(splitdata[1])
                 canrequest_ip = False
                 canrequest_song = False
-                if "HTTP_X_RADIO_CLIENT" in environ:
-                    if check_hmac(environ["HTTP_X_RADIO_CLIENT"], environ["HTTP_X_RADIO_AUTH"]):
-                        ip = environ["HTTP_X_RADIO_CLIENT"]
-                    else:
-                        ip = environ["REMOTE_ADDR"]
-                else:
-                    ip = environ["REMOTE_ADDR"]
-                with manager.MySQLCursor() as cur:
+
+                if debug:
+                    print "Extracting environ info"
+
+                ip = extract_ip_address(environ)
+
+                if debug:
+                    print "Extracted IP: ", ip
+
+                with manager.MySQLCursor(cursortype=MySQLdb.cursors.Cursor) as cur:
                     # SQL magic
-                    cur.execute("SELECT * FROM `requesttime` WHERE \
-                    `ip`=%s LIMIT 1;", (ip,))
-                    ipcount = cur.rowcount
-                    if cur.rowcount >= 1:
-                        try:
-                            iptime = int(
-                                time.mktime(
-                                    time.strptime(
-                                        str(
-                                            cur.fetchone()["time"]
-                                        ),
-                                        "%Y-%m-%d %H:%M:%S")
-                                )
-                            )
-                        except:
-                            iptime = 0
+                    query = ("SELECT UNIX_TIMESTAMP(time) AS time FROM requesttime WHERE ip="
+                            "%s LIMIT 1;")
+                    cur.execute(query, (ip,))
+                    for iptime, in cur:
+                        has_requesttime_entry = True
+                        break
                     else:
+                        has_requesttime_entry = False
                         iptime = 0
+
+                    if debug:
+                        print "Extracted iptime of: ", iptime
+
                     now = int(time.time())
-                    if now - iptime > 3600:
+                    if now - iptime > 3600*2:
                         canrequest_ip = True
 
-                    cur.execute("SELECT * FROM `tracks` WHERE \
-                    `id`=%s LIMIT 1;", (trackid,))
-                    if cur.rowcount >= 1:
-                        row = cur.fetchone()
-                        try:
-                            lptime = int(time.mktime(time.strptime(
-                                str(row["lastrequested"]),
-                                "%Y-%m-%d %H:%M:%S")))
-                        except:
-                            lptime = 0
-                        if now - lptime > songdelay(row['requestcount']):
-                            canrequest_song = True
+                    if debug:
+                        print "IP requestable: ", canrequest_ip
 
-                        try:
-                            lptime = int(time.mktime(time.strptime(
-                                str(row["lastplayed"]),
-                                "%Y-%m-%d %H:%M:%S")))
-                        except:
-                            lptime = 0
-                        if now - lptime > songdelay(row['requestcount']):
-                            canrequest_song = canrequest_song and True
-                    else:
-                        canrequest_song = False
+                    cur.execute("SELECT UNIX_TIMESTAMP(lastrequested) as lr, "
+                                "requestcount, UNIX_TIMESTAMP(lastplayed) as lp "
+                                "FROM `tracks` WHERE `id`=%s LIMIT 1;", (trackid,))
+
+                    for lrtime, rc, lptime in cur:
+                        canrequest_song = ((now - lrtime) > songdelay(rc) and
+                                           (now - lptime) > songdelay(rc))
+
+                    if debug:
+                        print "Song requestable: ", canrequest_song
 
                     if not canrequest_ip or not canrequest_song:
                         if not canrequest_ip:
@@ -155,18 +160,33 @@ class FastCGIServer(object):
                     else:
                         sitetext = "Thank you for making your request!"
                         # SQL magic
-                        if ipcount >= 1:
+                        if has_requesttime_entry:
                             cur.execute(
-                                "UPDATE `requesttime` SET `time`=NOW() WHERE `ip`='%s';" %
-                                (ip))
+                                "UPDATE requesttime SET time=NOW() WHERE ip=%s;",
+                                (ip,),
+                            )
                         else:
                             cur.execute(
-                                "INSERT INTO `requesttime` (`ip`) VALUES ('%s');" %
-                                (ip))
+                                "INSERT INTO requesttime (ip) VALUES (%s);", 
+                                (ip,),
+                            )
+
+                        n = cur.execute(
+                            "UPDATE tracks SET lastrequested=NOW(), requestcount=requestcount+1 WHERE id=%s;",
+                            (trackid,),
+                        )
+
+                        print "finishing up request of: ", trackid
                         song = manager.Song(trackid)
-                        self.queue.append_request(song, ip)
-                        cur.execute("UPDATE tracks SET lastrequested=NOW() WHERE id=%s;", (trackid,))
+                        try:
+                            self.queue.append_request(song)
+                        except:
+                            logging.exception("QUEUE PROBLEMS BLAME VIN")
+
+                        # Website search index update
                         song.update_index()
+
+                        # Silly IRC announce
                         try:
                             irc.connect().request_announce(song)
                         except:
@@ -176,19 +196,11 @@ class FastCGIServer(object):
                 sitetext = "Invalid parameter."
         else:
             sitetext = "You can't request songs at the moment."
-        start_response('200 OK', [('Content-Type', 'text/html')])
-        yield '<html>'
-        yield '<head>'
-        yield '<title>r/a/dio</title>'
-        yield '<meta http-equiv="refresh" content="5;url=/search/">'
-        yield '<link rel="shortcut icon" href="/favicon.ico" />'
-        yield '</head>'
-        yield '<body>'
-        yield '<center><h2>%s</h2><center><br/>' % (sitetext)
-        yield '<center><h3>You will be redirected shortly.</h3></center>'
-        yield '</body>'
-        yield '</html>'
 
+        print sitetext
+
+        start_response('200 OK', [('Content-Type', 'application/json')])
+	yield json.dumps(dict(response=sitetext))
 
 class FastcgiManager(BaseManager):
     pass
