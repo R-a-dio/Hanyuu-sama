@@ -1,4 +1,5 @@
 import logging
+import re
 import mutagen
 import time
 import config
@@ -57,26 +58,6 @@ class MySQLCursor:
 REGULAR = 0
 REQUEST = 1
 POPPED = 2
-
-
-class Radvars(object):
-
-    def __setattr__(self, name, value):
-        with MySQLCursor() as cur:
-            cur.execute("INSERT INTO radvars (name, value) VALUES (%(name)s, \
-            %(value)s) ON DUPLICATE KEY UPDATE `value`=%(value)s;",
-                        {"name": name, "value": value})
-
-    def __getattr__(self, name):
-        with MySQLCursor() as cur:
-            cur.execute("SELECT * FROM radvars WHERE `name`=%s;", (name,))
-            for row in cur:
-                return row['value']
-            return None
-
-    def __delattr__(self, name):
-        with MySQLCursor() as cur:
-            cur.execute("DELETE FROM radvars WHERE `name`=%s;", (name,))
 
 
 class EmptyQueue(Exception):
@@ -351,31 +332,25 @@ class Status(object):
         with MySQLCursor() as cur:
             cur.execute("UPDATE `streamstatus` SET \
             `thread`=%(thread)s;", {"thread": url})
-            cur.execute("UPDATE `radvars` SET \
-            `value`=%(thread)s WHERE `name`='curthread';", {"thread":url})
 
     @property
     def requests_enabled(self):
-        with MySQLCursor() as cur:
-            cur.execute("SELECT * FROM radvars WHERE `name`='requesting';")
-            if (cur.rowcount > 0):
-                return bool(cur.fetchone()['value'])
-            else:
-                # We create our entry here because it doesn't exist
-                cur.execute("INSERT INTO radvars (name, value) VALUES \
-                            ('requesting', 0);")
-                return False
+        with MySQLCursor(cursortype=MySQLdb.cursors.Cursor) as cur:
+            cur.execute("SELECT requesting FROM streamstatus LIMIT 1;")
+
+            for requesting, in cur:
+                return bool(requesting)
+            return False
 
     @requests_enabled.setter
     def requests_enabled(self, value):
-        from types import BooleanType
+        value = bool(value)
+
         with MySQLCursor() as cur:
-            current = self.requests_enabled
-            if (isinstance(value, BooleanType)):
-                if (current != value):
-                    value = 1 if value else 0
-                    cur.execute("UPDATE `radvars` SET `value`=%s WHERE `name`\
-                                ='requesting';", (value,))
+            # !!!WARNING: This sets all rows in streamstatus, but since we
+            # generally only have one row in it, this is not a problem.
+            # !!!WARNING ABOVE
+            cur.execute("UPDATE streamstatus SET requesting=%s;", (value,))
 
     @property
     def cached_status(self):
@@ -440,123 +415,77 @@ def stop_updater():
     updater_event.set()
     updater_thread.join(11)
 
-
-def radvar(name, value="holy crap magical default value", default=None):
-    with MySQLCursor() as cur:
-        if value != "holy crap magical default value":  # ...really, now?
-            cur.execute("INSERT INTO `radvars` (name, value) VALUES (%s, %s) \
-                ON DUPLICATE KEY UPDATE `value`=%s",
-                        (name, value, value))
-            return value
-        else:
-            cur.execute("SELECT value FROM `radvars` WHERE `name`=%s", (name,))
-            if cur.rowcount > 0:
-                return cur.fetchone()['value']
-            else:
-                return default
-
-
 class DJError(Exception):
     pass
 
 
 class DJ(object):
-    _cache = {}
-
     @property
     def id(self):
-        user = self.user
-        if (user in self._cache):
-            return self._cache[user]
-        with MySQLCursor() as cur:
-            # we don't have a user
-            if (not self.user):
-                cur.execute("SELECT `djid` FROM `streamstatus`")
-                if (cur.rowcount == 0):
-                    self.id = 18
-                    return
-                djid = cur.fetchone()['djid']
-                cur.execute("SELECT `user` FROM `users` WHERE `djid`=%s \
-                LIMIT 1;", (djid,))
-                if (cur.rowcount > 0):
-                    user = cur.fetchone()['user']
-                    self._cache[user] = djid
+        with MySQLCursor(cursortype=MySQLdb.cursors.Cursor) as cur:
+            cur.execute("SELECT djid FROM streamstatus LIMIT 1;")
+            for djid, in cur:
                 return djid
 
-            cur.execute("SELECT `djid` FROM `users` WHERE `user`=%s LIMIT 1;",
-                        (user,))
-            if cur.rowcount > 0:
-                djid = cur.fetchone()['djid']
-                if djid is not None:
-                    self._cache[user] = djid
-                    return djid
-            return 0
+            self.id = 18
+            return 18
 
     @id.setter
     def id(self, value):
         if (not isinstance(value, (int, long, float))):
             raise TypeError("Expected integer")
+
         with MySQLCursor() as cur:
-            cur.execute("SELECT `user` FROM `users` WHERE `djid`=%s \
-            LIMIT 1;", (value,))
-            if (cur.rowcount > 0):
-                user = cur.fetchone()['user']
-                self._cache[user] = value
-            else:
-                raise TypeError("Invalid ID, no such DJ")
+            cur.execute("SELECT user FROM users WHERE djid=%s LIMIT 1;")
+            for user, in cur:
+                cur.execute("UPDATE streamstatus SET djid=%s, djname=%s", (value, user))
+                return
+
+            # Only reached if the for above doesn't run at all
+            raise TypeError("Invalid ID, no such DJ")
 
     @property
     def name(self):
-        return radvar("djname", default="None")
+	with MySQLCursor(cursortype=MySQLdb.cursors.Cursor) as cur:
+            cur.execute("SELECT djname FROM streamstatus LIMIT 1;")
+            for name, in cur:
+                return name
+            return None
 
     @name.setter
-    def name(self, value):
-        old_name = self.name
-        radvar("djname", value)
-        if (self.user is None):
-            radvar("djname", old_name)
+    def name(self, name):
+        username = self.is_valid(name)
+        if username is None:
             raise TypeError("Invalid name, no such DJ")
-        else:
-            with MySQLCursor() as cur:
-                cur.execute("UPDATE streamstatus SET djid=%s",
-                            (self.id if self.id else 18,))
+        
+        with MySQLCursor() as cur:
+            cur.execute("UPDATE streamstatus SET djid=(SELECT djid FROM users WHERE user=%s LIMIT 1), djname=%s",
+                        (username, name))
 
     @property
     def user(self):
-        from re import escape, match, IGNORECASE
-        name = self.name
-        if (name is None):
-            with MySQLCursor() as cur:
-                cur.execute("SELECT `djid` FROM `streamstatus`")
-                if (cur.rowcount == 0):
-                    self.id = 18
-                    return None
-                djid = cur.fetchone()['djid']
-                cur.execute("SELECT `user` FROM `users` WHERE `djid`=%s \
-                LIMIT 1;", (djid,))
-                if (cur.rowcount > 0):
-                    user = cur.fetchone()['user']
-                    self._cache[user] = djid
-                    name = user
-                else:
-                    return None
+        with MySQLCursor(cursortype=MySQLdb.cursors.Cursor) as cur:
+            cur.execute("SELECT user FROM users WHERE djid=(SELECT djid FROM streamstatus LIMIT 1);")
+            for user, in cur:
+                return user
+            self.id = 18 # MAGIC CONSTANTS (really just AFK streamers ID)
+            return 'AFK'
 
-        with open(config.djfile) as djs:
-            djname = None
-            for line in djs:
-                temp = line.split('@')
-                wildcards = temp[0].split('!')
-                djname_temp = temp[1].strip()
-                for wildcard in wildcards:
-                    wildcard = escape(wildcard)
-                    '^' + wildcard
-                    wildcard = wildcard.replace('*', '.*')
-                    if (match(wildcard, name, IGNORECASE)):
-                        djname = djname_temp
-                        break
-                if (djname):
-                    return unicode(djname)
-        return None
+    @classmethod
+    def is_valid(cls, name):
+        with open(config.djfile) as f:
+            for line in f:
+                wildcards, dj = line.split('@')
+
+                wildcards = wildcards.split('!')
+                dj = dj.strip()
+
+                for wc in wildcards:
+                    wc = re.escape(wc)
+                    wc = '^' + wc
+                    wc = wc.replace('*', '.*')
+                    if re.match(wc, name, re.I):
+                        return unicode(dj)
 
 
 class Song(object):
