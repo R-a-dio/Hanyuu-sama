@@ -1,24 +1,44 @@
 import logging
 import re
-import mutagen
 import time
-import config
+import datetime
 from random import randint
 from multiprocessing import RLock
-import MySQLdb
-import MySQLdb.cursors
 from threading import Event, Thread, current_thread
 from multiprocessing.managers import RemoteError
 from multiprocessing.dummy import Pool
-import bootstrap
-from bootstrap import Switch
-import datetime
-import requests
+
+import config
 import requests_  # really now?
 import hanyuu.queue.legacy_client as legacy_queue
+import bootstrap
+from bootstrap import Switch
+
+import MySQLdb
+import MySQLdb.cursors
+import requests
+import elasticsearch
+import mutagen
 
 bootstrap.logging_setup()
+es = elasticsearch.Elasticsearch(config.elasticsearch_server)
 
+def search(query, limit=5): 
+    query = {
+        "query": {
+           "match": {
+                "_all": {
+                    "query": query,
+                    "operator": "and",
+                }
+            },
+        },
+        "from": 0, "size": limit,
+    }
+
+    res = es.search(config.elasticsearch_index, body=query)
+
+    return (item['_source'] for item in res['hits']['hits'])
 
 class MySQLCursor:
 
@@ -736,36 +756,7 @@ class Song(object):
         Song objects. Defaults to 5 results, can be less"""
         from re import compile, escape, sub
 
-        def replace(query):
-            replacements = {r"\\": "", r"(": "",
-                            r")": "", r"*": ""}
-            re = compile("|".join(escape(s) for s in
-                                  replacements))
-            return re.sub(lambda x: replacements[x.group()], query)
-        from os.path import join
-        query_raw = query
-        with MySQLCursor() as cur:
-            search = replace(query)
-            temp = []
-            search = search.split(" ")
-            for item in search:
-                result = sub(r"^[+\-<>~]", "", item)
-                temp.append("+" + result)
-            query = " ".join(temp)
-            del temp
-            cur.execute("SELECT * FROM `tracks` WHERE `usable`='1' AND MATCH \
-            (tags, artist, track, album) AGAINST (%s IN BOOLEAN MODE) \
-            ORDER BY `priority` DESC, MATCH (tags, artist, track, \
-            album) AGAINST (%s) DESC LIMIT %s;",
-                        (query, query_raw, limit))
-        result = []
-        for row in cur:
-            result.append(cls(
-                          id=row['id'],
-                          meta=row['track'] if row['artist'] == u''
-                          else row['artist'] + u' - ' + row['track'],
-                          filename=join(config.music_directory, row['path'])))
-        return result
+        return [cls(id=item["id"]) for item in search(query, limit)]
 
     @classmethod
     def nick(cls, nick, limit=5, tracks=False):
