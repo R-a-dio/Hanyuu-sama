@@ -1,7 +1,9 @@
 """Module that handles file access and decoding to PCM.
 
 It uses python-audiotools for the majority of the work done."""
+import os.path
 import audiotools
+import audiotools.mp3
 import garbage
 
 
@@ -63,8 +65,14 @@ class AudioFile(object):
 
     def _open_file(self, filename):
         """Open a file for reading and wrap it in several helpers."""
+        _, ext = os.path.splitext(filename)
+        if ext == '.mp3':
+                opener = audiotools.mp3.MP3Audio
+        else:
+                opener = audiotools.open
+
         try:
-            reader = audiotools.open(filename)
+            reader = opener(filename)
         except (audiotools.UnsupportedFile) as err:
             raise AudioError("Unsupported file: " + filename.encode('utf8'))
         
