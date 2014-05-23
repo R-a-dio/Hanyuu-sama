@@ -283,7 +283,7 @@ def topic(server, nick, channel, text, hostmask):
     if param != u"" or len(tokens) > 1:  # i have NO IDEA WHATSOEVER why this is like this. just c/p from above
         if server.hasaccess(channel, nick):
             topic = server.get_topic(channel)
-            print(u"Topic: {0}".format(topic))
+            #print(u"Topic: {0}".format(topic))
             regex = re.compile(ur"(.*?r/)(.*)(/dio.*?)(.*)")
             result = regex.match(topic)
             if result is not None:
@@ -392,8 +392,6 @@ def random(server, nick, channel, text, hostmask):
                     break
             elif isinstance(value, manager.Song):
                 manager.Queue().append_request(song)
-                with manager.MySQLCursor() as cur:
-                    cur.execute("UPDATE tracks SET lastrequested=NOW(), requestcount=requestcount+1 WHERE id=%s;", (song.id,))
                 request_announce(server, song)
                 return
     if command.lower().strip() == "fave" or command.lower().strip() == "f" or command.lower().strip() == "favorite":
@@ -417,8 +415,6 @@ def random(server, nick, channel, text, hostmask):
                     break
             elif isinstance(value, manager.Song):
                 manager.Queue().append_request(song)
-                with manager.MySQLCursor() as cur:
-                    cur.execute("UPDATE tracks SET lastrequested=NOW(), requestcount=requestcount+1 WHERE id=%s;", (song.id,))
                 request_announce(server, song)
                 return
     if mode == "@":
@@ -774,7 +770,7 @@ def favorite_list(server, nick, channel, text, hostmask):
         server.notice(nick, 'Something went wrong')
         return
 
-    message = u'Favorites are at: https://r-a-d.io/#/favorites/{nick}'.format(
+    message = u'Favorites are at: https://r-a-d.io/faves/{nick}'.format(
         nick=fnick)
 
     if mode == '@':
@@ -921,6 +917,6 @@ def nick_request_song(trackid, host=None):
                     cur.execute(
                         "INSERT INTO `nickrequesttime` (host, time) VALUES (%s, NOW());", (host,))
             cur.execute(
-                "UPDATE `tracks` SET `lastrequested`=NOW() WHERE `id`=%s", (trackid,))
+                "UPDATE `tracks` SET `lastrequested`=NOW(), requestcount=requestcount+1 WHERE `id`=%s", (trackid,))
             song.update_index()
             return song
