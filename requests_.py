@@ -141,22 +141,24 @@ class FastCGIServer(object):
                     if debug:
                         print "IP requestable: ", canrequest_ip
 
-                    cur.execute("SELECT UNIX_TIMESTAMP(lastrequested) as lr, "
+                    cur.execute("SELECT usable, UNIX_TIMESTAMP(lastrequested) as lr, "
                                 "requestcount, UNIX_TIMESTAMP(lastplayed) as lp "
                                 "FROM `tracks` WHERE `id`=%s LIMIT 1;", (trackid,))
 
-                    for lrtime, rc, lptime in cur:
+                    for usable, lrtime, rc, lptime in cur:
                         canrequest_song = ((now - lrtime) > songdelay(rc) and
                                            (now - lptime) > songdelay(rc))
 
                     if debug:
                         print "Song requestable: ", canrequest_song
 
-                    if not canrequest_ip or not canrequest_song:
+                    if not canrequest_ip or not canrequest_song or not usable:
                         if not canrequest_ip:
                             sitetext = "You need to wait longer before requesting again."
                         elif not canrequest_song:
                             sitetext = "You need to wait longer before requesting this song."
+                        elif not usable:
+                            sitetext = "This song can't be requested yet."
                     else:
                         sitetext = "Thank you for making your request!"
                         # SQL magic
