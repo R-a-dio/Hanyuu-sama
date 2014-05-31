@@ -207,7 +207,7 @@ class Song(object):
                 if usable == 0:
                     return False
 
-        delay = self.delay
+        songdelay = self.delay
 
         now = time.time()
         if self.lp and songdelay > (now - self.lp):

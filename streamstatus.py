@@ -241,7 +241,7 @@ def get_listeners():
     """
     Used by player_stats (internal) to generate listener statistics and graphs
     """
-    listeners = {}
+    listeners = []
     with manager.MySQLCursor() as cur:
         cur.execute(
             "SELECT * FROM `relays` WHERE listeners > 0 AND admin_auth != '';")
@@ -264,6 +264,5 @@ def get_listeners():
             except:
                 logging.exception("get_listeners")
             else:
-                listeners.update(dict((l['ip'], l)
-                                 for l in parse_listeners(result.content)))
-    return listeners.values()
+                listeners.extend(list(parse_listeners(result.content)))
+    return listeners
