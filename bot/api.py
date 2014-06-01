@@ -48,7 +48,8 @@ def announce(session):
 def run_rpc_server(config, session):
     funcs = [request_announce, announce]
 
-    server = JSONServer((config.host, config.port), encoding="utf8")
+    server = JSONServer((config.host, config.port),
+                        encoding="utf8", logRequests=False)
 
     for f in funcs:
         wrapped = functools.wraps(f.server_side)
