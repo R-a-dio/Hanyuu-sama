@@ -201,42 +201,7 @@ class FastCGIServer(object):
         start_response('200 OK', [('Content-Type', 'application/json')])
 	yield json.dumps(dict(response=sitetext))
 
-class FastcgiManager(BaseManager):
-    pass
-
-FastcgiManager.register("stats", bootstrap.stats)
-FastcgiManager.register("fastcgi", FastCGIServer)
-
-
-def connect():
-    global manager, server
-    manager = FastcgiManager(address=config.manager_fastcgi,
-                             authkey=config.authkey)
-    manager.connect()
-    server = manager.fastcgi()
-    return server
-
-
-def start():
-    s = FastCGIServer()
-    manager = FastcgiManager(address=config.manager_fastcgi,
-                             authkey=config.authkey)
-    server = manager.get_server()
-    server.serve_forever()
-
-
-def launch_server():
-    manager = FastcgiManager(address=config.manager_fastcgi,
-                             authkey=config.authkey)
-    manager.start()
-    global _related_
-    _unrelated_ = manager.fastcgi()
-    return manager
 
 if __name__ == "__main__":
-    import multiprocessing
-    import logging
-    logger = multiprocessing.log_to_stderr()
-    logger.setLevel(logging.DEBUG)
     server = FastCGIServer()
     server.run()

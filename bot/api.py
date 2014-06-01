@@ -5,6 +5,7 @@ import logging
 from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer as JSONServer
 import jsonrpclib
 
+import manager.song
 import config
 
 jsonrpclib.config.use_jsonclass = False
@@ -39,6 +40,8 @@ def clientify(method):
 
 @clientify
 def request_announce(session, song):
+    if not hasattr(song, "id"):
+        song = manager.song.Song(id=song)
     session.request_announce(song)
 
 @clientify
