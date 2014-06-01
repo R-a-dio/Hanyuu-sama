@@ -1,5 +1,4 @@
 import manager as m
-import watcher
 import afkstreamer
 import time
 import listener
@@ -120,21 +119,11 @@ def launch_server():
 
 
 def main():
-    # Start IRC server
-    # irc.launch_server()
-
-    # Start listener/streamer
     global manager
     t = threading.Thread(target=start)
     t.daemon = True
     t.name = "Streamer Manager Thread"
     t.start()
-
-    # Start queue watcher ? why is this even in hanyuu
-    watcher.start()
-
-    # Start request server
-    # requests_.launch_server()
 
 if __name__ == "__main__":
     main()
