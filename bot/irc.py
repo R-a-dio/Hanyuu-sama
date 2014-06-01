@@ -1,10 +1,9 @@
-from threading import Thread, Event
+from __future__ import absolute_import
+import threading
 import logging
 import config
 import re
-import irclib
-from multiprocessing.managers import BaseManager
-import bootstrap
+from . import irclib
 
 # Handler constants
 # Channels
@@ -22,21 +21,19 @@ DEV_NICKS = 6  # Only the nicknames defined in config.irc_devs can trigger this
 
 
 class Session(object):
-    __metaclass__ = bootstrap.Singleton
-
-    def __init__(self):
+    def __init__(self, config=None):
         logging.info("Creating IRC Session")
         self.ready = False
         self.commands = None
         self._handlers = []
-        self.active = Event()
+        self.active = threading.Event()
         self.exposed = {}
         self._irc = irclib.IRC()
         self.load_handlers()
         self._irc.add_global_handler("all_events", self._dispatcher)
         self.connect()
         # initialize our process thread
-        self.processor_thread = Thread(target=self.processor)
+        self.processor_thread = threading.Thread(target=self.processor)
         self.processor_thread.name = "IRC Processor"
         self.processor_thread.daemon = 1
         self.processor_thread.start()
@@ -304,47 +301,5 @@ class Session(object):
                         logging.exception("IRC Handler exception")
 
 
-class IRCManager(BaseManager):
-    pass
-
-IRCManager.register("stats", bootstrap.stats)
-IRCManager.register("session", Session,
-                    method_to_typeid={"server": "generic",
-                                      "irc": "generic"})
-IRCManager.register("generic")
-
-
-def connect():
-    global manager, session
-    manager = IRCManager(address=config.manager_irc, authkey=config.authkey)
-    manager.connect()
-    session = manager.session()
-    return session
-
-
-def start():
-    s = Session()
-    manager = IRCManager(address=config.manager_irc, authkey=config.authkey)
-    server = manager.get_server()
-    server.serve_forever()
-
-
-def launch_server():
-    import os
-    try:
-        os.remove('/tmp/hanyuu_irc')
-    except:
-        pass
-    manager = IRCManager(address=config.manager_irc, authkey=config.authkey)
-    manager.start()
-    global _unrelated_
-    _unrelated_ = manager.session()
-    return manager
-
-
-if __name__ == "__main__":
-    import threading
-    t = threading.Thread(target=start)
-    t.name = 'IRC Manager Thread'
-    t.daemon = True
-    t.start()
+def run_irc_client(config):
+    return Session(config)

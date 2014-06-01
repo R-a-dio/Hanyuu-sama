@@ -17,6 +17,7 @@
 # keltus <keltus@users.sourceforge.net>
 #
 # $Id: irclib.py,v 1.47 2008/09/25 22:00:59 keltus Exp $
+from __future__ import absolute_import
 from Queue import Full
 
 """irclib -- Internet Relay Chat (IRC) protocol client library.

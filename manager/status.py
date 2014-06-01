@@ -321,11 +321,8 @@ class NP(Song):
                          "trackid": song.id
                          })
 
-        import irc
-        try:
-            irc.connect().announce()
-        except (AttributeError, RemoteError, IOError):
-            logging.exception("IRC Announcing error")
+        import bot
+        bot.announce()
 
     def __repr__(self):
         return "<Playing " + Song.__repr__(self)[1:]

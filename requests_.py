@@ -6,7 +6,7 @@ from threading import Thread
 from flup.server.fcgi import WSGIServer
 import MySQLdb
 import manager
-import irc
+import bot
 from multiprocessing.managers import BaseManager
 import bootstrap
 
@@ -189,10 +189,7 @@ class FastCGIServer(object):
                         song.update_index()
 
                         # Silly IRC announce
-                        try:
-                            irc.connect().request_announce(song)
-                        except:
-                            logging.exception("Announcing request failure")
+                        bot.request_announce(song.id)
 
             else:
                 sitetext = "Invalid parameter."
