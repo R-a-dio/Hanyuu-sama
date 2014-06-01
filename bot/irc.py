@@ -89,7 +89,8 @@ class Session(object):
                 # Report this to caller
                 raise
         else:
-            self.commands = __import__("hanyuu_commands")
+            from . import hanyuu_commands
+            self.commands = hanyuu_commands
         from types import FunctionType
         for name in dir(self.commands):
             func = getattr(self.commands, name)

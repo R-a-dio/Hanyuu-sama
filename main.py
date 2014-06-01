@@ -1,5 +1,4 @@
 import manager as m
-import irc
 import watcher
 import afkstreamer
 import time
