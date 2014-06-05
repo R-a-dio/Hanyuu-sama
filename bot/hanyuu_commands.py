@@ -643,6 +643,46 @@ def info(server, nick, channel, text, hostmask):
 info.handler = (
     "on_text", r"[.!@]i(nfo)?", irc.ACCESS_NICKS, irc.MAIN_CHANNELS)
 
+def tags(server, nick, channel, text, hostmask):
+    """Returns artist, title, album and tags"""
+    match = re.match(r'^(?P<mode>[.!@])t(ags)?\s?(?P<id>\d+)?$', text)
+    id = None
+    if match:
+        mode = match.group('mode')
+        id = match.group('id')
+    else:
+        mode = None
+    if id:
+        try:
+            id = int(id.strip())
+            song = manager.Song(id)
+        except ValueError:
+            message = u'ID Does not exist in database'
+        except TypeError:
+            message = u'Invalid ID'
+        else:
+            with manager.MySQLCursor() as cur:
+                cur.execute(
+                    "SELECT tags FROM tracks WHERE id=%s", (id,))
+                if cur.rowcount == 1:
+                    tags = row['tags']
+            message = (u"{c3}Title: {c}{title} {c3}Faves: {c}{faves}"
+                       u"{c3}Plays: {c}{plays} {c3}Tags: {c}{tags}")
+            message = message.format(
+                           title=song.metadata,
+                           faves=song.favecount,
+                           plays=song.playcount,
+                           tags=tags, **irc_colours
+            )
+    else:
+        message = u"Missing ID"
+    if mode == '@':
+        server.privmsg(channel, message)
+    else:
+        server.notice(nick, message)
+
+tags.handler = ("on_text", r'[.!@]t(ags)?.*',
+                irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def request_help(server, nick, channel, text, hostmask):
     message = u"{nick}: http://r-a-d.io/search {c5}Thank you for listening to r/a/dio!".format(
