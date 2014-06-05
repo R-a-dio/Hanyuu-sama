@@ -666,10 +666,14 @@ def tags(server, nick, channel, text, hostmask):
                     "SELECT tags FROM tracks WHERE id=%s", (id,))
                 if cur.rowcount == 1:
                     tags = row['tags']
-            message = u"Title: {c3}{title}{c} Faves: {faves} Plays: {plays} Tags: {c6}{tags}"\
-                .format(
-                    title=song.metadata, faves=song.favecount, plays=song.playcount,
-                    tags=tags, **irc_colours)
+            message = (u"{c3}Title: {c}{title} {c3}Faves: {c}{faves}"
+                       u"{c3}Plays: {c}{plays} {c3}Tags: {c}{tags}")
+            message = message.format(
+                           title=song.metadata,
+                           faves=song.favecount,
+                           plays=song.playcount,
+                           tags=tags, **irc_colours
+            )
     else:
         message = u"Missing ID"
     if mode == '@':
@@ -677,7 +681,7 @@ def tags(server, nick, channel, text, hostmask):
     else:
         server.notice(nick, message)
 
-tags.handler = ("on_text, r'[.!@]t(ags)?.*',
+tags.handler = ("on_text", r'[.!@]t(ags)?.*',
                 irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def request_help(server, nick, channel, text, hostmask):
