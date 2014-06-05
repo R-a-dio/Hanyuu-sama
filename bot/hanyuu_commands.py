@@ -666,7 +666,7 @@ def tags(server, nick, channel, text, hostmask):
                     "SELECT tags FROM tracks WHERE id=%s", (id,))
                 if cur.rowcount == 1:
                     tags = row['tags']
-            message = u"{c7}Title: {title} Faves: {faves} Plays: {plays} Tags: {tags}"\
+            message = u"Title: {c3}{title}{c} Faves: {faves} Plays: {plays} Tags: {c6}{tags}"\
                 .format(
                     title=song.metadata, faves=song.favecount, plays=song.playcount,
                     tags=tags, **irc_colours)
