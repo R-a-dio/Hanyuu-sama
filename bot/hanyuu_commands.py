@@ -645,37 +645,37 @@ info.handler = (
 
 def tags(server, nick, channel, text, hostmask):
     """Returns artist, title, album and tags"""
-    match = re.match(r'^(?P<mode>[.!@])t(ags)?\s?(?P<id>\d+)?$', text)
-    id = None
-    if match:
-        mode = match.group('mode')
-        id = match.group('id')
-    else:
-        mode = None
-    if id:
-        try:
+    mode = text[0]
+    match = re.match(r'^[.!@]t(ags)?\s(?P<id>\d+)$', text)
+    id = match.group('id') if match else None
+
+    try:
+        if id:
             id = int(id.strip())
             song = manager.Song(id)
-        except ValueError:
-            message = u'ID Does not exist in database'
-        except TypeError:
-            message = u'Invalid ID'
         else:
-            with manager.MySQLCursor() as cur:
-                cur.execute(
-                    "SELECT tags FROM tracks WHERE id=%s", (id,))
-                if cur.rowcount == 1:
-                    tags = row['tags']
-            message = (u"{c3}Title: {c}{title} {c3}Faves: {c}{faves}"
-                       u"{c3}Plays: {c}{plays} {c3}Tags: {c}{tags}")
-            message = message.format(
-                           title=song.metadata,
-                           faves=song.favecount,
-                           plays=song.playcount,
-                           tags=tags, **irc_colours
-            )
+            song = manager.NP()
+    except ValueError:
+        message = u'ID Does not exist in database'
+    except TypeError:
+        message = u'Invalid ID'
     else:
-        message = u"Missing ID"
+        with manager.MySQLNormalCursor() as cur:
+            cur.execute("SELECT tags FROM tracks WHERE id=%s", (id,))
+            for tags, in cur:
+                break
+            else:
+                tags = "no search tags"
+
+        message = (u"{c}Title: {c4}{title} {c}Faves: {c4}{faves}"
+                   u" {c}Plays: {c4}{plays} {c}Tags: {c4}{tags}")
+        message = message.format(
+            title=song.metadata,
+            faves=song.favecount,
+            plays=song.playcount,
+            tags=tags, **irc_colours
+        )
+
     if mode == '@':
         server.privmsg(channel, message)
     else:
