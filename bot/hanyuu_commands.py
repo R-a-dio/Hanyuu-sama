@@ -646,7 +646,7 @@ info.handler = (
 def tags(server, nick, channel, text, hostmask):
     """Returns artist, title, album and tags"""
     mode = text[0]
-    match = re.match(r'^[.!@]t(ags)?\s(?P<id>\d+)$', text)
+    match = re.match(r'^[.!@]tags?\s(?P<id>\d+)$', text)
     id = match.group('id') if match else None
 
     try:
@@ -681,7 +681,7 @@ def tags(server, nick, channel, text, hostmask):
     else:
         server.notice(nick, message)
 
-tags.handler = ("on_text", r'[.!@]t(ags)?.*',
+tags.handler = ("on_text", r'[.!@]tags?.*',
                 irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def request_help(server, nick, channel, text, hostmask):
