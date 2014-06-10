@@ -597,45 +597,40 @@ lastrequest.handler = ("on_text", r'[.!@]lastr(equest)?.*',
 
 def info(server, nick, channel, text, hostmask):
     """Returns info about a song ID"""
-    match = re.match(r'^(?P<mode>[.!@])i(nfo)?\s?(?P<id>\d+)?$', text)
-    id = None
-    if match:
-        # We have an ID and stuff
-        mode = match.group('mode')
-        id = match.group('id')
-    else:
-        mode = None
-    if id:
-        # do shit with id
-        try:
+    match = re.match(r'^[.!@]i(nfo)?\s?(?P<id>\d+)?$', text)
+    id = match.group("id")
+    try:
+        if id:
             id = int(id.strip())
             song = manager.Song(id)
-        except ValueError:
-            message = u'ID Does not exist in database'
-        except TypeError:
-            message = u'Invalid ID'
         else:
-            rc = '?'
-            sp = '?'
-            with manager.MySQLCursor() as cur:
-                cur.execute(
-                    "SELECT requestcount, priority, accepter, tags FROM tracks WHERE id=%s", (id,))
-                if cur.rowcount == 1:
-                    row = cur.fetchone()
-                    rc = row['requestcount']
-                    sp = row['priority']
-                    ac = row['accepter'] if row['accepter'] else "N/A"
-                    tags = row['tags']
-            message = u"{c7}ID: {id} Title: {title} Faves: {faves} Plays: {plays} Requests: {rc} Priority: {sp} CD: {cd} Accepter: {ac} Tags: {tags}"\
-                .format(
-                    id=id, title=song.metadata, faves=song.favecount, plays=song.playcount,
-                    rc=rc, sp=sp, cd=small_time_format(
-                        requests_.songdelay(rc), False),
-                    ac=ac, tags=tags, **irc_colours)
+            song = manager.NP()
+    except ValueError:
+        message = u'ID Does not exist in database'
+    except TypeError:
+        message = u'Invalid ID'
     else:
-        # Show some kind of info lol
-        message = u"Missing ID"
-    if mode == '@':
+        with manager.MySQLNormalCursor() as cur:
+            cur.execute("SELECT requestcount, priority, accepter, tags FROM tracks WHERE id=%s", (song.id,))
+            for rc, prio, accepter, tags in cur:
+                message = (u"ID: {c4}{id} {c}Title: {c4}{title} {c}Faves:"
+                           u" {c4}{faves} {c}Plays: {c4}{plays} {c}Requests:"
+                           u" {c4}{rc} {c}Priority: {c4}{prio} {c}CD: {c4}{cd}"
+                           u" {c}Accepter: {c4}{accepter} {c}Tags: {c4}{tags}")
+                message = message.format(
+                    id=song.id,
+                    title=song.metadata,
+                    faves=song.favecount,
+                    plays=song.playcount,
+                    rc=rc,
+                    prio=prio,
+                    cd=small_time_format(song.delay, False),
+                    accepter=accepter,
+                    tags=tags,
+                    **irc_colours
+                )
+
+    if text[0] == '@':
         server.privmsg(channel, message)
     else:
         server.notice(nick, message)
@@ -661,7 +656,7 @@ def tags(server, nick, channel, text, hostmask):
         message = u'Invalid ID'
     else:
         with manager.MySQLNormalCursor() as cur:
-            cur.execute("SELECT tags FROM tracks WHERE id=%s", (id,))
+            cur.execute("SELECT tags FROM tracks WHERE id=%s", (song.id,))
             for tags, in cur:
                 break
             else:
