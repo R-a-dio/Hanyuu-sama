@@ -412,7 +412,7 @@ class Song(object):
         if (song.filename is not None):
             try:
                 length = mutagen.File(song.filename).info.length
-            except (IOError):
+            except (IOError, ValueError):
                 logging.exception("Failed length check")
                 return 0.0
             return length
