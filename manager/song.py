@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 import time
+import logging
 
 import mutagen
 
@@ -413,18 +414,18 @@ class Song(object):
             try:
                 length = mutagen.File(song.filename).info.length
             except (IOError, ValueError):
-                logging.exception("Failed length check")
+                logging.exception("failed length check of %d (%s)", song.id, song.digest)
                 return 0.0
             return length
-        if (song.filename is None):
-            # try hash
-            with MySQLCursor() as cur:
-                cur.execute("SELECT len FROM `esong` WHERE `hash`=%s;",
-                            (song.digest,))
-                if (cur.rowcount > 0):
-                    return cur.fetchone()['len']
-                else:
-                    return 0.0
+
+        # try hash
+        with MySQLCursor() as cur:
+            cur.execute("SELECT len FROM `esong` WHERE `hash`=%s;",
+                        (song.digest,))
+            if (cur.rowcount > 0):
+                return cur.fetchone()['len']
+            else:
+                return 0.0
 
     @staticmethod
     def get_file(songid):
