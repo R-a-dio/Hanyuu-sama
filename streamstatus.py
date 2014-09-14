@@ -125,16 +125,14 @@ def get_listeners():
     Used by player_stats (internal) to generate listener statistics and graphs
     """
     listeners = []
-    url = "http://localhost:8000"
-    mount = "/main.mp3"
     try:
         result = requests.get(
-        '{url}/admin/listclients?mount={mount}'.format(url=url,
-                                                       mount=mount), headers={'User-Agent': 'Mozilla',
+        '{url}/admin/listclients?mount={mount}'.format(url=config.icecast_server,
+                                                       mount=config.icecast_mount), headers={'User-Agent': 'Mozilla',
                                                                               'Referer':
                                                                               '{url}/admin/'.format(
-                                                                              url=url),
-                                                                              'Authorization': 'Basic {}'.format(auth)}, timeout=2)
+                                                                              url=config.icecast_server),
+                                                                              'Authorization': 'Basic {}'.format(config.stream_admin_auth)}, timeout=2)
         result.raise_for_status()  # None if normal
     except:
         logging.exception("get_listeners")
