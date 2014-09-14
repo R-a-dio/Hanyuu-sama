@@ -10,106 +10,6 @@ dns_spamfilter = Switch(True)  # 15 second resetting spamfilter
 timeout = {}
 
 
-def relay_listeners(server_name, mount=None, port=None):
-    """
-    Gets the individual listener count for each given relay.
-    If given just a name, looks up details using the name
-    """
-    
-    if mount is None:  # assume not port, too. naivity at its best.
-    # (if you dont have one, it's useless anyway)
-        with manager.MySQLCursor() as cur:
-            cur.execute(
-                "SELECT port, mount FROM `relays` WHERE `relay_name`=%s AND disabled = 0",
-                (server_name,))
-            if cur.rowcount == 1:
-                row = cur.fetchone()
-                port = row['port']
-                mount = row['mount']
-            else:
-                raise KeyError("Unknown relay {}".format(server_name))
-    url = "http://{name}.r-a-d.io:{port}{mount}.xspf".format(name=server_name,
-                                                             port=port, mount=mount)
-    try:
-        result = requests.get(
-            url,
-            headers={'User-Agent': 'Mozilla'},
-            timeout=2)
-        result.raise_for_status()  # raise exception if status code is abnormal
-    except requests.exceptions.Timeout:
-        with manager.MySQLCursor() as cur:
-            cur.execute(
-                "UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
-                (server_name,))
-        raise  # for get_listener_count
-    except requests.ConnectionError:
-        with manager.MySQLCursor() as cur:
-            cur.execute(
-                "UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
-                (server_name,))
-    except requests.HTTPError:
-        with manager.MySQLCursor() as cur:
-            cur.execute("UPDATE `relays` SET active=0 WHERE relay_name=%s;",
-                       (server_name,))
-    else:
-        try:
-            result = parse_status(result.content)
-            listeners = int(result.get('Current Listeners', 0))
-            active = 1 if result['Online'] else 0
-            with manager.MySQLCursor() as cur:
-                cur.execute(
-                    "UPDATE `relays` SET listeners=%s, active=%s WHERE relay_name=%s;",
-                    (listeners, active, server_name))
-            return listeners
-        except:
-            with manager.MySQLCursor() as cur:
-                cur.execute(
-                    "UPDATE `relays` SET listeners=0, active=0 WHERE relay_name=%s;",
-                    (server_name,))
-            logging.exception("get listener count")
-    return -1
-
-
-def get_listener_count():
-    """
-    Gets a list of all current relay's listeners and filters inactive relays.
-    It then returns the total number of listeners on all relays combined.
-    This is reported to manager.Status().listeners
-    """
-    import time
-    counts = {}
-    with manager.MySQLCursor() as cur:
-        cur.execute("SELECT * FROM `relays` WHERE disabled = 0;")
-        for row in cur:
-            name = row['relay_name']
-            count = 0
-            if name in timeout and (time.time() - timeout[name]) < 10 * 60:
-                count = -1
-            else:
-                if name in timeout:
-                    del timeout[name]
-                try:
-                    count = relay_listeners(name, row["mount"], row["port"])
-                except (requests.HTTPError,
-                        requests.ConnectionError) as e:  # rare
-                    if not dns_spamfilter:
-                        logging.warning(
-                            "Connection Error to {}. sudo rndc flush if it is correct, and update DNS"
-                            .format(name))
-                        dns_spamfilter.reset()
-                    else:
-                        # logging.warning("HTTPError on {}".format(name))
-                        pass
-                except requests.exceptions.Timeout:
-                    timeout[name] = time.time()
-                    count = -1
-                except:
-                    logging.exception("get all listener count")
-                    count = -1
-            counts[name] = count
-    return counts
-
-
 def get_status(server_name):
     """
     Gets the current status of the master server, and the listener counts of all of the
@@ -117,41 +17,24 @@ def get_status(server_name):
     artificial Master server listener count used by Hanyuu in every StatusUpdate call.
     """
     result = {"Online": False}
-        # Pointless but easier to type. Also makes more sense.
-    with manager.MySQLCursor() as cur:
-        cur.execute(
-            "SELECT port, mount FROM `relays` WHERE relay_name=%s AND disabled = 0;", (server_name,))
-        if cur.rowcount == 1:
-                row = cur.fetchone()
-                port = row['port']
-                mount = row['mount']
-        else:
-            logging.critical(
-                "Master server is not in the config or database and get_status failed.")
-        try:
-            result = requests.get("http://{server}.r-a-d.io:{port}{mount}.xspf".format(
-                server=server_name, port=port, mount=mount),
+    # Pointless but easier to type. Also makes more sense.
+    try:
+            result = requests.get(config.icecast_status,
                 headers={'User-Agent': 'Mozilla'}, timeout=2)
-        except requests.HTTPError as e:  # rare, mostly 403
-            if not dns_spamfilter:
-                logging.warning(
-                    "Can't connect to mountpoint; Assuming listener limit reached")
-                dns_spamfilter.reset()
-            else:
-                logging.exception("HTTPError occured in status retrieval")
-        except requests.ConnectionError:
-            logging.exception("Connection interrupted to master server")
-        except:
-            logging.exception(
-                "Can't connect to master status page. Is Icecast running?")
+    except requests.HTTPError as e:  # rare, mostly 403
+        if not dns_spamfilter:
+           logging.warning(
+               "Can't connect to mountpoint; Assuming listener limit reached")
+           dns_spamfilter.reset()
         else:
+            logging.exception("HTTPError occured in status retrieval")
+    except requests.ConnectionError:
+        logging.exception("Connection interrupted to master server")
+    except:
+        logging.exception(
+            "Can't connect to master status page. Is Icecast running?")
+    else:
             result = parse_status(result.content)  # bytestring
-            if result:
-                all_listeners = get_listener_count()
-                total_count = sum(
-                    itertools.ifilter(lambda x: x >= 0,
-                                      all_listeners.values()))
-                result["Current Listeners"] = total_count
 
     return result
 
@@ -242,27 +125,19 @@ def get_listeners():
     Used by player_stats (internal) to generate listener statistics and graphs
     """
     listeners = []
-    with manager.MySQLCursor() as cur:
-        cur.execute(
-            "SELECT * FROM `relays` WHERE listeners > 0 AND admin_auth != '';")
-        for row in cur:
-            server = row['relay_name']
-            port = row['port']
-            mount = row['mount']
-            auth = row['admin_auth']
-            url = 'http://{server}.r-a-d.io:{port}'.format(
-                server=server, port=port)
-            try:
-                result = requests.get(
-                    '{url}/admin/listclients?mount={mount}'.format(url=url,
-                                                                   mount=mount), headers={'User-Agent': 'Mozilla',
-                                                                                          'Referer':
-                                                                                          '{url}/admin/'.format(
-                                                                                              url=url),
-                                                                                          'Authorization': 'Basic {}'.format(auth)}, timeout=2)
-                result.raise_for_status()  # None if normal
-            except:
-                logging.exception("get_listeners")
-            else:
-                listeners.extend(list(parse_listeners(result.content)))
+    url = "http://localhost:8000"
+    mount = "/main.mp3"
+    try:
+        result = requests.get(
+        '{url}/admin/listclients?mount={mount}'.format(url=url,
+                                                       mount=mount), headers={'User-Agent': 'Mozilla',
+                                                                              'Referer':
+                                                                              '{url}/admin/'.format(
+                                                                              url=url),
+                                                                              'Authorization': 'Basic {}'.format(auth)}, timeout=2)
+        result.raise_for_status()  # None if normal
+    except:
+        logging.exception("get_listeners")
+    else:
+        listeners.extend(list(parse_listeners(result.content)))
     return listeners
