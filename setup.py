@@ -14,7 +14,7 @@ setup(
                  "package including an IRC bot, Icecast streamer "
                  "and FastCGI request server."),
     license = 'GPL',
-    long_description = read('README'),
+    long_description = read('README.md'),
     install_requires = [
         "requests >= 1.0",
         "mutagen >= 1.19",

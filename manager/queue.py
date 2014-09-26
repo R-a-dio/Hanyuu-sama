@@ -7,7 +7,7 @@ import time
 import datetime
 
 import config
-import hanyuu.queue.legacy_client as legacy_queue
+import radio.queue.legacy_client as legacy_queue
 
 REGULAR = 0
 REQUEST = 1
@@ -24,7 +24,7 @@ class QSong(Song):
 
     @property
     def until(self):
-        return get_hms((self.time - datetime.datetime.now()).total_seconds())
+        return get_hms(self.time - time.time())
 
 legacy_queue.Song = Song
 legacy_queue.QSong = QSong
