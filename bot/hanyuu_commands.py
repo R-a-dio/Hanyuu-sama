@@ -662,13 +662,15 @@ def tags(server, nick, channel, text, hostmask):
         message = u'Invalid ID'
     else:
         with manager.MySQLNormalCursor() as cur:
-            cur.execute("SELECT tags FROM tracks WHERE id=%s", (song.id,))
+            cur.execute("SELECT tags,album FROM tracks WHERE id=%s", (song.id,))
             for tags, in cur:
                 break
             else:
                 tags = "no search tags"
+            row = cur.fetchone()
+            album=row['album']
 
-        message = (u"{c}Title: {c4}{title} {c}Faves: {c4}{faves}"
+        message = (u"{c}Title: {c4}{title} {c}Album: {c4}{album} {c}Faves: {c4}{faves}"
                    u" {c}Plays: {c4}{plays} {c}Tags: {c4}{tags}")
         message = message.format(
             title=song.metadata,
