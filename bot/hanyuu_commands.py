@@ -462,18 +462,24 @@ lucky.handler = (
 
 def search(server, nick, channel, text, hostmask):
     def format_date(dt):
+        minute = 60
+        hour = minute * 60
+        day = hour * 24
+        month = day * 30
+	
         if dt is None:
             return 'Never'
         else:
-            dt = datetime.now() - dt
+            delta = datetime.utcnow() - dt
 
-            if dt.total_seconds < 86400:
-                return '{h}h{m}m'.format(h=dt.total_seconds / 3600,
-                                         m=(dt.total_seconds % 3600) / 60)
-            elif dt.days > 30:
-                return '{m}m{d}d'.format(m=dt.days / 30, d=dt.days % 30)
+            seconds = delta.total_seconds()
+            if seconds < day:
+                return '{h:.0f}h{m:.0f}m'.format(h=seconds / hour,
+                                         m=(seconds % hour) / minute)
+            elif seconds > month:
+                return '{m:.0f}m{d:.0f}d'.format(m=seconds / month, d=(seconds % month) % day)
             else:
-                return '{d}d{h}h'.format(d=dt.days, h=dt.seconds / 3600)
+                return '{d:.0f}d{h:.0f}h'.format(d=seconds / day, h=(seconds % day) / hour)
 
     match = re.match(
         r"^(?P<mode>[.!@])s(earch)?\s(?P<query>.*)", text, re.I | re.U)
