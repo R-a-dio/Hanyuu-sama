@@ -477,7 +477,7 @@ def search(server, nick, channel, text, hostmask):
                 return '{h:.0f}h{m:.0f}m'.format(h=seconds / hour,
                                          m=(seconds % hour) / minute)
             elif seconds > month:
-                return '{m:.0f}m{d:.0f}d'.format(m=seconds / month, d=(seconds % month) % day)
+                return '{m:.0f}m{d:.0f}d'.format(m=seconds / month, d=(seconds % month) / day)
             else:
                 return '{d:.0f}d{h:.0f}h'.format(d=seconds / day, h=(seconds % day) / hour)
 
