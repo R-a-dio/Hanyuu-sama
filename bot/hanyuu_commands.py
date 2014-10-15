@@ -620,7 +620,7 @@ def info(server, nick, channel, text, hostmask):
             cur.execute("SELECT requestcount, priority, accepter, tags FROM tracks WHERE id=%s", (song.id,))
             for rc, prio, accepter, tags in cur:
                 message = (u"ID: {c4}{id} {c}Title: {c4}{title} {c}Faves:"
-                           u" {c4}{faves} {c}Plays: {c4}{plays} {c}Requests:"
+                           u" {c4}{faves} {c}Plays: {c4}{plays} {c}RC:"
                            u" {c4}{rc} {c}Priority: {c4}{prio} {c}CD: {c4}{cd}"
                            u" {c}Accepter: {c4}{accepter} {c}Tags: {c4}{tags}")
                 message = message.format(
