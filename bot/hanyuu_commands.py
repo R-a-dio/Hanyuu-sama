@@ -406,7 +406,7 @@ def random(server, nick, channel, text, hostmask):
     elif command:
 	result = manager.Song.search(command, limit=300)
 	message = None
-	random.shuffle(result)
+	_random.shuffle(result)
 	for song in result:
 		value = nick_request_song(song.id, hostmask)
 		if isinstance(value, tuple):
