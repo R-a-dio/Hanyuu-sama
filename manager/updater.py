@@ -23,7 +23,7 @@ def updater(event):
             if (status.online):
               status.update()
         except:
-            logging.info("THREADING: now playing updater encountered an error")
+            logging.exception("THREADING: now playing updater encountered an error")
         time.sleep(10)
     logging.info("THREADING: Stopping now playing updater")
 
