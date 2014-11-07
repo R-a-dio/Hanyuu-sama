@@ -403,6 +403,25 @@ def random(server, nick, channel, text, hostmask):
         songs = manager.Song.nick(fave_nick, limit=None, tracks=True)
         request_from_list(songs)
         return
+    elif command:
+	result = manager.Song.search(command, limit=300)
+	message = None
+	if result:
+		random.shuffle(result)
+		for song in result:
+			value = nick_request_song(song.id, hostmask)
+			if isinstance(value, tuple):
+				message = hanyuu_response(value[0], value[1])
+				if value[0] == 4:
+					continue
+				else:
+					break
+			elif isinstance(value, manager.Song):
+				manager.Queue().append_request(song)
+				request_announce(server, song)
+				return
+	if message is None:
+		message = u"Your query did not have any results"
     else:
         while True:
             song = manager.Song.random()
