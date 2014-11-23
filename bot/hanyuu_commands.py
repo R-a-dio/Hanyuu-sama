@@ -962,9 +962,9 @@ def nick_request_song(trackid, host=None):
                     lr_delay = requests_.songdelay(
                         row['requestcount']) - (int(time.time()) - song_lr)
                     delaytime = max(lp_delay, lr_delay)
-
-        if row['usable'] == 0:
-        	return 1
+	        if row['usable'] == 0:
+	        	return 1
+        
         if not can_request:
             return (2, delaytime)
         elif not can_afk:
