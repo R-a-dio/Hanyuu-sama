@@ -978,6 +978,6 @@ def nick_request_song(trackid, host=None):
                     cur.execute(
                         "INSERT INTO `nickrequesttime` (host, time) VALUES (%s, NOW());", (host,))
             cur.execute(
-                "UPDATE `tracks` SET `lastrequested`=NOW(), requestcount=requestcount+1 WHERE `id`=%s", (trackid,))
+                "UPDATE `tracks` SET `lastrequested`=NOW(), requestcount=requestcount+2 WHERE `id`=%s", (trackid,))
             song.update_index()
             return song

@@ -174,7 +174,7 @@ class FastCGIServer(object):
                             )
 
                         n = cur.execute(
-                            "UPDATE tracks SET lastrequested=NOW(), requestcount=requestcount+1 WHERE id=%s;",
+                            "UPDATE tracks SET lastrequested=NOW(), requestcount=requestcount+2 WHERE id=%s;",
                             (trackid,),
                         )
 
