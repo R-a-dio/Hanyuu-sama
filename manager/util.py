@@ -24,6 +24,10 @@ def search(query, limit=5):
             },
         },
         "from": 0, "size": limit,
+        "sort": [
+            { "requests": { "order": "desc", "ignore_unmapped": True }},
+            { "_score": { "order": "desc" }}
+        ]
     }
 
     res = elasticsearch_instance.search(config.elasticsearch_index, body=query)
