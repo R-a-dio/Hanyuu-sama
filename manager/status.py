@@ -37,27 +37,27 @@ class Status(object):
 
     @property
     def listeners(self):
-        return int(self.cached_status.get('Current Listeners', 0))
+        return int(self.cached_status.get('listeners', 0))
 
     @property
     def peak_listeners(self):
-        return int(self.cached_status.get('Peak Listeners', 0))
+        return int(self.cached_status.get('peak_listeners', 0))
 
     @property
     def online(self):
-        return self.status.get("Online", False)
+        return self.status.get("online", False)
 
     @property
     def started(self):  # NO LONGER RETURNED BY ICECAST. CHECK THIS.
-        return self.cached_status.get("Mount started", "Unknown")
+        return self.cached_status.get("stream_start", "Unknown")
 
     @property
     def type(self):  # This is never used.
-        return self.cached_status.get("Content Type", None)
+        return self.cached_status.get("server_type", None)
 
     @property
     def current(self):  # Not even needed. Hanyuu uses ICY-Metadata...
-        return self.cached_status.get("Current Song", u"")
+        return self.cached_status.get("current_song", u"")
 
     @property
     def thread(self):
