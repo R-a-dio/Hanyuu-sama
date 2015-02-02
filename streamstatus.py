@@ -57,10 +57,8 @@ def parse_status(result):
     if status:
         stats = status.get(config.icecast_mount, False)
 
-        # if we're offline, an empty object is returned by icecast,
-        # or icecast_json errors and returns None. 
+        # if we're offline, icecast now says it's offline!
         if stats:
-            stats["online"] = True
             return stats
 
     return {"online": False}
