@@ -109,5 +109,5 @@ colors = [(9.0,0.65,0.7), #itunes
                   (0.0,0.7,0.3), #web
                   (0.45,0.0,0.8)  #mplayer
                  ]
-CairoPlot.pie_plot('/home/www/r-a-dio/res/img/players.svg', players, 700, 450, colors=colors)
+CairoPlot.pie_plot('/radio/www/r-a-d.io/static/stats/players.svg', players, 700, 450, colors=colors)
 
