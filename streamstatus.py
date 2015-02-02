@@ -17,7 +17,7 @@ def get_status(server_name):
     slave relays, aggregating them, filtering negative, and summing them to give an
     artificial Master server listener count used by Hanyuu in every StatusUpdate call.
     """
-
+    result = {"online": False}
     try:
             response = requests.get(
                 config.icecast_status,
@@ -26,7 +26,6 @@ def get_status(server_name):
                 },
                 timeout=2
             )
-
     except requests.HTTPError as e:  # rare, mostly 403
         if not dns_spamfilter:
            logging.warning(
@@ -123,10 +122,10 @@ def icecast_json(result):
     if result.status_code == 400:
         error = error_regex.match(result.content)
         if error:
-            logging.warning("Listener stats - mount unavailable ({})".format(error.group('err')))
+            logging.warning("Icecast API - mount unavailable ({})".format(error.group('err')))
         else:
-            logging.warning("Unknown error when fetching listeners: {}".format(result.content))
+            logging.warning("Icecast API - Unknown error: {}".format(result.content))
     else:
-        logging.warning("Unknown error when fetching listeners: {}".format(result.content))
+        logging.warning("Icecast API - Unknown error: {}".format(result.content))
 
 
