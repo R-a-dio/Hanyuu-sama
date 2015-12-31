@@ -2,14 +2,13 @@ import logging
 import config
 import time
 import json
-from threading import Thread
+import threading
 from flup.server.fcgi import WSGIServer
 import MySQLdb
 import manager
 import bot
 from multiprocessing.managers import BaseManager
 import bootstrap
-
 import hashlib
 import hmac
 
@@ -74,6 +73,8 @@ class FastCGIServer(object):
                                  bindAddress=config.fastcgi_socket,
                                  umask=0)
 
+        self.lock = threading.Lock()
+
         # self.name = "Request FastCGI Server"
         # self.daemon = 1
         # self.start()
@@ -90,6 +91,13 @@ class FastCGIServer(object):
     def shutdown(self):
         self.server._exit()
 
+    def lock(f):
+        def lock(self, environ, start_response):
+            with self.lock:
+                return f(self, environ, start_response)
+        return lock
+
+    @lock
     def external_request(self, environ, start_response):
         if (self.status.requests_enabled):
             def is_int(num):
@@ -174,7 +182,7 @@ class FastCGIServer(object):
                             )
 
                         n = cur.execute(
-                            "UPDATE tracks SET lastrequested=NOW(), requestcount=requestcount+2 WHERE id=%s;",
+                            "UPDATE tracks SET lastrequested=NOW(), requestcount=requestcount+2,priority=priority+1 WHERE id=%s;",
                             (trackid,),
                         )
 
@@ -199,7 +207,7 @@ class FastCGIServer(object):
         print sitetext
 
         start_response('200 OK', [('Content-Type', 'application/json')])
-	yield json.dumps(dict(response=sitetext))
+        yield json.dumps(dict(response=sitetext))
 
 
 if __name__ == "__main__":
