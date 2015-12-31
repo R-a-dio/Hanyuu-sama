@@ -70,7 +70,7 @@ def parse_listeners(result):
     results = []
 
     if clients and clients.get(config.icecast_mount, False):
-        for listener in clients.get(config.icecast_mount, False):
+        for listener in clients[config.icecast_mount]["listeners"]:
             results.append({
                 "ip": listener["ip"],
                 "player": listener["user_agent"],
@@ -98,7 +98,7 @@ def get_listeners():
     except:
         logging.exception("get_listeners")
     else:
-        listeners.extend(list(parse_listeners(result)))
+        return parse_listeners(result)
 
         
 

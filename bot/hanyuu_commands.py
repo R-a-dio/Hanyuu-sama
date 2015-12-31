@@ -379,6 +379,7 @@ def random(server, nick, channel, text, hostmask):
         mode, command = match.group("mode", "command")
     else:
         return
+    command = command.strip()
 
     def request_from_list(songs):
         while len(songs) > 0:
@@ -399,7 +400,7 @@ def random(server, nick, channel, text, hostmask):
         request_from_list(songs)
         return
     elif re.match(r"^f(ave|avorite)? (.*)", command):
-        fave_nick = re.match(r"^f(ave|avorite)? (.*)", command).groups()[2]
+        fave_nick = re.match(r"^f(ave|avorite)? (.*)", command).groups()[1]
         songs = manager.Song.nick(fave_nick, limit=None, tracks=True)
         request_from_list(songs)
         return
@@ -978,6 +979,6 @@ def nick_request_song(trackid, host=None):
                     cur.execute(
                         "INSERT INTO `nickrequesttime` (host, time) VALUES (%s, NOW());", (host,))
             cur.execute(
-                "UPDATE `tracks` SET `lastrequested`=NOW(), requestcount=requestcount+2 WHERE `id`=%s", (trackid,))
+                "UPDATE `tracks` SET `lastrequested`=NOW(), requestcount=requestcount+2,priority=priority+1 WHERE `id`=%s", (trackid,))
             song.update_index()
             return song
