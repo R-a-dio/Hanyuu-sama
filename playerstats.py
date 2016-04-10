@@ -61,7 +61,7 @@ with manager.MySQLCursor() as cur:
         with manager.MySQLCursor() as cur2:
                 for row in cur:
                         time = row['ut']
-                        id = row['id'] 
+                        id = row['id']
                         if now - time > 14*24*3600: #entry expired
                                 cur2.execute("DELETE FROM `playerstats` WHERE `id`=%s;", (id,))
 with manager.MySQLCursor() as cur:

@@ -189,7 +189,7 @@ def dj(server, nick, channel, text, hostmask):
                             "I don't know this DJ!")
                     else:
                         result = list(result.groups())
-                        result[1:5] = u'|{c7} Stream:{c4} {status} {c7}DJ:{c4} {dj} {c11} http://r-a-d.io{c} |'.format(
+                        result[1:5] = u'|{c7} Stream:{c4} {status} {c7}DJ:{c4} {dj} {c11} https://r-a-d.io{c} |'.format(
                             status=new_status, dj=new_dj, **irc_colours)
                         server.topic(channel, u"".join(result))
                 else:
@@ -708,7 +708,7 @@ tags.handler = ("on_text", r'[.!@]tags?.*',
                 irc.ALL_NICKS, irc.MAIN_CHANNELS)
 
 def request_help(server, nick, channel, text, hostmask):
-    message = u"{nick}: http://r-a-d.io/search {c5}Thank you for listening to r/a/dio!".format(
+    message = u"{nick}: https://r-a-d.io/search {c5}Thank you for listening to r/a/dio!".format(
         nick=nick, **irc_colours)
     server.privmsg(channel, message)
 
@@ -951,7 +951,7 @@ def nick_request_song(trackid, host=None):
             can_afk = False
         can_song = True
         cur.execute(
-            "SELECT UNIX_TIMESTAMP(lastplayed) as lp, UNIX_TIMESTAMP(lastrequested) as lr, requestcount from `tracks` WHERE `id`=%s", (trackid,))
+            "SELECT UNIX_TIMESTAMP(lastplayed) as lp, UNIX_TIMESTAMP(lastrequested) as lr, requestcount, usable from `tracks` WHERE `id`=%s", (trackid,))
         if cur.rowcount == 1:
             row = cur.fetchone()
             song_lp = row['lp']
@@ -964,7 +964,9 @@ def nick_request_song(trackid, host=None):
                     lr_delay = requests_.songdelay(
                         row['requestcount']) - (int(time.time()) - song_lr)
                     delaytime = max(lp_delay, lr_delay)
-
+	        if row['usable'] == 0:
+	        	return 1
+        
         if not can_request:
             return (2, delaytime)
         elif not can_afk:
