@@ -75,6 +75,11 @@ class AudioFile(object):
             reader = opener(filename)
         except (audiotools.UnsupportedFile) as err:
             raise AudioError("Unsupported file: " + filename.encode('utf8'))
+        except (ValueError) as err:
+            raise AudioError("Unsupported file: " + filename.encode('utf8'))
+        except:
+            raise AudioError("Unsupported file: " + filename.encode('utf8'))
+
         
         self.file = reader
         total_frames = reader.total_frames()
