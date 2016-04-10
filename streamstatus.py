@@ -19,8 +19,7 @@ def get_status(server_name):
     """
     result = {"online": False}
     try:
-            response = requests.get(
-                config.icecast_status,
+            response = requests.get(config.icecast_status,
                 headers={
                     'User-Agent': 'Mozilla'
                 },
@@ -41,6 +40,17 @@ def get_status(server_name):
     else:
             result = parse_status(response)  # bytestring
 
+    # let's get the real listener count from the LB endpoint
+    try:
+        lb = requests.get(config.lb_endpoint, timeout=2)
+    except:
+        #logging.exception("Could not connect to load balancer status")
+        pass # not a big deal right now
+    else:
+        if lb.status_code == 200:
+            lb = lb.json()
+            if 'listeners' in lb:
+                result['listeners'] = lb['listeners']
     return result
 
 
