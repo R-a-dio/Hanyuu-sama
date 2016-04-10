@@ -349,10 +349,11 @@ def announce(server, spam=spam):
             **irc_colours)
         server.privmsg("#r/a/dio", message)
         spam.reset()
-    for nick in np.faves:
-        if server.inchannel("#r/a/dio", nick):
-            server.notice(nick, u"Fave: {0} is playing."
-                          .format(np.metadata))
+    faves = filter(lambda x: server.inchannel("#r/a/dio", x), np.faves)
+    chunked = [faves[i:i+4] for i in xrange(0, len(faves), 4)]
+    for chunk in chunked:
+        server.notice(chunk, u"Fave: {0} is playing."
+                      .format(np.metadata))
 
 announce.exposed = True
 

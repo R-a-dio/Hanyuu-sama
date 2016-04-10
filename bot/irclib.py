@@ -494,6 +494,8 @@ class ServerConnection(Connection):
         self.localport = localport
         self.localhost = socket.gethostname()
         self.featurelist = {}
+        self.sqlite.close()
+        self.sqlite = SqliteConnection()
         self._ipv6 = ipv6
         self._ssl = ssl
         if ipv6:
@@ -909,6 +911,8 @@ class ServerConnection(Connection):
     def notice(self, target, text):
         """Send a NOTICE command."""
         # Should limit len(text) here!
+        if isinstance(target, list):
+            target = ','.join(target)
         self.send_raw(u"NOTICE %s :%s" % (target, text))
 
     def oper(self, nick, password):
