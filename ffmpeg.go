@@ -8,9 +8,6 @@ import (
 	"os/exec"
 )
 
-// FFmpegExecutable is the filename/name of the ffmpeg executable
-const FFmpegExecutable = "ffmpeg"
-
 // FFmpeg represents a ffmpeg process
 type FFmpeg struct {
 	started bool
@@ -41,6 +38,7 @@ func (ff *FFmpeg) Start() error {
 
 	ff.started = true
 	go ff.handleErrors()
+	return nil
 }
 
 // Close waits for the process to complete, see os/exec.Cmd.Wait for
@@ -90,7 +88,7 @@ func NewFFmpeg(ctx context.Context, filename string) (ff *FFmpeg, err error) {
 
 	ctx, ff.cancel = context.WithCancel(ctx)
 	// prepare the os/exec command and give us access to output pipes
-	ff.Cmd = exec.CommandContext(ctx, FFmpegExecutable, args...)
+	ff.Cmd = exec.CommandContext(ctx, "ffmpeg", args...)
 	ff.Stdout, err = ff.Cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
