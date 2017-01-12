@@ -1,4 +1,4 @@
-package ffmpeg
+package main
 
 import (
 	"bufio"
@@ -8,31 +8,18 @@ import (
 	"os/exec"
 )
 
-// ExecutableName is the filename/name of the ffmpeg executable
-var ExecutableName = "ffmpeg"
+// FFmpegExecutable is the filename/name of the ffmpeg executable
+const FFmpegExecutable = "ffmpeg"
 
-// Arguments is the argument list passed to the ffmpeg executable with
-// all occurences of {filename} replaced with the given filename
-var Arguments = []string{
-	"-hide_banner",
-	"-loglevel", "error",
-	"-i", "{filename}",
-	"-f", "s16le",
-	"-acodec", "pcm_s16le",
-	"-",
-}
-
-// Error represents a ffmpeg error
-type Error struct {
-}
-
-// Process represents a ffmpeg process
-type Process struct {
-	started    bool
-	closed     bool
+// FFmpeg represents a ffmpeg process
+type FFmpeg struct {
+	started bool
+	// cancel function to be called from Close
+	cancel context.CancelFunc
+	// indicates if close was called before
+	closed bool
+	// error returned from Close
 	closeError error
-
-	Ctx context.Context
 
 	Filename string
 
@@ -42,79 +29,77 @@ type Process struct {
 }
 
 // Start starts the process
-func (pr *Process) Start() error {
-	if pr.started {
-		panic("invalid usage of process: Start called twice")
+func (ff *FFmpeg) Start() error {
+	if ff.started {
+		panic("invalid usage of FFmpeg: Start called twice")
 	}
 
-	err := pr.Cmd.Start()
+	err := ff.Cmd.Start()
 	if err != nil {
 		return err
 	}
 
-	pr.started = true
-	go pr.handleErrors()
+	ff.started = true
+	go ff.handleErrors()
 }
 
 // Close waits for the process to complete, see os/exec.Cmd.Wait for
 // extended documentation.
-func (pr *Process) Close() error {
-	if pr.closed {
-		return pr.closeError
+func (ff *FFmpeg) Close() error {
+	if ff.closed {
+		return ff.closeError
 	}
 
-	pr.closed = true
-	pr.closeError = pr.Cmd.Wait()
-	return pr.closeError
+	ff.cancel()
+	ff.closed = true
+	ff.closeError = ff.Cmd.Wait()
+	return ff.closeError
 }
 
-func (pr *Process) handleErrors() {
-	s := bufio.NewScanner(pr.Stderr)
+func (ff *FFmpeg) handleErrors() {
+	s := bufio.NewScanner(ff.Stderr)
 	for s.Scan() {
 		fmt.Println(s.Text())
 	}
 }
 
-func (pr *Process) Read(p []byte) (n int, err error) {
-	if !pr.started {
-		if err = pr.Start(); err != nil {
+func (ff *FFmpeg) Read(p []byte) (n int, err error) {
+	if !ff.started {
+		if err = ff.Start(); err != nil {
 			return 0, err
 		}
 	}
 
-	return pr.Stdout.Read(p)
+	return ff.Stdout.Read(p)
 }
 
-// NewProcess prepares a new ffmpeg process for decoding the filename given.
-func NewProcess(filename string) (pr *Process, err error) {
-	return NewProcessContext(context.Background(), filename)
-}
+// NewFFmpeg prepares a new ffmpeg process for decoding the filename given. The context
+// given is passed to os/exec.Cmd
+func NewFFmpeg(ctx context.Context, filename string) (ff *FFmpeg, err error) {
+	ff = &FFmpeg{Filename: filename}
 
-// NewProcessContext prepares a new ffmpeg process for decoding the filename given, while
-// supporting the Context interface.
-func NewProcessContext(ctx context.Context, filename string) (pr *Process, err error) {
-	pr = &Process{Filename: filename, Ctx: ctx}
-
-	// prepare executable arguments
-	var args = make([]string, len(Arguments))
-	copy(args, Arguments)
-	for i, f := range args {
-		if f == "{filename}" {
-			args[i] = pr.Filename
-		}
+	// prepare arguments
+	args := []string{
+		"-hide_banner",
+		"-loglevel", "error",
+		"-i", filename,
+		"-f", "s16le",
+		"-acodec", "pcm_s16le",
+		"-",
 	}
 
+	ctx, ff.cancel = context.WithCancel(ctx)
 	// prepare the os/exec command and give us access to output pipes
-	pr.Cmd = exec.CommandContext(pr.Ctx, ExecutableName, args...)
-	pr.Stdout, err = pr.Cmd.StdoutPipe()
+	ff.Cmd = exec.CommandContext(ctx, FFmpegExecutable, args...)
+	ff.Stdout, err = ff.Cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
 	}
 
-	pr.Stderr, err = pr.Cmd.StderrPipe()
+	ff.Stderr, err = ff.Cmd.StderrPipe()
 	if err != nil {
 		return nil, err
 	}
 
-	return pr, nil
+	return ff, nil
 }
