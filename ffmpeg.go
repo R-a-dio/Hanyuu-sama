@@ -1,11 +1,10 @@
 package main
 
 import (
-	"bufio"
+	"bytes"
 	"context"
-	"fmt"
-	"io"
 	"os/exec"
+	"time"
 )
 
 // FFmpeg represents a ffmpeg process
@@ -21,8 +20,8 @@ type FFmpeg struct {
 	Filename string
 
 	Cmd    *exec.Cmd
-	Stdout io.ReadCloser
-	Stderr io.ReadCloser
+	Stdout *bytes.Buffer
+	Stderr *bytes.Buffer
 }
 
 // Start starts the process
@@ -37,38 +36,26 @@ func (ff *FFmpeg) Start() error {
 	}
 
 	ff.started = true
-	go ff.handleErrors()
 	return nil
 }
 
 // Close waits for the process to complete, see os/exec.Cmd.Wait for
 // extended documentation.
 func (ff *FFmpeg) Close() error {
-	if ff.closed {
-		return ff.closeError
-	}
-
-	ff.cancel()
-	ff.closed = true
-	ff.closeError = ff.Cmd.Wait()
-	return ff.closeError
-}
-
-func (ff *FFmpeg) handleErrors() {
-	s := bufio.NewScanner(ff.Stderr)
-	for s.Scan() {
-		fmt.Println(s.Text())
-	}
-}
-
-func (ff *FFmpeg) Read(p []byte) (n int, err error) {
-	if !ff.started {
-		if err = ff.Start(); err != nil {
-			return 0, err
+	// implement a timeout, we kill the process if waiting
+	// takes too long.
+	var done = make(chan struct{})
+	go func() {
+		select {
+		case <-time.Tick(time.Second / 4):
+			ff.cancel()
+		case <-done:
 		}
-	}
+	}()
 
-	return ff.Stdout.Read(p)
+	err := ff.Cmd.Wait()
+	close(done)
+	return err
 }
 
 // NewFFmpeg prepares a new ffmpeg process for decoding the filename given. The context
@@ -89,15 +76,12 @@ func NewFFmpeg(ctx context.Context, filename string) (ff *FFmpeg, err error) {
 	ctx, ff.cancel = context.WithCancel(ctx)
 	// prepare the os/exec command and give us access to output pipes
 	ff.Cmd = exec.CommandContext(ctx, "ffmpeg", args...)
-	ff.Stdout, err = ff.Cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
+	ff.Stdout = new(bytes.Buffer)
+	ff.Cmd.Stdout = ff.Stdout
 
-	ff.Stderr, err = ff.Cmd.StderrPipe()
-	if err != nil {
-		return nil, err
-	}
+	// stderr is only used when an error is reported by exec.Cmd
+	ff.Stderr = new(bytes.Buffer)
+	ff.Cmd.Stderr = ff.Stderr
 
 	return ff, nil
 }
