@@ -8,46 +8,30 @@ import (
 )
 
 // FFmpeg represents a ffmpeg process
+//
+// FFmpeg decodes audio from the filename given and outputs
+// PCM data in 16-bit little-endian stereo format
 type FFmpeg struct {
-	started bool
-	// cancel function to be called from Close
-	cancel context.CancelFunc
-	// indicates if close was called before
-	closed bool
-	// error returned from Close
-	closeError error
-
 	Filename string
+	Cmd      *exec.Cmd
+	cancel   context.CancelFunc
 
-	Cmd    *exec.Cmd
 	Stdout *bytes.Buffer
 	Stderr *bytes.Buffer
 }
 
 // Start starts the process
 func (ff *FFmpeg) Start() error {
-	if ff.started {
-		panic("invalid usage of FFmpeg: Start called twice")
-	}
-
-	err := ff.Cmd.Start()
-	if err != nil {
-		return err
-	}
-
-	ff.started = true
-	return nil
+	return ff.Cmd.Start()
 }
 
-// Close waits for the process to complete, see os/exec.Cmd.Wait for
-// extended documentation.
-func (ff *FFmpeg) Close() error {
-	// implement a timeout, we kill the process if waiting
-	// takes too long.
+// Wait waits for the process to complete for the maximum amount of
+// time as given by timeout.
+func (ff *FFmpeg) Wait(timeout time.Duration) error {
 	var done = make(chan struct{})
 	go func() {
 		select {
-		case <-time.Tick(time.Second / 4):
+		case <-time.Tick(timeout):
 			ff.cancel()
 		case <-done:
 		}
@@ -69,6 +53,7 @@ func NewFFmpeg(ctx context.Context, filename string) (ff *FFmpeg, err error) {
 		"-loglevel", "error",
 		"-i", filename,
 		"-f", "s16le",
+		"-ac", "2",
 		"-acodec", "pcm_s16le",
 		"-",
 	}
