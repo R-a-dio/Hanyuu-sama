@@ -26,9 +26,10 @@ def songdelay(val):
     # return int(25133*math.exp(0.1625*val)+0.5)
     # return int(-123.82*val**3 + 3355.2*val**2 + 10110*val + 51584 + 0.5)
     if 0 <= val <= 7:
-        return -11057 * val ** 2 + 172954 * val + 81720
+        cd = -11057 * val ** 2 + 172954 * val + 81720
     else:
-        return int(599955 * math.exp(0.0372 * val) + 0.5)
+        cd = int(599955 * math.exp(0.0372 * val) + 0.5)
+    return cd / 2
 
 
 def check_hmac(value, hash):

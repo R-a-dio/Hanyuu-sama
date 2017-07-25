@@ -194,8 +194,8 @@ class Song(object):
         rc = min(rc, 30)
 
         if 0 <= rc <= 7:
-            return -11057 * rc ** 2 + 172954 * rc + 81720
-        return int(599955 * math.exp(0.0372 * rc) + 0.5)
+            return (-11057 * rc ** 2 + 172954 * rc + 81720) / 2
+        return int(599955 * math.exp(0.0372 * rc) + 0.5) / 2
 
     @property
     def requestable(self):
