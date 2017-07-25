@@ -51,6 +51,11 @@ def extract_ip_address(environ):
 
     return ip
 
+def method_lock(f):
+    def wrapped_lock(self, environ, start_response):
+        with self.lock:
+            return f(self, environ, start_response)
+    return wrapped_lock
 
 class FastCGIServer(object):
 
@@ -70,11 +75,12 @@ class FastCGIServer(object):
         self.queue = manager.Queue()
         self.status = manager.Status()
 
+        print self.external_request
+        self.lock = threading.Lock()
+        print self.lock
         self.server = WSGIServer(self.external_request,
                                  bindAddress=config.fastcgi_socket,
-                                 umask=0)
-
-        self.lock = threading.Lock()
+                                 umask=0, multithreaded=False)
 
         # self.name = "Request FastCGI Server"
         # self.daemon = 1
@@ -92,14 +98,82 @@ class FastCGIServer(object):
     def shutdown(self):
         self.server._exit()
 
-    def lock(f):
-        def lock(self, environ, start_response):
-            with self.lock:
-                return f(self, environ, start_response)
-        return lock
+    def handle_request(self, trackid, ip):
+        canrequest_ip = False
+        canrequest_song = False
+        with manager.MySQLCursor(cursortype=MySQLdb.cursors.Cursor) as cur:
+            # SQL magic
+            query = ("SELECT UNIX_TIMESTAMP(time) AS time FROM requesttime WHERE ip="
+                    "%s LIMIT 1;")
+            cur.execute(query, (ip,))
+            for iptime, in cur:
+                has_requesttime_entry = True
+                break
+            else:
+                has_requesttime_entry = False
+                iptime = 0
 
-    @lock
+            if debug:
+                print "Extracted iptime of: ", iptime
+
+            now = int(time.time())
+            if now - iptime > 3600*2:
+                canrequest_ip = True
+
+            if debug:
+                print "IP requestable: ", canrequest_ip
+
+            cur.execute("SELECT usable, UNIX_TIMESTAMP(lastrequested) as lr, "
+                        "requestcount, UNIX_TIMESTAMP(lastplayed) as lp "
+                        "FROM `tracks` WHERE `id`=%s LIMIT 1;", (trackid,))
+
+            for usable, lrtime, rc, lptime in cur:
+                canrequest_song = ((now - lrtime) > songdelay(rc) and
+                                   (now - lptime) > songdelay(rc))
+
+            if debug:
+                print "Song requestable: ", canrequest_song
+
+            if not canrequest_ip:
+                return "You need to wait longer before requesting again."
+            elif not canrequest_song:
+                return "You need to wait longer before requesting this song."
+            elif not usable:
+                return "This song can't be requested yet."
+            # SQL magic
+            if has_requesttime_entry:
+                cur.execute(
+                    "UPDATE requesttime SET time=NOW() WHERE ip=%s;",
+                    (ip,),
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO requesttime (ip) VALUES (%s);",
+                    (ip,),
+                )
+
+            n = cur.execute(
+                "UPDATE tracks SET lastrequested=NOW(), requestcount=requestcount+2,priority=priority+1 WHERE id=%s;",
+                (trackid,),
+            )
+
+        print "finishing up request of: ", trackid
+        song = manager.Song(trackid)
+        try:
+            self.queue.append_request(song)
+        except:
+            logging.exception("QUEUE PROBLEMS BLAME VIN")
+
+        # Website search index update
+        song.update_index()
+
+        # Silly IRC announce
+        bot.request_announce(song.id)
+        return "Thank you for making your request!"
+
+    @method_lock
     def external_request(self, environ, start_response):
+        print self.lock
         if (self.status.requests_enabled):
             def is_int(num):
                 try:
@@ -117,8 +191,6 @@ class FastCGIServer(object):
             if len(splitdata) == 2 and splitdata[0] == 'songid' \
                     and is_int(splitdata[1]):
                 trackid = int(splitdata[1])
-                canrequest_ip = False
-                canrequest_song = False
 
                 if debug:
                     print "Extracting environ info"
@@ -128,78 +200,7 @@ class FastCGIServer(object):
                 if debug:
                     print "Extracted IP: ", ip
 
-                with manager.MySQLCursor(cursortype=MySQLdb.cursors.Cursor) as cur:
-                    # SQL magic
-                    query = ("SELECT UNIX_TIMESTAMP(time) AS time FROM requesttime WHERE ip="
-                            "%s LIMIT 1;")
-                    cur.execute(query, (ip,))
-                    for iptime, in cur:
-                        has_requesttime_entry = True
-                        break
-                    else:
-                        has_requesttime_entry = False
-                        iptime = 0
-
-                    if debug:
-                        print "Extracted iptime of: ", iptime
-
-                    now = int(time.time())
-                    if now - iptime > 3600*2:
-                        canrequest_ip = True
-
-                    if debug:
-                        print "IP requestable: ", canrequest_ip
-
-                    cur.execute("SELECT usable, UNIX_TIMESTAMP(lastrequested) as lr, "
-                                "requestcount, UNIX_TIMESTAMP(lastplayed) as lp "
-                                "FROM `tracks` WHERE `id`=%s LIMIT 1;", (trackid,))
-
-                    for usable, lrtime, rc, lptime in cur:
-                        canrequest_song = ((now - lrtime) > songdelay(rc) and
-                                           (now - lptime) > songdelay(rc))
-
-                    if debug:
-                        print "Song requestable: ", canrequest_song
-
-                    if not canrequest_ip or not canrequest_song or not usable:
-                        if not canrequest_ip:
-                            sitetext = "You need to wait longer before requesting again."
-                        elif not canrequest_song:
-                            sitetext = "You need to wait longer before requesting this song."
-                        elif not usable:
-                            sitetext = "This song can't be requested yet."
-                    else:
-                        sitetext = "Thank you for making your request!"
-                        # SQL magic
-                        if has_requesttime_entry:
-                            cur.execute(
-                                "UPDATE requesttime SET time=NOW() WHERE ip=%s;",
-                                (ip,),
-                            )
-                        else:
-                            cur.execute(
-                                "INSERT INTO requesttime (ip) VALUES (%s);", 
-                                (ip,),
-                            )
-
-                        n = cur.execute(
-                            "UPDATE tracks SET lastrequested=NOW(), requestcount=requestcount+2,priority=priority+1 WHERE id=%s;",
-                            (trackid,),
-                        )
-
-                        print "finishing up request of: ", trackid
-                        song = manager.Song(trackid)
-                        try:
-                            self.queue.append_request(song)
-                        except:
-                            logging.exception("QUEUE PROBLEMS BLAME VIN")
-
-                        # Website search index update
-                        song.update_index()
-
-                        # Silly IRC announce
-                        bot.request_announce(song.id)
-
+                sitetext = self.handle_request(trackid, ip)
             else:
                 sitetext = "Invalid parameter."
         else:
@@ -208,7 +209,7 @@ class FastCGIServer(object):
         print sitetext
 
         start_response('200 OK', [('Content-Type', 'application/json')])
-        yield json.dumps(dict(response=sitetext))
+        return json.dumps(dict(response=sitetext))
 
 
 if __name__ == "__main__":
