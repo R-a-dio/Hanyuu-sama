@@ -3,6 +3,7 @@ import time
 import logging
 
 import mutagen
+import requests
 
 from .util import MySQLNormalCursor, MySQLCursor, unix_to_text, search
 import config
@@ -523,9 +524,7 @@ class Song(object):
         try:
             requests.get(url, auth=(config.index_user, config.index_pass))
         except:
-            # all that matters is that it's pinged.
-            # the response is for sanity checking.
-            pass
+            logging.exception("Failed song indexing ping")
 
     def __str__(self):
         return self.__repr__()
