@@ -92,10 +92,9 @@ def create_faves_code(server, nick, channel, text, hostmask):
         authcode = None
         if cur.rowcount > 0:
             authcode = cur.fetchone()['authcode']
-            print authcode
         if not authcode:
             while True:
-                authcode = str(_random.getrandbits(24))
+                authcode = "{:x}".format(_random.getrandbits(10*8))
                 cur.execute(
                     "SELECT * FROM enick WHERE `authcode`=%s", (authcode,))
                 if cur.rowcount == 0:
