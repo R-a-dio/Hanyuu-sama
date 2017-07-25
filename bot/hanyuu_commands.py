@@ -927,6 +927,7 @@ def nick_request_song(trackid, host=None):
     # rewrite shit man
     import time
     import requests_  # fixed import
+    song = None
     with manager.MySQLCursor() as cur:
         try:
             song = manager.Song(trackid)
@@ -989,5 +990,6 @@ def nick_request_song(trackid, host=None):
                         "INSERT INTO `nickrequesttime` (host, time) VALUES (%s, NOW());", (host,))
             cur.execute(
                 "UPDATE `tracks` SET `lastrequested`=NOW(), requestcount=requestcount+2,priority=priority+1 WHERE `id`=%s", (trackid,))
-            song.update_index()
-            return song
+    # Make sure the cursor has committed its changes before we ping the index.
+    song.update_index()
+    return song
