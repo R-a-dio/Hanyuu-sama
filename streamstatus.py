@@ -3,13 +3,28 @@ import logging
 import re
 import config
 import manager
-import json
 import itertools
+import bs4
 from bootstrap import Switch
 
 dns_spamfilter = Switch(True)  # 15 second resetting spamfilter
 timeout = {}
 error_regex = re.compile("<b>(?P<err>[a-z ]+)<\/b>", re.IGNORECASE)
+
+def get_relay_listeners(relay_url):
+    try:
+        r1 = requests.get(relay_url, timeout=2)
+    except:
+        pass
+    else:
+        try:
+            if r1.status_code == 200:
+                for line in r1.text.split('\n'):
+                    if 'Current Listeners' in line:
+                        return int(line.split(' ')[2].strip())
+        except:
+            pass
+    return 0
 
 def get_status(server_name):
     """
@@ -44,6 +59,7 @@ def get_status(server_name):
     try:
         lb = requests.get(config.lb_endpoint, timeout=2)
     except:
+        #print 'ERROR'
         #logging.exception("Could not connect to load balancer status")
         pass # not a big deal right now
     else:
@@ -51,43 +67,33 @@ def get_status(server_name):
             lb = lb.json()
             if 'listeners' in lb:
                 result['listeners'] = lb['listeners']
+
+    #for relay in ['https://relay1.r-a-d.io/a.mp3.xspf', 'https://relay3.dorks.io/main.mp3.xspf', 'https://relay4.dorks.io/main.mp3.xspf']:
+    #    if 'listeners' in result:
+    #        result['listeners'] += get_relay_listeners(relay)
+
+#    try:
+#        r1 = requests.get("https://relay1.r-a-d.io/a.mp3.xspf", timeout=2)
+#    except:
+#        pass
+#    else:
+#        if r1.status_code == 200:
+#            for line in r1.text.split('\n'):
+#                if 'Current Listeners' in line:
+#                    result['listeners'] += int(line.split(' ')[2].strip())
+#                    break
     return result
 
 
 def parse_status(result):
-    """
-    SO I MADE ICECAST INTERPRET .json AS .xsl FOR SCIENCE
-
-
-    IT WORKED. I'M GOING TO HELL BUT IT WORKED.
-    """
-    status = icecast_json(result)
-
+    status = icecast_json(result, config.icecast_mountpoint)
 
     if status:
-        stats = status.get(config.icecast_mount, False)
-
-        # if we're offline, icecast now says it's offline!
-        if stats:
-            return stats
+        status["online"] = 'stream_start' in status
+        return status
 
     return {"online": False}
 
-
-
-def parse_listeners(result):
-    clients = icecast_json(result)
-    results = []
-
-    if clients and clients.get(config.icecast_mount, False):
-        for listener in clients[config.icecast_mount]["listeners"]:
-            results.append({
-                "ip": listener["ip"],
-                "player": listener["user_agent"],
-                "time": listener["connected_seconds"],
-            })
-
-    return results
 
 def get_listeners():
     """
@@ -95,7 +101,7 @@ def get_listeners():
     """
     try:
         result = requests.get(
-            '{url}/admin/listeners.json?mount={mount}'.format(
+            '{url}/admin/listclients?mount={mount}'.format(
                 url=config.icecast_server,
                 mount=config.icecast_mount
             ),
@@ -108,23 +114,43 @@ def get_listeners():
     except:
         logging.exception("get_listeners")
     else:
-        return parse_listeners(result)
+        return parse_listeners(result.text, config.icecast_mount)
 
-        
+def parse_listeners(result, mount):
+    parser = bs4.BeautifulSoup(result, "lxml-xml")
+    mounts = parser.findAll('source', {'mount': mount})
+    if not mounts:
+        return []
+
+    results = []
+    for listener in mounts[0].findAll('listener'):
+        results.append({
+            "ip": listener.IP.string,
+            "player": listener.UserAgent.string,
+            "time": int(listener.Connected.string),
+        })
+
+    return results
 
 
-def icecast_json(result):
+def icecast_json(result, mount):
     """
     Parse out json from an icecast endpoint.
     """
     if result.status_code == 200:
-        # we have json, fun
         result = result.json()
-        
-        if "mounts" in result:
-            return result["mounts"]
+        if "icestats" in result and "source" in result["icestats"]:
+            if isinstance(result["icestats"]["source"], dict):
+                return result["icestats"]["source"]
 
-        return result
+            for m in result["icestats"]["source"]:
+                _, url = m["listenurl"].rsplit("/", 1)
+                if url != mount:
+                    continue
+                return m
+
+            return {}
+        return {}
 
 
     if result.status_code == 400:
