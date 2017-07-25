@@ -5,6 +5,7 @@ import util
 import manager
 import bootstrap
 
+import datetime
 
 logger = logging.getLogger('afkstreamer')
 
@@ -20,6 +21,7 @@ class Streamer(object):
         super(Streamer, self).__init__()
         self.instance = None
         self.icecast_config = attributes
+        self.np_thread = None
 
         self.instance = audio.Manager(self.icecast_config, self.supply_song)
         self.close_at_end = threading.Event()
@@ -53,10 +55,12 @@ class Streamer(object):
     def supply_song(self):
         """Returns a tuple of (filename, metadata) to be played next."""
         # check if we got asked to shut down at end of track.
+        print datetime.datetime.now(), "supply song start"
         if (self.close_at_end.is_set()):
             self.shutdown(force=True)
         else:
             try:
+                print datetime.datetime.now(), "queue pop"
                 song = self.queue.pop()
             except manager.QueueError:
                 self.queue.clear_pops()
@@ -67,7 +71,13 @@ class Streamer(object):
                     song = self.queue.pop()
                 self.queue.clear_pops()
                 # update now playing
-                manager.NP.change(song)
+                print datetime.datetime.now(), "np change"
+                if self.np_thread is not None:
+                    self.np_thread.join(0.0)
+                self.np_thread = threading.Thread(target=manager.NP.change, args=(song,))
+                self.np_thread.daemon = False
+                self.np_thread.start()
+                print datetime.datetime.now(), "np change done"
 
                 return (song.filename, song.metadata)
         return (None, None)

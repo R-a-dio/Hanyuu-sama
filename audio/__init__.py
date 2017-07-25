@@ -6,6 +6,7 @@ import logging
 import garbage
 import audiotools
 
+import datetime
 
 # Remove this 
 logging.basicConfig(level=logging.DEBUG)
@@ -47,12 +48,15 @@ class Manager(object):
         return self.icecast.connected()
     
     def give_source(self):
+        print datetime.datetime.now(), "give_source"
         filename, meta = self.next_file()
         if filename is None:
             self.close()
             return None
         try:
+            print datetime.datetime.now(), "audiofile start"
             audiofile = files.AudioFile(filename)
+            print datetime.datetime.now(), "audiofile done"
         except (files.AudioError) as err:
             logger.exception("Unsupported file: " + filename.encode('utf8'))
             return self.give_source()
@@ -91,6 +95,7 @@ class UnendingSource(object):
         
     def change_source(self):
         """Calls the source function and returns the result if not None."""
+        print datetime.datetime.now(), "change_source"
         self.source.close()
         new_source = self.source_function()
         if new_source is None:

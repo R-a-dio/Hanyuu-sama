@@ -6,6 +6,7 @@ import select
 import logging
 import garbage
 
+import datetime
 
 LAME_BIN = 'lame'
 logger = logging.getLogger('audio.encoder')
