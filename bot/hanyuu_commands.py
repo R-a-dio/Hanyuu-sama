@@ -622,6 +622,7 @@ lastrequest.handler = ("on_text", r'[.!@]lastr(equest)?.*',
 
 def info(server, nick, channel, text, hostmask):
     """Returns info about a song ID"""
+    import time
     match = re.match(r'^[.!@]i(nfo)?\s?(?P<id>\d+)?$', text)
     id = match.group("id")
     try:
@@ -636,12 +637,17 @@ def info(server, nick, channel, text, hostmask):
         message = u'Invalid ID'
     else:
         with manager.MySQLNormalCursor() as cur:
-            cur.execute("SELECT requestcount, priority, accepter, tags FROM tracks WHERE id=%s", (song.id,))
-            for rc, prio, accepter, tags in cur:
+            cur.execute("SELECT requestcount, priority, accepter, tags, "
+                        "GREATEST(UNIX_TIMESTAMP(lastplayed), UNIX_TIMESTAMP(lastrequested)) as last"
+                        " FROM tracks WHERE id=%s", (song.id,))
+            for rc, prio, accepter, tags, last in cur:
                 message = (u"ID: {c4}{id} {c}Title: {c4}{title} {c}Faves:"
                            u" {c4}{faves} {c}Plays: {c4}{plays} {c}RC:"
-                           u" {c4}{rc} {c}Priority: {c4}{prio} {c}CD: {c4}{cd}"
+                           u" {c4}{rc} {c}Priority: {c4}{prio} {c}CD: {c4}{cd} ({cd_d})"
                            u" {c}Accepter: {c4}{accepter} {c}Tags: {c4}{tags}")
+                time_on_cd = last + song.delay - int(time.time())
+                if time_on_cd < 0 or last == 0:
+                    time_on_cd = 0
                 message = message.format(
                     id=song.id,
                     title=song.metadata,
@@ -650,6 +656,7 @@ def info(server, nick, channel, text, hostmask):
                     rc=rc,
                     prio=prio,
                     cd=small_time_format(song.delay, False),
+                    cd_d=small_time_format(time_on_cd, False) if time_on_cd > 0 else "!",
                     accepter=accepter,
                     tags=tags,
                     **irc_colours
