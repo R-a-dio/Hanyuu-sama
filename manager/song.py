@@ -68,13 +68,15 @@ class Song(object):
                             cur.execute("UPDATE `tracks` SET \
                             `lastplayed`=FROM_UNIXTIME(%s) \
                             WHERE `id`=%s LIMIT 1;", (self._lp, self.id))
-                            self.update_index() # update the search index for the song on the site
                     elif (key == "length"):
                         # change database entries for length data
                         cur.execute("UPDATE `esong` SET `len`=%s WHERE \
                         id=%s", (self.length, self.songid))
                     elif (key == "id"):
                         self._filename, temp = self.get_file(value)
+                # Update the search index if we need to.
+                if key == "lp" and self.afk:
+                    self.update_index()
 
     @staticmethod
     def create_digest(metadata):
