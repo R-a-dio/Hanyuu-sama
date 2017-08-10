@@ -34,6 +34,7 @@ class Status(object):
     __metaclass__ = bootstrap.Singleton
     _timeout = bootstrap.Switch(True, 0)
     _handlers = []
+    _last_listeners = 0
 
     @property
     def listeners(self):
@@ -93,6 +94,14 @@ class Status(object):
             # generally only have one row in it, this is not a problem.
             # !!!WARNING ABOVE
             cur.execute("UPDATE streamstatus SET requesting=%s;", (value,))
+
+    @property
+    def last_listeners(self):
+        return self._last_listeners
+
+    @last_listeners.setter
+    def last_listeners(self, ll):
+        self._last_listeners = ll
 
     @property
     def cached_status(self):
@@ -264,7 +273,14 @@ class NP(Song):
         if (current == song):
             return
         if (current.metadata != u""):
-            current.update(lp=time.time())
+            # Get the listener difference. Disregard it if the numbers
+            # are just too low; that probably means we are just starting
+            # up or we are switching DJ.
+            cur_list = Status().listeners
+            last_list = Status().last_listeners
+            Status().last_listeners = cur_list
+            diff = (cur_list - last_list) if (cur_list > 10 and last_list > 10) else None
+            current.update(lp=time.time(), ldiff=diff)
             if (current.length == 0):
                 current.update(length=(time.time() - current._start))
 

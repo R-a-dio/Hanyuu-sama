@@ -50,6 +50,10 @@ class Song(object):
             Updating the 'lp' and 'length' will directly affect the database
             while 'filename', 'metadata' and 'id' don't, updating 'id' also
             updates 'filename' but not 'metadata'
+
+            If an 'lp' key is given, an optional 'ldiff' key can be included
+            to be stored alongside the LP entry. This should be the difference
+            in listeners between now and when the previous song ended.
             """
         if (self.metadata == u'') and (kwargs.get("metadata", u"") == u""):
             return
@@ -61,9 +65,10 @@ class Song(object):
                 with MySQLCursor() as cur:
                     if (key == "lp"):
                         # change database entries for LP data
-                        cur.execute("INSERT INTO eplay (`isong`, `dt`) \
-                        VALUES(%s, FROM_UNIXTIME(%s));",
-                                    (self.songid, int(value)))
+                        ldiff = kwargs.get('ldiff', None)
+                        cur.execute("INSERT INTO eplay (`isong`, `dt`, `ldiff`) \
+                        VALUES(%s, FROM_UNIXTIME(%s), %s);",
+                                    (self.songid, int(value), ldiff))
                         if (self.afk):
                             cur.execute("UPDATE `tracks` SET \
                             `lastplayed`=FROM_UNIXTIME(%s) \
