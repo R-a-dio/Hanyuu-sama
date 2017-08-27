@@ -171,7 +171,7 @@ class DJ(object):
 
     @property
     def name(self):
-	with MySQLNormalCursor() as cur:
+        with MySQLNormalCursor() as cur:
             cur.execute("SELECT djname FROM streamstatus LIMIT 1;")
             for name, in cur:
                 return name
@@ -182,8 +182,13 @@ class DJ(object):
         username = self.is_valid(name)
         if username is None:
             raise TypeError("Invalid name, no such DJ")
-        
+
         with MySQLCursor() as cur:
+            if username == "guest" and ':' in name:
+                guestname = name.split(':')[1]
+                if len(guestname) > 0:
+                    # 43 is the guest dj profile.
+                    cur.execute("UPDATE djs SET djname=%s where id=43 LIMIT 1", (guestname,))
             cur.execute("UPDATE streamstatus SET djid=(SELECT djid FROM users WHERE user=%s LIMIT 1), djname=%s",
                         (username, name))
 
