@@ -171,7 +171,10 @@ def dj(server, nick, channel, text, hostmask):
     tokens = text.split(' ')
     new_dj = " ".join(tokens[1:])
     if new_dj != '':
-        if server.hasaccess(channel, nick):
+        is_guest_dj = re.match("guest:{0}$".format(nick), manager.DJ().name, re.I)
+        if server.hasaccess(channel, nick) or is_guest_dj:
+            if is_guest_dj:
+                new_dj = 'Hanyuu-sama'
             if new_dj:
                 if new_dj == 'None':
                     new_status = 'DOWN'
