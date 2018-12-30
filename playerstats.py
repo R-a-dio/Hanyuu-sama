@@ -9,7 +9,7 @@ import streamstatus
 import manager
 import config
 import time
-import cairoplot
+#import cairoplot
 
 OTHER = 0
 WEB = 1 #firefox, safari, chrome, opera, trident
@@ -114,6 +114,6 @@ colors = [(0.4,0.4,0.5), #mpc
 vals = zip(players, players.values())
 vals = sorted(vals, key=lambda x: x[0][2])
 print vals
-vals = map(lambda x: cairoplot.Group(x[1], x[0]), vals)
-cairoplot.pie_plot('/radio/www/r-a-d.io/static/stats/players.svg', vals, 700, 450, colors=colors)
+#vals = map(lambda x: cairoplot.Group(x[1], x[0]), vals)
+#cairoplot.pie_plot('/radio/www/static/stats/players.svg', vals, 700, 450, colors=colors)
 
