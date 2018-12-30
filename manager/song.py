@@ -529,7 +529,10 @@ class Song(object):
         url = config.index_route.format(self.id)
 
         try:
-            requests.get(url, auth=(config.index_user, config.index_pass))
+            requests.get(url,
+                headers={'User-Agent': config.user_agent},
+                auth=(config.index_user, config.index_pass)
+            )
         except:
             logging.exception("Failed song indexing ping")
 

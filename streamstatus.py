@@ -35,9 +35,7 @@ def get_status(server_name):
     result = {"online": False}
     try:
             response = requests.get(config.icecast_status,
-                headers={
-                    'User-Agent': 'Mozilla'
-                },
+                headers={'User-Agent': config.user_agent},
                 timeout=2
             )
     except requests.HTTPError as e:  # rare, mostly 403
@@ -57,7 +55,10 @@ def get_status(server_name):
 
     # let's get the real listener count from the LB endpoint
     try:
-        lb = requests.get(config.lb_endpoint, timeout=2)
+        lb = requests.get(config.lb_endpoint,
+            headers = {'User-Agent': config.user_agent},
+            timeout=2
+        )
     except:
         #print 'ERROR'
         #logging.exception("Could not connect to load balancer status")
@@ -106,7 +107,7 @@ def get_listeners():
                 mount=config.icecast_mount
             ),
             headers={
-                'User-Agent': 'Mozilla',
+                'User-Agent': config.user_agent,
                 'Referer': '{url}/admin/'.format(url=config.icecast_server),
                 'Authorization': 'Basic {}'.format(config.stream_admin_auth)
             },

@@ -315,7 +315,11 @@ class NP(Song):
                         urlparams['title'] = title.encode(
                             'utf-8') if isinstance(title,
                                                    unicode) else title
-                r = requests.get(url, params=urlparams, timeout=8)
+                r = requests.get(url,
+                    headers={'User-Agent': config.user_agent},
+                    params=urlparams,
+                    timeout=8
+                )
                 r.raise_for_status()
             except:
                 logging.warning("Error when contacting tuneIn API")
