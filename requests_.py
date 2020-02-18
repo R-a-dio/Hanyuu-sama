@@ -117,7 +117,7 @@ class FastCGIServer(object):
                 print "Extracted iptime of: ", iptime
 
             now = int(time.time())
-            if now - iptime > 3600*1:
+            if now - iptime > 1800:
                 canrequest_ip = True
 
             if debug:
